@@ -1,0 +1,12 @@
+LLA CRM
+Copyright (c) 2026 LLA (Pham Hoang Long)
+
+This product is developed on top of Chatwoot (community edition),
+Copyright (c) 2017-2026 Chatwoot Inc., licensed under the MIT License.
+See LICENSE for the full MIT license text.
+
+Chatwoot trademarks and brand assets are property of Chatwoot Inc. and are
+not used as branding of LLA CRM. The upstream "enterprise/" directory is
+covered by a separate license and is not part of this product's scope.
+
+Portions of this repository under lla/ are original works of LLA.

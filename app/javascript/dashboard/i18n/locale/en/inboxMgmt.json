@@ -488,6 +488,10 @@
             "TITLE": "Telegram",
             "DESCRIPTION": "Configure Telegram channel using Bot token"
           },
+          "ZALO": {
+            "TITLE": "Zalo OA",
+            "DESCRIPTION": "Connect a Zalo Official Account via the LLA bridge"
+          },
           "LINE": {
             "TITLE": "Line",
             "DESCRIPTION": "Integrate your Line channel"
@@ -537,6 +541,26 @@
         "SIGN_IN": "Sign in with Google",
         "EMAIL_PLACEHOLDER": "Enter email address",
         "ERROR_MESSAGE": "There was an error connecting to Google, please try again"
+      },
+      "ZALO_CHANNEL": {
+        "TITLE": "Zalo OA Channel",
+        "DESC": "Connect a Zalo Official Account through the LLA Zalo bridge. Create the inbox here, then authorize the OA from the bridge.",
+        "CHANNEL_NAME": {
+          "LABEL": "Inbox name",
+          "PLACEHOLDER": "Eg: Zalo OA LLA",
+          "ERROR": "Please enter an inbox name"
+        },
+        "BRIDGE_URL": {
+          "LABEL": "Zalo bridge URL",
+          "PLACEHOLDER": "https://zbridge.example.com",
+          "SUBTITLE": "The LLA Zalo bridge service that relays messages between the Zalo OA and this inbox.",
+          "ERROR": "Please enter a valid bridge URL (https)"
+        },
+        "AUTHORIZE_HELP": "After creating the inbox, open the bridge OAuth page to authorize your Official Account.",
+        "SUBMIT_BUTTON": "Create Zalo OA inbox",
+        "API": {
+          "ERROR_MESSAGE": "We were not able to create the inbox. Please try again"
+        }
       }
     },
     "DETAILS": {

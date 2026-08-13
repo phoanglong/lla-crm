@@ -490,6 +490,10 @@
             "TITLE": "Telegram",
             "DESCRIPTION": "Configure Telegram channel using Bot token"
           },
+          "ZALO": {
+            "TITLE": "Zalo OA",
+            "DESCRIPTION": "Kết nối Zalo Official Account qua LLA bridge"
+          },
           "LINE": {
             "TITLE": "Line",
             "DESCRIPTION": "Integrate your Line channel"
@@ -539,6 +543,26 @@
         "SIGN_IN": "Sign in with Google",
         "EMAIL_PLACEHOLDER": "Enter email address",
         "ERROR_MESSAGE": "There was an error connecting to Google, please try again"
+      },
+      "ZALO_CHANNEL": {
+        "TITLE": "Kênh Zalo OA",
+        "DESC": "Kết nối Zalo Official Account qua LLA Zalo bridge. Tạo hộp thư tại đây, sau đó uỷ quyền OA từ trang bridge.",
+        "CHANNEL_NAME": {
+          "LABEL": "Tên hộp thư",
+          "PLACEHOLDER": "VD: Zalo OA LLA",
+          "ERROR": "Vui lòng nhập tên hộp thư"
+        },
+        "BRIDGE_URL": {
+          "LABEL": "Địa chỉ Zalo bridge",
+          "PLACEHOLDER": "https://zbridge.example.com",
+          "SUBTITLE": "Dịch vụ LLA Zalo bridge trung chuyển tin nhắn giữa Zalo OA và hộp thư này.",
+          "ERROR": "Vui lòng nhập địa chỉ bridge hợp lệ (https)"
+        },
+        "AUTHORIZE_HELP": "Sau khi tạo hộp thư, mở trang uỷ quyền của bridge để uỷ quyền Official Account.",
+        "SUBMIT_BUTTON": "Tạo hộp thư Zalo OA",
+        "API": {
+          "ERROR_MESSAGE": "Không thể tạo hộp thư. Vui lòng thử lại"
+        }
       }
     },
     "DETAILS": {
