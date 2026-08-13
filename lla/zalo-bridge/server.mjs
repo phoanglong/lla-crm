@@ -269,32 +269,17 @@ const server = createServer(async (req, res) => {
       log("oauth.ok", {});
       return send(200, "<h2>✅ Đã uỷ quyền Zalo OA cho LLA CRM. Bạn có thể đóng tab này.</h2>", "text/html");
     }
-    if (url.pathname === "/webhook/zalo" && req.method === "POST") {
+    if (url.pathname.startsWith("/webhook/zalo") && req.method === "POST") {
       const raw = await readBody(req);
-      // Zalo BẮT BUỘC 200 OK cho cả lần Kiểm tra lẫn mọi sự kiện; luôn ACK 200,
-      // rồi mới xác minh chữ ký và CHỈ xử lý sự kiện hợp lệ.
+      // Zalo BẮT BUỘC 200 OK cho cả lần Kiểm tra lẫn mọi sự kiện; luôn ACK 200.
       send(200, JSON.stringify({ ok: true }));
-      // Debug chữ ký: log không điều kiện để dò đúng công thức Zalo (bật bằng ZALO_SIG_DEBUG=1).
-      if (ENV("ZALO_SIG_DEBUG") === "1") {
-        try {
-          const realMac = String(req.headers["x-zevent-signature"] || "").replace(/^mac=/, "");
-          let ts = ""; try { ts = String(JSON.parse(raw).timestamp ?? ""); } catch { /* */ }
-          const sha = (s) => createHash("sha256").update(s).digest("hex");
-          const hmac = (msg) => createHmac("sha256", APP_SECRET).update(msg).digest("hex");
-          const cands = {
-            a_aid_body_ts: sha(APP_ID + raw + ts + APP_SECRET),
-            b_body_sec: sha(raw + APP_SECRET),
-            c_aid_ts_sec: sha(APP_ID + ts + APP_SECRET),
-            d_aid_body_sec: sha(APP_ID + raw + APP_SECRET),
-            e_sec_aid_body_ts: sha(APP_SECRET + APP_ID + raw + ts),
-            f_ts_body_sec: sha(ts + raw + APP_SECRET),
-            g_hmac_body: hmac(raw),
-            h_hmac_aid_body_ts: hmac(APP_ID + raw + ts),
-            i_hmac_aid_body: hmac(APP_ID + raw),
-          };
-          const match = Object.keys(cands).find((k) => cands[k] === realMac) || "NONE";
-          log("zalo.sig.crack", { realMac, ts, bodyLen: raw.length, match });
-        } catch { /* */ }
+      // Bảo mật chống giả mạo: nếu đặt ZALO_WEBHOOK_TOKEN thì webhook URL phải là
+      // /webhook/zalo/<token>. Zalo cho đặt URL tuỳ ý nên đây là xác thực đáng tin,
+      // không phụ thuộc công thức chữ ký (mac) của Zalo.
+      const WEBHOOK_TOKEN = ENV("ZALO_WEBHOOK_TOKEN");
+      if (WEBHOOK_TOKEN) {
+        const suffix = url.pathname.replace(/^\/webhook\/zalo\/?/, "");
+        if (suffix !== WEBHOOK_TOKEN) { log("zalo.webhook.bad_token", {}); return; }
       }
       let valid = false;
       try { valid = verifyZaloSignature(raw, req.headers); } catch { valid = false; }
@@ -302,7 +287,7 @@ const server = createServer(async (req, res) => {
       handleZaloEvent(JSON.parse(raw)).catch((e) => log("zalo.handle.fail", { error: String(e) }));
       return;
     }
-    if (url.pathname === "/webhook/zalo" && req.method === "GET") {
+    if (url.pathname.startsWith("/webhook/zalo") && req.method === "GET") {
       return send(200, JSON.stringify({ ok: true }));
     }
     if (url.pathname === "/webhook/chatwoot" && req.method === "POST") {
