@@ -1,14 +1,18 @@
 // LLA CRM — Zalo OA Bridge
 // Cầu nối Zalo Official Account ↔ LLA CRM (Chatwoot API channel inbox).
-// Zero-dependency Node.js >= 20. MIT — © 2026 LLA.
+// Node.js >= 20. Phụ thuộc: undici (chỉ dùng khi bật proxy). MIT — © 2026 LLA.
 //
-// Luồng vào:  Zalo webhook -> /webhook/zalo -> tạo/tìm contact + hội thoại -> ghi tin nhắn incoming
+// Luồng vào:  Zalo webhook -> /webhook/zalo -> resolve user_id thật + tên -> ghi tin incoming
 // Luồng ra:   LLA CRM inbox webhook -> /webhook/chatwoot -> gửi tin ra Zalo CS API
 // OAuth:      /oauth/start -> Zalo permission -> /oauth/callback -> lưu token (refresh xoay vòng)
 //
+// Zalo YÊU CẦU các lệnh gọi API từ IP Việt Nam. Đặt ZALO_HTTP_PROXY=http://host:port
+// để định tuyến riêng openapi.zalo.me / oauth.zaloapp.com qua proxy VN.
+//
 // ENV bắt buộc: ZALO_APP_ID, ZALO_APP_SECRET, CHATWOOT_URL, CHATWOOT_API_TOKEN,
 //               CHATWOOT_ACCOUNT_ID, CHATWOOT_INBOX_ID, BRIDGE_PUBLIC_URL
-// ENV tuỳ chọn: PORT (8787), DATA_DIR (/data), ZALO_VERIFY_SIGNATURE (true)
+// ENV tuỳ chọn: PORT (8787), DATA_DIR (/data), ZALO_VERIFY_SIGNATURE (true),
+//               ZALO_HTTP_PROXY
 
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
@@ -26,6 +30,17 @@ const CW_ACCOUNT = ENV("CHATWOOT_ACCOUNT_ID");
 const CW_INBOX = ENV("CHATWOOT_INBOX_ID");
 const PUBLIC_URL = ENV("BRIDGE_PUBLIC_URL").replace(/\/$/, "");
 const VERIFY_SIG = ENV("ZALO_VERIFY_SIGNATURE", "true") !== "false";
+const ZALO_PROXY = ENV("ZALO_HTTP_PROXY");
+
+// Khi ZALO_HTTP_PROXY được đặt, các fetch tới Zalo đi qua proxy VN đó.
+let zaloDispatcher;
+if (ZALO_PROXY && ENV("NODE_ENV") !== "test") {
+  const { ProxyAgent } = await import("undici");
+  zaloDispatcher = new ProxyAgent(ZALO_PROXY);
+}
+function zfetch(url, opts = {}) {
+  return fetch(url, zaloDispatcher ? { ...opts, dispatcher: zaloDispatcher } : opts);
+}
 
 const STATE_FILE = join(DATA_DIR, "state.json");
 let state = { tokens: null, users: {}, convToUid: {} };
@@ -41,7 +56,7 @@ function log(event, extra = {}) {
 // ---------- Zalo OAuth v4 (refresh token xoay vòng, phải lưu lại) ----------
 async function exchangeToken(params) {
   const body = new URLSearchParams({ app_id: APP_ID, ...params });
-  const res = await fetch("https://oauth.zaloapp.com/v4/oa/access_token", {
+  const res = await zfetch("https://oauth.zaloapp.com/v4/oa/access_token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", secret_key: APP_SECRET },
     body,
@@ -63,6 +78,35 @@ async function zaloAccessToken() {
   return state.tokens.access;
 }
 
+// ---------- Zalo Open API (qua proxy VN) ----------
+async function zaloApi(path, { method = "GET", body } = {}) {
+  const token = await zaloAccessToken();
+  const res = await zfetch("https://openapi.zalo.me" + path, {
+    method,
+    headers: { access_token: token, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+// Webhook chỉ cho `user_id_by_app`, nhưng CS API cần `user_id` thật.
+// listrecentchat trả cả user_id (from_id), tên và avatar — dùng để resolve.
+async function resolveRecentUser(matchText) {
+  try {
+    const q = encodeURIComponent(JSON.stringify({ offset: 0, count: 10 }));
+    const data = await zaloApi("/v2.0/oa/listrecentchat?data=" + q);
+    const list = Array.isArray(data?.data) ? data.data : [];
+    const hit =
+      (matchText && list.find((m) => (m.message || "") === matchText && m.src === 1)) ||
+      list.find((m) => m.src === 1) ||
+      list[0];
+    if (hit) return { userId: hit.from_id, name: hit.from_display_name, avatar: hit.from_avatar };
+  } catch (e) {
+    log("zalo.resolve.fail", { error: String(e) });
+  }
+  return null;
+}
+
 // ---------- Chatwoot Application API ----------
 async function cw(method, path, body) {
   const res = await fetch(`${CW_URL}/api/v1/accounts/${CW_ACCOUNT}${path}`, {
@@ -73,7 +117,6 @@ async function cw(method, path, body) {
   if (!res.ok) throw new Error(`chatwoot ${method} ${path} -> ${res.status} ${await res.text()}`);
   return res.json();
 }
-// Bền qua restart: tìm theo identifier trước, cache sau.
 async function ensureContact(uid, profile) {
   const cached = state.users[uid];
   if (cached?.contactId) return cached.contactId;
@@ -88,6 +131,7 @@ async function ensureContact(uid, profile) {
       inbox_id: Number(CW_INBOX),
       name: profile?.display_name || `Khách Zalo ${uid.slice(-6)}`,
       identifier,
+      avatar_url: profile?.avatar || undefined,
       custom_attributes: { zalo_user_id: uid, kenh: "zalo_oa" },
     });
     contactId = created?.payload?.contact?.id ?? created?.payload?.id ?? created?.id;
@@ -123,10 +167,14 @@ async function ensureConversation(uid, contactId) {
 async function pushIncoming(uid, text, profile) {
   const contactId = await ensureContact(uid, profile);
   const convId = await ensureConversation(uid, contactId);
+  if (profile?.sendUserId) {
+    state.users[uid].sendUserId = profile.sendUserId;
+    saveState();
+  }
   await cw("POST", `/conversations/${convId}/messages`, {
     content: text, message_type: "incoming", private: false,
   });
-  log("zalo.incoming.delivered", { uid, convId });
+  log("zalo.incoming.delivered", { uid, convId, resolved: Boolean(profile?.sendUserId) });
 }
 
 // ---------- Zalo webhook ----------
@@ -152,7 +200,13 @@ async function handleZaloEvent(ev) {
   const uid = ev?.sender?.id;
   if (!uid) return;
   const text = extractZaloText(ev) ?? `(sự kiện ${name})`;
-  await pushIncoming(uid, text, ev?.sender);
+  const matchText = typeof ev?.message?.text === "string" ? ev.message.text : null;
+  const resolved = await resolveRecentUser(matchText);
+  await pushIncoming(uid, text, {
+    display_name: resolved?.name,
+    avatar: resolved?.avatar,
+    sendUserId: resolved?.userId,
+  });
 }
 
 // ---------- Chatwoot webhook (agent trả lời -> gửi ra Zalo) ----------
@@ -166,15 +220,14 @@ async function handleChatwootEvent(payload) {
     if (srcId.startsWith("zalo:")) uid = srcId.slice(5);
   }
   if (!uid) { log("cw.outgoing.no_uid", { convId }); return; }
-  const token = await zaloAccessToken();
-  const res = await fetch("https://openapi.zalo.me/v3.0/oa/message/cs", {
+  // Gửi tới user_id THẬT (đã resolve khi nhận tin); fallback về uid nếu chưa có.
+  const sendId = state.users[uid]?.sendUserId || uid;
+  const data = await zaloApi("/v3.0/oa/message/cs", {
     method: "POST",
-    headers: { "Content-Type": "application/json", access_token: token },
-    body: JSON.stringify({ recipient: { user_id: uid }, message: { text: payload?.content ?? "" } }),
+    body: { recipient: { user_id: sendId }, message: { text: payload?.content ?? "" } },
   });
-  const data = await res.json();
-  if (data?.error && data.error !== 0) log("zalo.send.fail", { convId, uid, data });
-  else log("zalo.send.ok", { convId, uid });
+  if (data?.error && data.error !== 0) log("zalo.send.fail", { convId, sendId, data });
+  else log("zalo.send.ok", { convId, sendId });
 }
 
 // ---------- HTTP server ----------
@@ -190,7 +243,7 @@ const server = createServer(async (req, res) => {
   };
   try {
     if (url.pathname === "/healthz") {
-      return send(200, JSON.stringify({ status: "ok", oa_uy_quyen: Boolean(state.tokens) }));
+      return send(200, JSON.stringify({ status: "ok", oa_uy_quyen: Boolean(state.tokens), proxy: Boolean(zaloDispatcher) }));
     }
     if (url.pathname === "/oauth/start") {
       const target = `https://oauth.zaloapp.com/v4/oa/permission?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(PUBLIC_URL + "/oauth/callback")}&state=llacrm`;
@@ -205,8 +258,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/webhook/zalo" && req.method === "POST") {
       const raw = await readBody(req);
-      // Zalo BẮT BUỘC webhook trả 200 OK cho cả lần "Kiểm tra" lẫn mọi sự kiện,
-      // nếu trả mã khác 200 Zalo sẽ coi webhook không hợp lệ. Vì vậy luôn ACK 200,
+      // Zalo BẮT BUỘC 200 OK cho cả lần Kiểm tra lẫn mọi sự kiện; luôn ACK 200,
       // rồi mới xác minh chữ ký và CHỈ xử lý sự kiện hợp lệ.
       send(200, JSON.stringify({ ok: true }));
       let valid = false;
@@ -216,7 +268,6 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/webhook/zalo" && req.method === "GET") {
-      // Một số cấu hình Zalo gọi GET để kiểm tra tồn tại endpoint.
       return send(200, JSON.stringify({ ok: true }));
     }
     if (url.pathname === "/webhook/chatwoot" && req.method === "POST") {
@@ -235,6 +286,6 @@ const server = createServer(async (req, res) => {
   }
 });
 if (ENV("NODE_ENV") !== "test") {
-  server.listen(PORT, "0.0.0.0", () => log("bridge.started", { port: PORT }));
+  server.listen(PORT, "0.0.0.0", () => log("bridge.started", { port: PORT, proxy: Boolean(zaloDispatcher) }));
 }
 export { verifyZaloSignature, extractZaloText, handleChatwootEvent, handleZaloEvent, state };
