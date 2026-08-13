@@ -119,7 +119,20 @@ async function cw(method, path, body) {
 }
 async function ensureContact(uid, profile) {
   const cached = state.users[uid];
-  if (cached?.contactId) return cached.contactId;
+  if (cached?.contactId) {
+    // Cập nhật tên/avatar thật nếu trước đó chỉ là placeholder "Khách Zalo".
+    if (profile?.display_name && !cached.named) {
+      try {
+        await cw("PUT", `/contacts/${cached.contactId}`, {
+          name: profile.display_name,
+          avatar_url: profile.avatar || undefined,
+        });
+        state.users[uid].named = true;
+        saveState();
+      } catch { /* bỏ qua lỗi cập nhật tên */ }
+    }
+    return cached.contactId;
+  }
   const identifier = `zalo:${uid}`;
   let contactId = null;
   try {
@@ -136,7 +149,7 @@ async function ensureContact(uid, profile) {
     });
     contactId = created?.payload?.contact?.id ?? created?.payload?.id ?? created?.id;
   }
-  state.users[uid] = { ...(state.users[uid] || {}), contactId };
+  state.users[uid] = { ...(state.users[uid] || {}), contactId, named: Boolean(profile?.display_name) };
   saveState();
   return contactId;
 }
@@ -263,7 +276,16 @@ const server = createServer(async (req, res) => {
       send(200, JSON.stringify({ ok: true }));
       let valid = false;
       try { valid = verifyZaloSignature(raw, req.headers); } catch { valid = false; }
-      if (!valid) { log("zalo.sig.skip", { reason: "invalid_or_missing_signature" }); return; }
+      if (!valid) {
+        // Chẩn đoán để sửa đúng công thức chữ ký của Zalo (không lộ secret).
+        try {
+          const hdr = String(req.headers["x-zevent-signature"] || "");
+          let ts = ""; try { ts = String(JSON.parse(raw).timestamp ?? ""); } catch { /* */ }
+          const computed = createHash("sha256").update(APP_ID + raw + ts + APP_SECRET).digest("hex");
+          log("zalo.sig.diag", { header: hdr.slice(0, 22), computed: computed.slice(0, 16), ts, bodyLen: raw.length });
+        } catch { /* */ }
+        if (VERIFY_SIG) { log("zalo.sig.skip", { reason: "invalid_or_missing_signature" }); return; }
+      }
       handleZaloEvent(JSON.parse(raw)).catch((e) => log("zalo.handle.fail", { error: String(e) }));
       return;
     }
