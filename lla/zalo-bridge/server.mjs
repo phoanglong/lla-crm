@@ -205,10 +205,19 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/webhook/zalo" && req.method === "POST") {
       const raw = await readBody(req);
-      if (!verifyZaloSignature(raw, req.headers)) { log("zalo.sig.fail", {}); return send(401, "bad signature", "text/plain"); }
-      send(200, JSON.stringify({ ok: true })); // trả 200 ngay, xử lý async
+      // Zalo BẮT BUỘC webhook trả 200 OK cho cả lần "Kiểm tra" lẫn mọi sự kiện,
+      // nếu trả mã khác 200 Zalo sẽ coi webhook không hợp lệ. Vì vậy luôn ACK 200,
+      // rồi mới xác minh chữ ký và CHỈ xử lý sự kiện hợp lệ.
+      send(200, JSON.stringify({ ok: true }));
+      let valid = false;
+      try { valid = verifyZaloSignature(raw, req.headers); } catch { valid = false; }
+      if (!valid) { log("zalo.sig.skip", { reason: "invalid_or_missing_signature" }); return; }
       handleZaloEvent(JSON.parse(raw)).catch((e) => log("zalo.handle.fail", { error: String(e) }));
       return;
+    }
+    if (url.pathname === "/webhook/zalo" && req.method === "GET") {
+      // Một số cấu hình Zalo gọi GET để kiểm tra tồn tại endpoint.
+      return send(200, JSON.stringify({ ok: true }));
     }
     if (url.pathname === "/webhook/chatwoot" && req.method === "POST") {
       const raw = await readBody(req);
