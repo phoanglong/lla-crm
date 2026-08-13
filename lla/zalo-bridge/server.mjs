@@ -15,7 +15,7 @@
 //               ZALO_HTTP_PROXY
 
 import { createServer } from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -277,16 +277,23 @@ const server = createServer(async (req, res) => {
       // Debug chữ ký: log không điều kiện để dò đúng công thức Zalo (bật bằng ZALO_SIG_DEBUG=1).
       if (ENV("ZALO_SIG_DEBUG") === "1") {
         try {
-          const hdrs = Object.keys(req.headers).filter((h) => /sig|mac|zevent|zalo/i.test(h));
+          const realMac = String(req.headers["x-zevent-signature"] || "").replace(/^mac=/, "");
           let ts = ""; try { ts = String(JSON.parse(raw).timestamp ?? ""); } catch { /* */ }
-          const c1 = createHash("sha256").update(APP_ID + raw + ts + APP_SECRET).digest("hex");
-          const c2 = createHash("sha256").update(raw + APP_SECRET).digest("hex");
-          const c3 = createHash("sha256").update(APP_ID + ts + APP_SECRET).digest("hex");
-          log("zalo.sig.debug", {
-            sigHeaders: hdrs.map((h) => h + "=" + String(req.headers[h]).slice(0, 30)),
-            ts, bodyLen: raw.length,
-            c_appid_body_ts: c1.slice(0, 16), c_body: c2.slice(0, 16), c_appid_ts: c3.slice(0, 16),
-          });
+          const sha = (s) => createHash("sha256").update(s).digest("hex");
+          const hmac = (msg) => createHmac("sha256", APP_SECRET).update(msg).digest("hex");
+          const cands = {
+            a_aid_body_ts: sha(APP_ID + raw + ts + APP_SECRET),
+            b_body_sec: sha(raw + APP_SECRET),
+            c_aid_ts_sec: sha(APP_ID + ts + APP_SECRET),
+            d_aid_body_sec: sha(APP_ID + raw + APP_SECRET),
+            e_sec_aid_body_ts: sha(APP_SECRET + APP_ID + raw + ts),
+            f_ts_body_sec: sha(ts + raw + APP_SECRET),
+            g_hmac_body: hmac(raw),
+            h_hmac_aid_body_ts: hmac(APP_ID + raw + ts),
+            i_hmac_aid_body: hmac(APP_ID + raw),
+          };
+          const match = Object.keys(cands).find((k) => cands[k] === realMac) || "NONE";
+          log("zalo.sig.crack", { realMac, ts, bodyLen: raw.length, match });
         } catch { /* */ }
       }
       let valid = false;
