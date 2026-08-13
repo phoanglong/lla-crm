@@ -274,18 +274,24 @@ const server = createServer(async (req, res) => {
       // Zalo BẮT BUỘC 200 OK cho cả lần Kiểm tra lẫn mọi sự kiện; luôn ACK 200,
       // rồi mới xác minh chữ ký và CHỈ xử lý sự kiện hợp lệ.
       send(200, JSON.stringify({ ok: true }));
+      // Debug chữ ký: log không điều kiện để dò đúng công thức Zalo (bật bằng ZALO_SIG_DEBUG=1).
+      if (ENV("ZALO_SIG_DEBUG") === "1") {
+        try {
+          const hdrs = Object.keys(req.headers).filter((h) => /sig|mac|zevent|zalo/i.test(h));
+          let ts = ""; try { ts = String(JSON.parse(raw).timestamp ?? ""); } catch { /* */ }
+          const c1 = createHash("sha256").update(APP_ID + raw + ts + APP_SECRET).digest("hex");
+          const c2 = createHash("sha256").update(raw + APP_SECRET).digest("hex");
+          const c3 = createHash("sha256").update(APP_ID + ts + APP_SECRET).digest("hex");
+          log("zalo.sig.debug", {
+            sigHeaders: hdrs.map((h) => h + "=" + String(req.headers[h]).slice(0, 30)),
+            ts, bodyLen: raw.length,
+            c_appid_body_ts: c1.slice(0, 16), c_body: c2.slice(0, 16), c_appid_ts: c3.slice(0, 16),
+          });
+        } catch { /* */ }
+      }
       let valid = false;
       try { valid = verifyZaloSignature(raw, req.headers); } catch { valid = false; }
-      if (!valid) {
-        // Chẩn đoán để sửa đúng công thức chữ ký của Zalo (không lộ secret).
-        try {
-          const hdr = String(req.headers["x-zevent-signature"] || "");
-          let ts = ""; try { ts = String(JSON.parse(raw).timestamp ?? ""); } catch { /* */ }
-          const computed = createHash("sha256").update(APP_ID + raw + ts + APP_SECRET).digest("hex");
-          log("zalo.sig.diag", { header: hdr.slice(0, 22), computed: computed.slice(0, 16), ts, bodyLen: raw.length });
-        } catch { /* */ }
-        if (VERIFY_SIG) { log("zalo.sig.skip", { reason: "invalid_or_missing_signature" }); return; }
-      }
+      if (!valid && VERIFY_SIG) { log("zalo.sig.skip", { reason: "invalid_or_missing_signature" }); return; }
       handleZaloEvent(JSON.parse(raw)).catch((e) => log("zalo.handle.fail", { error: String(e) }));
       return;
     }
