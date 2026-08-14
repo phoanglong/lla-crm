@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe 'Enterprise Passwords Controller', type: :request do
+RSpec.describe 'LLA Passwords Controller', type: :request do
   let!(:account) { create(:account) }
 
   describe 'POST /auth/password' do

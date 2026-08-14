@@ -7,5 +7,6 @@ module Lla::Account
 
   prepended do
     has_many :custom_roles, dependent: :destroy_async
+    has_one :account_saml_settings, dependent: :destroy
   end
 end

@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe 'Enterprise SAML OmniAuth Callbacks', type: :request do
+RSpec.describe 'LLA SAML OmniAuth Callbacks', type: :request do
   let!(:account) { create(:account) }
   let(:saml_settings) { create(:account_saml_settings, account: account) }
 
@@ -17,9 +17,17 @@ RSpec.describe 'Enterprise SAML OmniAuth Callbacks', type: :request do
   end
 
   before do
-    allow(ChatwootApp).to receive(:enterprise?).and_return(true)
     account.enable_features!('saml')
     saml_settings
+    # full_host được chốt lúc boot từ FRONTEND_URL (config/initializers/omniauth.rb);
+    # trong test trỏ về cùng host với phiên request.
+    OmniAuth.config.full_host = 'http://www.example.com'
+  end
+
+  after do
+    OmniAuth.config.mock_auth[:saml] = nil
+    OmniAuth.config.test_mode = false
+    OmniAuth.config.full_host = ENV.fetch('FRONTEND_URL', 'http://localhost:3000')
   end
 
   describe '#saml callback' do

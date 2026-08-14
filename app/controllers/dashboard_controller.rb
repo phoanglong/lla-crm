@@ -99,8 +99,14 @@ class DashboardController < ActionController::Base
   def allowed_login_methods
     methods = ['email']
     methods << 'google_oauth' if GlobalConfigService.load('ENABLE_GOOGLE_OAUTH_LOGIN', 'true').to_s != 'false'
-    methods << 'saml' if ChatwootHub.pricing_plan != 'community' && GlobalConfigService.load('ENABLE_SAML_SSO_LOGIN', 'true').to_s != 'false'
+    methods << 'saml' if saml_login_available? && GlobalConfigService.load('ENABLE_SAML_SSO_LOGIN', 'true').to_s != 'false'
     methods
+  end
+
+  # SAML là năng lực LLA (ADR-OMCRM-032); bản LLA không phụ thuộc pricing plan
+  # của Chatwoot Hub — điều kiện plan chỉ còn áp dụng cho cài đặt EE upstream.
+  def saml_login_available?
+    ChatwootApp.lla? || ChatwootHub.pricing_plan != 'community'
   end
 
   def set_application_pack
