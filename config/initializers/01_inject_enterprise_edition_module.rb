@@ -79,8 +79,14 @@ module InjectEnterpriseEditionModule
     end
   end
 
+  # Trả về nil (không phải false) khi không tìm thấy hằng. Bản gốc trả về false,
+  # và each_extension_for truyền kết quả đó vào lần gọi thứ hai — `false&.const_defined?`
+  # không short-circuit nên nổ NoMethodError ngay khi có một extension chưa định nghĩa
+  # namespace của nó. Xem ADR-OMCRM-032.
   def const_get_maybe_false(mod, name)
-    mod&.const_defined?(name, false) && mod&.const_get(name, false)
+    return unless mod.is_a?(Module)
+
+    mod.const_get(name, false) if mod.const_defined?(name, false)
   end
 end
 
