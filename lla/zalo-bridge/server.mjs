@@ -91,16 +91,18 @@ async function zaloApi(path, { method = "GET", body } = {}) {
 
 // Webhook chỉ cho `user_id_by_app`, nhưng CS API cần `user_id` thật.
 // listrecentchat trả cả user_id (from_id), tên và avatar — dùng để resolve.
-async function resolveRecentUser(matchText) {
+async function resolveRecentUser(matchText, uid) {
   try {
     const q = encodeURIComponent(JSON.stringify({ offset: 0, count: 10 }));
     const data = await zaloApi("/v2.0/oa/listrecentchat?data=" + q);
     const list = Array.isArray(data?.data) ? data.data : [];
+    const OA_ID = ENV("ZALO_OA_ID");
     const hit =
+      list.find((m) => String(m.from_id) === String(uid)) ||
       (matchText && list.find((m) => (m.message || "") === matchText && m.src === 1)) ||
-      list.find((m) => m.src === 1) ||
-      list[0];
-    if (hit) return { userId: hit.from_id, name: hit.from_display_name, avatar: hit.from_avatar };
+      null;
+    if (hit && (!OA_ID || String(hit.from_id) !== OA_ID))
+      return { userId: hit.from_id, name: hit.from_display_name, avatar: hit.from_avatar };
   } catch (e) {
     log("zalo.resolve.fail", { error: String(e) });
   }
@@ -209,12 +211,23 @@ function extractZaloText(ev) {
 }
 async function handleZaloEvent(ev) {
   const name = ev?.event_name || "";
+  const OA_ID = ENV("ZALO_OA_ID");
+  const evOa = String(ev?.oa_id || ev?.recipient?.id || "");
+  if (OA_ID && evOa && evOa !== OA_ID) { log("zalo.event.foreign_oa", { name, oa: evOa }); return; }
   if (!name.startsWith("user_send")) { log("zalo.event.skip", { name }); return; }
   const uid = ev?.sender?.id;
   if (!uid) return;
+  const msgId = ev?.message?.msg_id;
+  if (msgId) {
+    state.seenMsgs = Array.isArray(state.seenMsgs) ? state.seenMsgs : [];
+    if (state.seenMsgs.includes(msgId)) { log("zalo.event.dup", { msgId }); return; }
+    state.seenMsgs.push(msgId);
+    if (state.seenMsgs.length > 500) state.seenMsgs = state.seenMsgs.slice(-250);
+    saveState();
+  }
   const text = extractZaloText(ev) ?? `(sự kiện ${name})`;
   const matchText = typeof ev?.message?.text === "string" ? ev.message.text : null;
-  const resolved = await resolveRecentUser(matchText);
+  const resolved = await resolveRecentUser(matchText, uid);
   await pushIncoming(uid, text, {
     display_name: resolved?.name,
     avatar: resolved?.avatar,
