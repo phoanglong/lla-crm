@@ -43,6 +43,14 @@ module ChatwootApp
     @lla = root.join('lla/rails/app').exist?
   end
 
+  # --- Capability predicates ---
+  # Thay dần các gate `if ChatwootApp.enterprise?` rải trong mã MIT. Mỗi wave của
+  # chương trình LLA-DE-EE bật thêm một predicate khi năng lực tương ứng đã có
+  # bản LLA; nhờ vậy không bao giờ lộ route/view cho tính năng chưa được viết.
+  def self.custom_roles?
+    enterprise? || lla?
+  end
+
   def self.chatwoot_cloud?
     enterprise? && GlobalConfig.get_value('DEPLOYMENT_ENV') == 'cloud'
   end

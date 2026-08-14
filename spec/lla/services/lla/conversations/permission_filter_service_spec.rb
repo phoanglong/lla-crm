@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe Enterprise::Conversations::PermissionFilterService do
+RSpec.describe Lla::Conversations::PermissionFilterService do
   let(:account) { create(:account) }
   # Create conversations with different states
   let!(:assigned_conversation) { create(:conversation, account: account, inbox: inbox, assignee: agent) }
