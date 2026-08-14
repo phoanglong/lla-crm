@@ -2,22 +2,17 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
   before_action :set_config
   before_action :allowed_configs
   def show
-    # ref: https://github.com/rubocop/rubocop/issues/7767
-    # rubocop:disable Style/HashTransformValues
-    @app_config = InstallationConfig.where(name: @allowed_configs)
-                                    .pluck(:name, :serialized_value)
-                                    .map { |name, serialized_value| [name, serialized_value['value']] }
-                                    .to_h
-    # rubocop:enable Style/HashTransformValues
-    @installation_configs = ConfigLoader.new.general_configs.each_with_object({}) do |config_hash, result|
-      result[config_hash['name']] = config_hash.except('name')
-    end
+    @installation_configs = installation_config_metadata
+    stored_config = stored_allowed_config
+    @configured_secret_keys = configured_secret_keys(stored_config)
+    @app_config = displayable_config(stored_config)
   end
 
   def create
     errors = []
     params['app_config'].each do |key, value|
       next unless @allowed_configs.include?(key)
+      next if secret_config?(key) && value.blank?
 
       i = InstallationConfig.where(name: key).first_or_create(value: value, locked: false)
       i.value = value
@@ -48,6 +43,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
       'instagram' => %w[INSTAGRAM_APP_ID INSTAGRAM_APP_SECRET INSTAGRAM_VERIFY_TOKEN INSTAGRAM_API_VERSION ENABLE_INSTAGRAM_CHANNEL_HUMAN_AGENT],
       'tiktok' => %w[TIKTOK_APP_ID TIKTOK_APP_SECRET TIKTOK_API_VERSION],
       'whatsapp_embedded' => %w[WHATSAPP_APP_ID WHATSAPP_APP_SECRET WHATSAPP_CONFIGURATION_ID WHATSAPP_API_VERSION],
+      'zalo' => %w[ZALO_BRIDGE_URL],
       'notion' => %w[NOTION_CLIENT_ID NOTION_CLIENT_SECRET],
       'google' => %w[GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET GOOGLE_OAUTH_REDIRECT_URI ENABLE_GOOGLE_OAUTH_LOGIN],
       'captain' => %w[CAPTAIN_OPEN_AI_API_KEY CAPTAIN_OPEN_AI_MODEL CAPTAIN_OPEN_AI_ENDPOINT]
@@ -60,10 +56,10 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
   end
 
   def success_notice
-    message = "#{@config.titleize} settings updated successfully"
+    message = "Đã cập nhật cấu hình #{settings_page_name(@config)}."
     return message unless restart_required_config_saved?
 
-    "#{message.delete_suffix('.')}. Restart Chatwoot web and worker processes to apply this change everywhere."
+    "#{message.delete_suffix('.')}. Hãy khởi động lại tiến trình web và worker của LLA CRM để áp dụng đầy đủ."
   end
 
   def success_flash
@@ -72,6 +68,31 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
 
   def restart_required_config_saved?
     params.fetch('app_config', {}).keys.intersect?(InstallationConfig::RESTART_REQUIRED_CONFIG_KEYS)
+  end
+
+  def secret_config?(key)
+    installation_config_metadata[key]&.dig('type') == 'secret'
+  end
+
+  def stored_allowed_config
+    InstallationConfig.where(name: @allowed_configs)
+                      .pluck(:name, :serialized_value)
+                      .to_h
+                      .transform_values { |serialized_value| serialized_value['value'] }
+  end
+
+  def configured_secret_keys(config)
+    config.filter_map { |key, value| key if secret_config?(key) && value.present? }
+  end
+
+  def displayable_config(config)
+    config.to_h { |key, value| [key, secret_config?(key) ? nil : value] }
+  end
+
+  def installation_config_metadata
+    @installation_config_metadata ||= ConfigLoader.new.general_configs.to_h do |config|
+      [config['name'], config.except('name')]
+    end
   end
 end
 

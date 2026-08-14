@@ -1,0 +1,101 @@
+<% content_for(:title) do %>
+  Kênh & nhà cung cấp
+<% end %>
+
+<header class="flex px-8 py-4 items-center border-b border-n-weak" role="banner">
+  <div class="border border-n-weak mr-4 p-2 rounded-full">
+    <svg width="24" height="24"><use xlink:href="#icon-apps-2-line" /></svg>
+  </div>
+  <div class="flex flex-col justify-center">
+    <h1 class="text-base font-medium leading-6 text-n-slate-12" id="page-title"><%= content_for(:title) %></h1>
+    <p class="text-sm font-normal leading-5 text-slate-500 m-0">
+      Bề mặt kiểm tra cấu hình. “Đã khai báo” hoặc “Có hộp thư” không đồng nghĩa kết nối provider đã được xác minh E2E.
+    </p>
+  </div>
+</header>
+
+<section class="main-content__body px-8">
+  <div class="border border-blue-200 bg-blue-50 text-blue-900 rounded-lg p-4 mb-6" role="note">
+    <p class="m-0 text-sm">
+      Secret chỉ được biểu diễn bằng số trường đã cấu hình; trang này không hiển thị giá trị secret. Zalo OA dùng bridge chính thức của LLA, không dùng QR/session Zalo Personal.
+    </p>
+  </div>
+
+  <div class="overflow-x-auto rounded-lg outline outline-1 outline-n-container">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-left text-n-slate-11">
+        <tr>
+          <th class="px-4 py-3 font-medium">Kênh</th>
+          <th class="px-4 py-3 font-medium">Trạng thái cài đặt</th>
+          <th class="px-4 py-3 font-medium">Cấu hình nền tảng</th>
+          <th class="px-4 py-3 font-medium">Tenant đã bật</th>
+          <th class="px-4 py-3 font-medium">Hộp thư</th>
+          <th class="px-4 py-3 font-medium">Gate bên ngoài</th>
+          <th class="px-4 py-3 font-medium text-right">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% @providers.each do |provider| %>
+          <tr>
+            <th scope="row" class="px-4 py-4 text-left align-top">
+              <div class="font-medium text-n-slate-12"><%= provider[:name] %></div>
+              <p class="text-xs text-n-slate-11 mt-1 mb-0 max-w-xs"><%= provider[:description] %></p>
+            </th>
+            <td class="px-4 py-4 align-top">
+              <% status_classes = provider[:status] == :inbox_present ? 'bg-green-100 text-green-800' : provider[:status] == :configured || provider[:status] == :configuration_not_required ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-900' %>
+              <% status_labels = { inbox_present: 'Có hộp thư', configured: 'Đã khai báo', configuration_not_required: 'Theo từng inbox', needs_configuration: 'Cần cấu hình' } %>
+              <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium <%= status_classes %>">
+                <%= status_labels.fetch(provider[:status]) %>
+              </span>
+            </td>
+            <td class="px-4 py-4 align-top text-n-slate-11">
+              <% if provider[:required_count].zero? %>
+                Không yêu cầu secret toàn hệ thống
+              <% else %>
+                <%= provider[:configured_count] %>/<%= provider[:required_count] %> trường bắt buộc
+              <% end %>
+            </td>
+            <td class="px-4 py-4 align-top text-n-slate-12">
+              <%= provider[:enabled_account_count] %>/<%= @account_count %>
+              <% if provider[:account_feature].present? %>
+                <div class="text-xs text-n-slate-11 mt-1"><code><%= provider[:account_feature] %></code></div>
+              <% else %>
+                <div class="text-xs text-n-slate-11 mt-1">Không có feature gate riêng</div>
+              <% end %>
+            </td>
+            <td class="px-4 py-4 align-top text-n-slate-12"><%= provider[:inbox_count] %></td>
+            <td class="px-4 py-4 align-top text-n-slate-11"><%= provider[:approval] %></td>
+            <td class="px-4 py-4 align-top text-right">
+              <% if provider[:config_key].present? %>
+                <%= link_to 'Cấu hình', super_admin_app_config_path(config: provider[:config_key]), class: 'inline-flex items-center rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-woot-600 hover:bg-slate-50' %>
+              <% else %>
+                <span class="text-xs text-slate-400">Trong hộp thư</span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+    <div class="rounded-lg outline outline-1 outline-n-container p-4">
+      <h2 class="text-sm font-medium text-n-slate-12">Cách đọc trạng thái</h2>
+      <ul class="list-disc pl-5 mt-2 mb-0 text-sm text-n-slate-11 space-y-1">
+        <li><strong>Cần cấu hình:</strong> thiếu ít nhất một trường toàn hệ thống.</li>
+        <li><strong>Đã khai báo:</strong> đủ tên trường, chưa chứng minh OAuth, webhook hoặc gửi nhận.</li>
+        <li><strong>Có hộp thư:</strong> đã có record inbox; vẫn cần evidence inbound/outbound trước khi gọi LIVE.</li>
+      </ul>
+    </div>
+    <div class="rounded-lg outline outline-1 outline-n-container p-4">
+      <h2 class="text-sm font-medium text-n-slate-12">Bước vận hành tiếp theo</h2>
+      <p class="text-sm text-n-slate-11 mt-2 mb-3">
+        Nếu card Facebook hoặc Instagram bị mờ, mở Tenant tương ứng, chọn Sửa và bật feature gate được ghi trong bảng. Sau khi provider phê duyệt, mở ứng dụng nhân viên và tạo hộp thư từ card tương ứng. Zalo OA sẽ dùng URL bridge được quản lý tại đây.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to 'Quản lý Tenant', super_admin_accounts_path, class: 'inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-woot-600 hover:bg-slate-50' %>
+        <%= link_to 'Mở ứng dụng nhân viên', '/', class: 'inline-flex items-center rounded-md bg-woot-500 px-3 py-2 text-sm font-medium text-white hover:bg-woot-600' %>
+      </div>
+    </div>
+  </div>
+</section>

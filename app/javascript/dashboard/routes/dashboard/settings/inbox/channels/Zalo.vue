@@ -7,8 +7,19 @@ import router from '../../../../index';
 import PageHeader from '../../SettingsSubPageHeader.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
-const shouldBeBridgeUrl = (value = '') =>
-  value ? value.startsWith('https://') : false;
+const shouldBeBridgeUrl = (value = '') => {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname.length > 0 &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+};
 
 export default {
   components: {
@@ -21,15 +32,19 @@ export default {
   data() {
     return {
       channelName: 'Zalo OA',
-      bridgeUrl: 'https://zbridge.llavn.cloud',
+      bridgeUrl:
+        window.chatwootConfig?.zaloBridgeUrl || 'https://zbridge.llavn.cloud',
     };
   },
   computed: {
     ...mapGetters({
       uiFlags: 'inboxes/getUIFlags',
     }),
+    normalizedBridgeUrl() {
+      return this.bridgeUrl.trim().replace(/\/$/, '');
+    },
     authorizeUrl() {
-      return `${this.bridgeUrl.replace(/\/$/, '')}/oauth/start`;
+      return `${this.normalizedBridgeUrl}/oauth/start`;
     },
   },
   validations: {
@@ -44,12 +59,16 @@ export default {
       }
 
       try {
-        const webhookUrl = `${this.bridgeUrl.replace(/\/$/, '')}/webhook/chatwoot`;
+        const webhookUrl = `${this.normalizedBridgeUrl}/webhook/chatwoot`;
         const apiChannel = await this.$store.dispatch('inboxes/createChannel', {
           name: this.channelName?.trim(),
           channel: {
             type: 'api',
             webhook_url: webhookUrl,
+            additional_attributes: {
+              provider: 'zalo_oa',
+              bridge_url: this.normalizedBridgeUrl,
+            },
           },
         });
 
@@ -103,7 +122,8 @@ export default {
           {{ $t('INBOX_MGMT.ADD.ZALO_CHANNEL.BRIDGE_URL.LABEL') }}
           <input
             v-model="bridgeUrl"
-            type="text"
+            type="url"
+            autocomplete="url"
             :placeholder="
               $t('INBOX_MGMT.ADD.ZALO_CHANNEL.BRIDGE_URL.PLACEHOLDER')
             "

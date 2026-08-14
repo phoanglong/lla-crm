@@ -1,5 +1,5 @@
 <% content_for(:title) do %>
-  Configure Settings - <%= @config.titleize %>
+  Cấu hình - <%= settings_page_name(@config) %>
 <% end %>
 
 <header class="main-content__header" role="banner">
@@ -39,7 +39,9 @@
             <div class="relative">
               <%= form.password_field "app_config[#{key}]",
                   id: "app_config_#{key}",
-                  value: @app_config[key],
+                  value: nil,
+                  autocomplete: 'new-password',
+                  placeholder: @configured_secret_keys.include?(key) ? 'Đã cấu hình — để trống để giữ nguyên' : 'Chưa cấu hình',
                   class: "mt-2 border border-slate-100 p-1.5 pr-8 rounded-md w-full"
               %>
               <button
@@ -71,7 +73,7 @@
       </div>
     <% end %>
     <div class="form-actions">
-      <%= form.submit "Submit" %>
+      <%= form.submit "Lưu cấu hình" %>
     </div>
   <% end %>
 </section>

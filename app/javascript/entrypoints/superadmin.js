@@ -35,4 +35,26 @@ const initializeAccountSuspensionForm = () => {
   updateFields();
 };
 
-document.addEventListener('DOMContentLoaded', initializeAccountSuspensionForm);
+const initializeApiDocs = async () => {
+  const container = document.querySelector('[data-api-docs]');
+  if (!container) return;
+
+  try {
+    const redocModule = await import('redoc/bundles/redoc.standalone.js');
+    const redoc = redocModule.default || redocModule.Redoc || redocModule;
+    redoc.init(
+      container.dataset.schemaUrl,
+      { hideHostname: true, nativeScrollbars: true },
+      container
+    );
+  } catch {
+    container.textContent =
+      'Không thể tải trình xem API. Hãy tải OpenAPI JSON bằng nút phía trên.';
+    container.classList.add('p-8', 'text-sm', 'text-red-700');
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  initializeAccountSuspensionForm();
+  initializeApiDocs();
+});

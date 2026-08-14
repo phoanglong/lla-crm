@@ -724,6 +724,11 @@ Rails.application.routes.draw do
       resources :platform_banners
       resource :instance_status, only: [:show]
 
+      resource :channel_providers, only: [:show]
+      resource :api_docs, only: [:show] do
+        get :schema, on: :collection
+      end
+
       resource :settings, only: [:show] do
         get :refresh, on: :collection
       end

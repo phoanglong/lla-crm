@@ -62,13 +62,13 @@ live_chat:
   icon: 'icon-chat-smile-3-line'
 email:
   name: 'Email'
-  description: 'Manage your email customer interactions from Chatwoot.'
+  description: 'Quản lý tương tác khách hàng qua email trong LLA CRM.'
   enabled: true
   icon: 'icon-mail-send-fill'
   config_key: 'email'
 sms:
   name: 'SMS'
-  description: 'Manage your SMS customer interactions from Chatwoot.'
+  description: 'Quản lý tương tác khách hàng qua SMS trong LLA CRM.'
   enabled: true
   icon: 'icon-message-line'
 messenger:
@@ -91,17 +91,23 @@ tiktok:
   config_key: 'tiktok'
 whatsapp:
   name: 'WhatsApp'
-  description: 'Manage your WhatsApp business interactions from Chatwoot.'
+  description: 'Quản lý tương tác WhatsApp Business trong LLA CRM.'
   enabled: true
   icon: 'icon-whatsapp-line'
 telegram:
   name: 'Telegram'
-  description: 'Manage your Telegram customer interactions from Chatwoot.'
+  description: 'Quản lý tương tác Telegram trong LLA CRM.'
   enabled: true
   icon: 'icon-telegram-line'
+zalo_oa:
+  name: 'Zalo OA'
+  description: 'Kết nối Zalo Official Account qua LLA Zalo bridge.'
+  enabled: true
+  icon: 'icon-apps-2-line'
+  config_key: 'zalo'
 line:
   name: 'Line'
-  description: 'Manage your Line customer interactions from Chatwoot.'
+  description: 'Quản lý tương tác LINE trong LLA CRM.'
   enabled: true
   icon: 'icon-line-line'
 

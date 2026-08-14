@@ -1,6 +1,6 @@
-# This file contains all the installation wide configuration which controls various settings in Chatwoot
+# This file contains installation-wide configuration for LLA CRM.
 # This is internal config and should not be modified by the user directly in database
-# Chatwoot might override and modify these values during the upgrade process
+# LLA CRM upgrades may override and modify these values.
 # Configs which can be modified by the user are available in the dashboard under appropriate UI
 #
 # name: the name of the config referenced in the code
@@ -15,7 +15,7 @@
 
 # ------- Branding Related Config ------- #
 - name: INSTALLATION_NAME
-  value: 'Chatwoot'
+  value: 'LLA CRM'
   display_title: 'Installation Name'
   description: 'The installation wide name that would be used in the dashboard, title etc.'
 - name: LOGO_THUMBNAIL
@@ -31,29 +31,29 @@
   display_title: 'Logo Dark Mode'
   description: 'The logo that would be used on the dashboard, login page etc. for dark mode'
 - name: BRAND_URL
-  value: 'https://www.chatwoot.com'
+  value: 'https://llavn.org'
   display_title: 'Brand URL'
   description: 'The URL that would be used in emails under the section “Powered By”'
 - name: WIDGET_BRAND_URL
-  value: 'https://www.chatwoot.com'
+  value: 'https://llavn.org'
   display_title: 'Widget Brand URL'
   description: 'The URL that would be used in the widget under the section “Powered By”'
 - name: BRAND_NAME
-  value: 'Chatwoot'
+  value: 'LLA CRM'
   display_title: 'Brand Name'
   description: 'The name that would be used in emails and the widget'
 - name: TERMS_URL
-  value: 'https://www.chatwoot.com/terms-of-service'
+  value: 'https://llavn.org'
   display_title: 'Terms URL'
   description: 'The terms of service URL displayed in Signup Page'
 - name: PRIVACY_URL
-  value: 'https://www.chatwoot.com/privacy-policy'
+  value: 'https://llavn.org'
   display_title: 'Privacy URL'
   description: 'The privacy policy URL displayed in the app'
 - name: DISPLAY_MANIFEST
   value: true
-  display_title: 'Chatwoot Metadata'
-  description: 'Display default Chatwoot metadata like favicons and upgrade warnings'
+  display_title: 'LLA CRM Metadata'
+  description: 'Display LLA CRM metadata such as favicons and release notices'
   type: boolean
 # ------- End of Branding Related Config ------- #
 
@@ -163,12 +163,21 @@
   display_title: 'WhatsApp App Secret'
   description: 'The App Secret for WhatsApp Embedded Signup flow (required for embedded signup)'
   locked: false
+  type: secret
 - name: WHATSAPP_API_VERSION
   display_title: 'WhatsApp API Version'
   description: 'Configure this if you want to use a different WhatsApp API version. Make sure its prefixed with `v`'
   value: 'v22.0'
   locked: false
 # ------- End of WhatsApp Channel Related Config ------- #
+
+# ------- Zalo OA Bridge Config ------- #
+- name: ZALO_BRIDGE_URL
+  display_title: 'Zalo OA Bridge URL'
+  description: 'HTTPS base URL of the LLA Zalo OA bridge used by the inbox onboarding wizard'
+  value: 'https://zbridge.llavn.cloud'
+  locked: false
+# ------- End of Zalo OA Bridge Config ------- #
 
 # MARK: Microsoft Email Channel Config
 - name: AZURE_APP_ID

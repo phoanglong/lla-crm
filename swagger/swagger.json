@@ -1,13 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Chatwoot",
-    "description": "This is the API documentation for Chatwoot server.",
+    "title": "LLA CRM API",
+    "description": "API contract for the LLA CRM stable product. Legacy compatibility identifiers remain documented where required.",
     "version": "1.1.0",
-    "termsOfService": "https://www.chatwoot.com/terms-of-service/",
-    "contact": {
-      "email": "hello@chatwoot.com"
-    },
     "license": {
       "name": "MIT License",
       "url": "https://opensource.org/licenses/MIT"
@@ -15,7 +11,7 @@
   },
   "servers": [
     {
-      "url": "https://app.chatwoot.com/"
+      "url": "/"
     }
   ],
   "paths": {

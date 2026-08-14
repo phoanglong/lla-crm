@@ -1,0 +1,27 @@
+<% content_for(:title) do %>
+  API & Swagger
+<% end %>
+
+<header class="flex px-8 py-4 items-center border-b border-n-weak" role="banner">
+  <div class="border border-n-weak mr-4 p-2 rounded-full">
+    <svg width="24" height="24"><use xlink:href="#icon-draft-line" /></svg>
+  </div>
+  <div class="flex flex-col justify-center flex-1">
+    <h1 class="text-base font-medium leading-6 text-n-slate-12" id="page-title"><%= content_for(:title) %></h1>
+    <p class="text-sm font-normal leading-5 text-slate-500 m-0">
+      Hợp đồng OpenAPI của LLA CRM được hiển thị trong vùng Superadmin đã xác thực.
+    </p>
+  </div>
+  <%= link_to 'Tải OpenAPI JSON', schema_super_admin_api_docs_path, class: 'inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-woot-600 hover:bg-slate-50', download: 'lla-crm-openapi.json' %>
+</header>
+
+<section class="main-content__body main-content__body--flush">
+  <div class="border-b border-amber-200 bg-amber-50 text-amber-900 px-8 py-3" role="note">
+    <p class="m-0 text-sm">
+      Tài liệu mô tả API hiện có của nhánh ổn định. Các định danh tương thích ngược như header <code>X-Chatwoot-*</code> vẫn được giữ khi chúng còn là một phần của contract.
+    </p>
+  </div>
+  <div data-api-docs data-schema-url="<%= schema_super_admin_api_docs_path %>">
+    <p class="p-8 text-sm text-n-slate-11">Đang tải tài liệu API...</p>
+  </div>
+</section>

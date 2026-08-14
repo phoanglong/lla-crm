@@ -29,6 +29,18 @@ describe GlobalConfigService do
         end
       end
 
+      it 'seeds an existing blank config from the environment' do
+        config = InstallationConfig.find_or_create_by!(name: 'FB_APP_ID') do |record|
+          record.value = nil
+          record.locked = false
+        end
+
+        with_modified_env FB_APP_ID: 'configured-app-id' do
+          expect(described_class.load('FB_APP_ID', '')).to eq('configured-app-id')
+          expect(config.reload.value).to eq('configured-app-id')
+        end
+      end
+
       # it 'get value from DB if found' do
       #   # Set a value in db first and make sure this value
       #   # is not respected even when load() method is called with

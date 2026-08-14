@@ -13,4 +13,8 @@ module SuperAdmin::NavigationHelper
 
     general_feature + features.to_a
   end
+
+  def settings_page_name(config_key)
+    settings_pages.find { |_feature_key, attrs| attrs['config_key'] == config_key }&.last&.dig('name') || config_key.titleize
+  end
 end

@@ -69,7 +69,7 @@ const channelList = computed(() => {
       key: 'zalo',
       title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.ZALO.TITLE'),
       description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.ZALO.DESCRIPTION'),
-      icon: 'i-woot-api',
+      icon: 'i-woot-zalo',
     },
     {
       key: 'line',
