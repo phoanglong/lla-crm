@@ -35,19 +35,60 @@ const initializeAccountSuspensionForm = () => {
   updateFields();
 };
 
+// ReDoc chỉ phát hành bản standalone dưới dạng UMD tự chứa (đã gói sẵn React,
+// MobX, styled-components). Không import nó như ES module: interop CommonJS của
+// Rollup sinh ra một `import "null"` không giải được, và trình duyệt ném
+// `Failed to resolve module specifier "null"` ngay khi nạp chunk.
+// Vì vậy lấy URL asset (`?url`, Vite chỉ copy nguyên file, không transform) rồi
+// nạp bằng thẻ <script> đúng như ReDoc thiết kế — vẫn self-host, không CDN.
+import redocStandaloneUrl from 'redoc/bundles/redoc.standalone.js?url';
+
+const REDOC_SCRIPT_ID = 'redoc-standalone-script';
+
+const loadRedocScript = () =>
+  new Promise((resolve, reject) => {
+    if (window.Redoc) {
+      resolve(window.Redoc);
+      return;
+    }
+
+    const existing = document.getElementById(REDOC_SCRIPT_ID);
+    const script = existing || document.createElement('script');
+
+    const onLoad = () => {
+      if (window.Redoc) resolve(window.Redoc);
+      else reject(new Error('redoc bundle loaded without window.Redoc'));
+    };
+    const onError = () =>
+      reject(
+        new Error(`unable to load redoc bundle from ${redocStandaloneUrl}`)
+      );
+
+    script.addEventListener('load', onLoad, { once: true });
+    script.addEventListener('error', onError, { once: true });
+
+    if (!existing) {
+      script.id = REDOC_SCRIPT_ID;
+      script.src = redocStandaloneUrl;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
+
 const initializeApiDocs = async () => {
   const container = document.querySelector('[data-api-docs]');
   if (!container) return;
 
   try {
-    const redocModule = await import('redoc/bundles/redoc.standalone.js');
-    const redoc = redocModule.default || redocModule.Redoc || redocModule;
+    const redoc = await loadRedocScript();
     redoc.init(
       container.dataset.schemaUrl,
       { hideHostname: true, nativeScrollbars: true },
       container
     );
-  } catch {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[super_admin/api_docs] redoc init failed', error);
     container.textContent =
       'Không thể tải trình xem API. Hãy tải OpenAPI JSON bằng nút phía trên.';
     container.classList.add('p-8', 'text-sm', 'text-red-700');
