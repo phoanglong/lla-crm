@@ -1,0 +1,12 @@
+json.id resource.id
+json.name resource.name
+json.domain resource.domain
+json.description resource.description
+json.contacts_count resource.contacts_count.to_i
+json.additional_attributes resource.additional_attributes
+json.custom_attributes resource.custom_attributes
+json.avatar_url resource.avatar_url
+json.last_activity_at resource.last_activity_at
+json.account_id resource.account_id
+json.created_at resource.created_at
+json.updated_at resource.updated_at

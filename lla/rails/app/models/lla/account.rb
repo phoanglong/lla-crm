@@ -11,5 +11,6 @@ module Lla::Account
     has_many :agent_capacity_policies, dependent: :destroy_async
     has_many :sla_policies, dependent: :destroy_async
     has_many :applied_slas, dependent: :destroy_async
+    has_many :companies, dependent: :destroy_async
   end
 end
