@@ -12,5 +12,9 @@ module Lla::Account
     has_many :sla_policies, dependent: :destroy_async
     has_many :applied_slas, dependent: :destroy_async
     has_many :companies, dependent: :destroy_async
+    has_many :captain_assistants, class_name: 'Captain::Assistant', dependent: :destroy_async
+    has_many :captain_documents, class_name: 'Captain::Document', dependent: :destroy_async
+    has_many :captain_assistant_responses, class_name: 'Captain::AssistantResponse', dependent: :destroy_async
+    has_many :captain_custom_tools, class_name: 'Captain::CustomTool', dependent: :destroy_async
   end
 end

@@ -12,6 +12,10 @@ module Lla::Conversation
   extend ActiveSupport::Concern
 
   prepended do
+    # Lý do/loại hoạt động do trợ lý AI đặt trong phiên chạy (không lưu DB) —
+    # được ActivityMessageHandler đọc để chọn thông điệp hoạt động phù hợp.
+    attr_accessor :captain_activity_reason, :captain_activity_reason_type
+
     belongs_to :sla_policy, optional: true
     has_one :applied_sla, dependent: :destroy_async
     has_many :sla_events, dependent: :destroy_async
@@ -19,6 +23,27 @@ module Lla::Conversation
     validate :validate_sla_policy_change, if: :sla_policy_id_changed?
 
     after_save :create_applied_sla, if: :saved_change_to_sla_policy_id?
+  end
+
+  # Sự kiện đo lường suy luận của trợ lý AI (báo cáo assistant): listener MIT
+  # ReportingEventListener tạo ReportingEvent tương ứng.
+  def dispatch_captain_inference_resolved_event
+    dispatcher_dispatch(Events::Types::CONVERSATION_CAPTAIN_INFERENCE_RESOLVED)
+  end
+
+  def dispatch_captain_inference_handoff_event
+    dispatcher_dispatch(Events::Types::CONVERSATION_CAPTAIN_INFERENCE_HANDOFF)
+  end
+
+  # Chạy một khối thao tác (resolve/open) kèm ngữ cảnh lý do của trợ lý AI —
+  # sau khối, ngữ cảnh được xoá để không rò sang thao tác kế tiếp.
+  def with_captain_activity_context(reason: nil, reason_type: nil)
+    self.captain_activity_reason = reason
+    self.captain_activity_reason_type = reason_type
+    yield
+  ensure
+    self.captain_activity_reason = nil
+    self.captain_activity_reason_type = nil
   end
 
   # Frontend và các luồng SLA chỉ đối xử với hội thoại còn "chạm được".
