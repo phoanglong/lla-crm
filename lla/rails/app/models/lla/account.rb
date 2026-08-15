@@ -16,5 +16,6 @@ module Lla::Account
     has_many :captain_documents, class_name: 'Captain::Document', dependent: :destroy_async
     has_many :captain_assistant_responses, class_name: 'Captain::AssistantResponse', dependent: :destroy_async
     has_many :captain_custom_tools, class_name: 'Captain::CustomTool', dependent: :destroy_async
+    has_many :captain_faq_suggestions, class_name: 'Captain::FaqSuggestion', dependent: :destroy_async
   end
 end
