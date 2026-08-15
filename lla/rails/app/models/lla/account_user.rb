@@ -7,6 +7,7 @@ module Lla::AccountUser
 
   prepended do
     belongs_to :custom_role, optional: true
+    belongs_to :agent_capacity_policy, optional: true
   end
 
   # Quyền hiệu lực của thành viên. Khi có vai trò tuỳ chỉnh thì trả về đúng danh

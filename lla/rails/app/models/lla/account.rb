@@ -8,5 +8,6 @@ module Lla::Account
   prepended do
     has_many :custom_roles, dependent: :destroy_async
     has_one :account_saml_settings, dependent: :destroy
+    has_many :agent_capacity_policies, dependent: :destroy_async
   end
 end
