@@ -18,6 +18,9 @@ class Captain::AssistantResponse < ApplicationRecord
 
   before_validation :assign_account_from_assistant
 
+  # FAQ tạo qua pipeline (ResponseBuilderJob…) chưa có vector — tính async.
+  after_commit :enqueue_embedding_update, if: :embedding_update_due?
+
   # Tìm câu trả lời gần nghĩa nhất với câu hỏi (semantic search) — dùng cho
   # copilot/tra cứu tài liệu. Gọi được trên relation đã scope theo assistant.
   def self.search(query)
@@ -35,5 +38,13 @@ class Captain::AssistantResponse < ApplicationRecord
   # Account luôn theo assistant — chặn lệch account giữa FAQ và trợ lý.
   def assign_account_from_assistant
     self.account = assistant.account if assistant.present?
+  end
+
+  def embedding_update_due?
+    embedding.blank? && (saved_change_to_id? || saved_change_to_question? || saved_change_to_answer?)
+  end
+
+  def enqueue_embedding_update
+    Captain::Llm::ResponseEmbeddingJob.perform_later(self)
   end
 end

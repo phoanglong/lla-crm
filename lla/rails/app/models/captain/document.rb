@@ -29,8 +29,11 @@ class Captain::Document < ApplicationRecord
   validate :validate_document_limit, on: :create
 
   scope :ordered, -> { order(created_at: :desc) }
-  # Chỉ tài liệu web mới sync lại được — PDF không có nguồn để crawl.
-  scope :syncable, -> { where.not("external_link LIKE 'PDF:%' OR external_link LIKE '%.pdf'") }
+  # Chỉ tài liệu web mới sync lại được — PDF (link dạng PDF hoặc có file đính
+  # kèm) không có nguồn để crawl.
+  scope :syncable, lambda {
+    where.not("external_link LIKE 'PDF:%' OR external_link LIKE '%.pdf'").where.missing(:pdf_file_attachment)
+  }
 
   before_validation :normalize_external_link
   before_validation :assign_pdf_external_link

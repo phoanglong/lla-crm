@@ -562,6 +562,13 @@ Rails.application.routes.draw do
       end
 
       post 'webhooks/stripe', to: 'webhooks/stripe#process_payload'
+    end
+  end
+
+  # Webhook crawl tài liệu LLA AI — giữ path/route name enterprise/* của CE,
+  # nhưng phải sống cả khi chạy thuần LLA (DISABLE_ENTERPRISE).
+  if ChatwootApp.enterprise? || ChatwootApp.lla?
+    namespace :enterprise, defaults: { format: 'json' } do
       post 'webhooks/firecrawl', to: 'webhooks/firecrawl#process_payload'
     end
   end

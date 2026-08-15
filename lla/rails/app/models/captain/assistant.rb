@@ -25,8 +25,8 @@ class Captain::Assistant < ApplicationRecord
   has_many :agent_sessions, class_name: 'Captain::AgentSession', dependent: :destroy_async, inverse_of: :assistant
   has_many :faq_suggestions, class_name: 'Captain::FaqSuggestion', dependent: :destroy_async, inverse_of: :assistant
 
-  # Cờ tính năng của trợ lý nằm trong config jsonb (bật/tắt từ UI).
-  store_accessor :config, :feature_faq, :feature_memory, :feature_contact_attributes
+  # Cờ tính năng + tham số sinh của trợ lý nằm trong config jsonb (UI chỉnh).
+  store_accessor :config, :feature_faq, :feature_memory, :feature_contact_attributes, :temperature
 
   scope :ordered, -> { order(created_at: :desc) }
   scope :for_account, ->(account_id) { where(account_id: account_id) }
