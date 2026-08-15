@@ -1,0 +1,9 @@
+json.id assistant.id
+json.account_id assistant.account_id
+json.name assistant.name
+json.description assistant.description
+json.config assistant.config
+json.response_guidelines assistant.response_guidelines
+json.guardrails assistant.guardrails
+json.created_at assistant.created_at.to_i
+json.updated_at assistant.updated_at.to_i

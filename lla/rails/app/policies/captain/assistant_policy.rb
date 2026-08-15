@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+# Trợ lý AI: mọi thành viên account xem/thử được; tạo/sửa/xoá và quản lý
+# inbox gắn kèm là việc của administrator.
 class Captain::AssistantPolicy < ApplicationPolicy
   def index?
     true
@@ -7,7 +11,7 @@ class Captain::AssistantPolicy < ApplicationPolicy
     true
   end
 
-  def metrics?
+  def playground?
     true
   end
 
@@ -19,12 +23,16 @@ class Captain::AssistantPolicy < ApplicationPolicy
     true
   end
 
+  def metrics?
+    true
+  end
+
   def drilldown?
-    @account_user.administrator?
+    true
   end
 
   def tools?
-    @account_user.administrator?
+    true
   end
 
   def create?
@@ -35,23 +43,7 @@ class Captain::AssistantPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
-  def approve?
-    update?
-  end
-
-  def dismiss?
-    update?
-  end
-
   def destroy?
     @account_user.administrator?
-  end
-
-  def sync?
-    @account_user.administrator?
-  end
-
-  def playground?
-    true
   end
 end
