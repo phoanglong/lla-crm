@@ -12,6 +12,38 @@ module Lla::AutoAssignment::AssignmentService
     super(filter_agents_by_capacity(agents))
   end
 
+  # Luật loại trừ của chính sách tải (theo nhãn / theo tuổi hội thoại):
+  # hội thoại khớp luật thì auto-assignment bỏ qua, để agent tự nhận.
+  def assignable?(conversation)
+    super && !excluded_by_capacity_rules?(conversation)
+  end
+
+  def excluded_by_capacity_rules?(conversation)
+    exclusion_rule_sets.any? do |rules|
+      excluded_by_labels?(conversation, rules['excluded_labels']) ||
+        excluded_by_age?(conversation, rules['exclude_older_than_hours'])
+    end
+  end
+
+  def exclusion_rule_sets
+    @exclusion_rule_sets ||= AgentCapacityPolicy
+                             .joins(:inbox_capacity_limits)
+                             .where(inbox_capacity_limits: { inbox_id: inbox.id })
+                             .filter_map { |policy| policy.exclusion_rules.presence }
+  end
+
+  def excluded_by_labels?(conversation, excluded_labels)
+    return false if excluded_labels.blank?
+
+    conversation.label_list.intersect?(excluded_labels)
+  end
+
+  def excluded_by_age?(conversation, hours)
+    return false if hours.blank?
+
+    conversation.last_activity_at.present? && conversation.last_activity_at < hours.to_i.hours.ago
+  end
+
   # Chỉ cưỡng chế khi tài khoản còn bật advanced_assignment: tài khoản đã hạ cấp
   # nhưng còn chính sách cũ trong DB thì không được âm thầm chặn assignment.
   def filter_agents_by_capacity(agents)
