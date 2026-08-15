@@ -51,6 +51,10 @@ module ChatwootApp
     enterprise? || lla?
   end
 
+  def self.sla?
+    enterprise? || lla?
+  end
+
   def self.chatwoot_cloud?
     enterprise? && GlobalConfig.get_value('DEPLOYMENT_ENV') == 'cloud'
   end

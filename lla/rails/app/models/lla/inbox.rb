@@ -19,7 +19,9 @@ module Lla::Inbox
       capacity_service = Lla::AutoAssignment::CapacityService.new
       available_agents.select { |inbox_member| capacity_service.agent_has_capacity?(inbox_member.user, self) }
                       .map(&:user_id)
-    elsif max_assignment_limit.present?
+    elsif enable_auto_assignment? && max_assignment_limit.present?
+      # Giới hạn V1 chỉ áp cho auto-assignment của inbox; gán qua team khi inbox
+      # tắt auto-assignment thì không bị chặn (spec conversation_sla).
       members.ids - member_ids_at_max_assignment_limit
     else
       # Hành vi CE (app/models/inbox.rb): toàn bộ thành viên. Không gọi super:

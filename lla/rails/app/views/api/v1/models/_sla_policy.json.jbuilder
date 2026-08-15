@@ -1,0 +1,10 @@
+json.id resource.id
+json.name resource.name
+json.description resource.description
+json.first_response_time_threshold resource.first_response_time_threshold
+json.next_response_time_threshold resource.next_response_time_threshold
+json.resolution_time_threshold resource.resolution_time_threshold
+json.only_during_business_hours resource.only_during_business_hours
+json.account_id resource.account_id
+json.created_at resource.created_at
+json.updated_at resource.updated_at

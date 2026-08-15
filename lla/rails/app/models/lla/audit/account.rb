@@ -10,6 +10,9 @@ module Lla::Audit::Account
 
   included do
     audited associated_with: :audited_account, on: %i[update]
+    # Cho phép đọc mọi bản ghi kiểm toán gắn associated về account
+    # (account.associated_audits — gem audited).
+    has_associated_audits
   end
 
   # Account là gốc của chính nó: bản ghi kiểm toán vẫn phải gắn associated_id

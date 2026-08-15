@@ -175,7 +175,7 @@ Rails.application.routes.draw do
               post :custom_attributes
               get :attachments
               get :inbox_assistant
-              get :reporting_events if ChatwootApp.enterprise?
+              get :reporting_events if ChatwootApp.enterprise? || ChatwootApp.lla?
             end
           end
 
