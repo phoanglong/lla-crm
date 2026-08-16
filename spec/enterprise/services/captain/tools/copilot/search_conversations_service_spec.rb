@@ -87,11 +87,9 @@ RSpec.describe Captain::Tools::Copilot::SearchConversationsService do
     let!(:open_conversation) { create(:conversation, account: account, contact: contact, status: 'open', priority: 'high') }
     let!(:resolved_conversation) { create(:conversation, account: account, status: 'resolved', priority: 'low') }
 
-    it 'returns all conversations when no filters are applied' do
+    it 'rejects a broad search when no filters are applied' do
       result = service.execute
-      expect(result).to include('Total number of conversations: 2')
-      expect(result).to include(open_conversation.to_llm_text(include_contact_details: true))
-      expect(result).to include(resolved_conversation.to_llm_text(include_contact_details: true))
+      expect(result).to eq('Please provide a conversation search filter')
     end
 
     it 'filters conversations by status' do
@@ -121,39 +119,33 @@ RSpec.describe Captain::Tools::Copilot::SearchConversationsService do
     end
 
     context 'when invalid status is provided' do
-      it 'ignores invalid status and returns all conversations' do
+      it 'fails closed for the all pseudo-status' do
         result = service.execute(status: 'all')
-        expect(result).to include('Total number of conversations: 2')
-        expect(result).to include(open_conversation.to_llm_text(include_contact_details: true))
-        expect(result).to include(resolved_conversation.to_llm_text(include_contact_details: true))
+        expect(result).to eq('Invalid conversation status')
       end
 
-      it 'ignores random invalid status values' do
+      it 'fails closed for random invalid status values' do
         result = service.execute(status: 'invalid_status')
-        expect(result).to include('Total number of conversations: 2')
+        expect(result).to eq('Invalid conversation status')
       end
     end
 
     context 'when invalid priority is provided' do
-      it 'ignores invalid priority and returns all conversations' do
+      it 'fails closed for the all pseudo-priority' do
         result = service.execute(priority: 'all')
-        expect(result).to include('Total number of conversations: 2')
-        expect(result).to include(open_conversation.to_llm_text(include_contact_details: true))
-        expect(result).to include(resolved_conversation.to_llm_text(include_contact_details: true))
+        expect(result).to eq('Invalid conversation priority')
       end
 
-      it 'ignores random invalid priority values' do
+      it 'fails closed for random invalid priority values' do
         result = service.execute(priority: 'invalid_priority')
-        expect(result).to include('Total number of conversations: 2')
+        expect(result).to eq('Invalid conversation priority')
       end
     end
 
     context 'when combining valid and invalid parameters' do
-      it 'applies valid filters and ignores invalid ones' do
+      it 'fails closed instead of applying only the valid filter' do
         result = service.execute(status: 'all', contact_id: contact.id)
-        expect(result).to include('Total number of conversations: 1')
-        expect(result).to include(open_conversation.to_llm_text(include_contact_details: true))
-        expect(result).not_to include(resolved_conversation.to_llm_text(include_contact_details: true))
+        expect(result).to eq('Invalid conversation status')
       end
     end
   end

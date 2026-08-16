@@ -106,6 +106,8 @@ RSpec.describe Captain::Tools::Copilot::GetConversationService do
       let(:inbox) { create(:inbox, account: account) }
       let(:conversation) { create(:conversation, account: account, inbox: inbox) }
 
+      before { inbox.members << user }
+
       it 'returns the conversation in llm text format' do
         result = service.execute(conversation_id: conversation.display_id)
         expect(result).to eq(conversation.to_llm_text)

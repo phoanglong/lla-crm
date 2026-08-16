@@ -3,7 +3,7 @@ require 'rails_helper'
 RSpec.describe Captain::Tools::Copilot::SearchLinearIssuesService do
   let(:account) { create(:account) }
   let(:assistant) { create(:captain_assistant, account: account) }
-  let(:user) { create(:user, account: account) }
+  let(:user) { create(:user, :administrator, account: account) }
   let(:service) { described_class.new(assistant, user: user) }
 
   describe '#name' do
@@ -27,6 +27,7 @@ RSpec.describe Captain::Tools::Copilot::SearchLinearIssuesService do
   describe '#active?' do
     context 'when Linear integration is enabled' do
       before do
+        account.enable_features!('linear_integration')
         create(:integrations_hook, :linear, account: account)
       end
 
@@ -73,17 +74,15 @@ RSpec.describe Captain::Tools::Copilot::SearchLinearIssuesService do
       let(:linear_service) { instance_double(Integrations::Linear::ProcessorService) }
 
       before do
+        account.enable_features!('linear_integration')
         create(:integrations_hook, :linear, account: account)
         allow(Integrations::Linear::ProcessorService).to receive(:new).and_return(linear_service)
       end
 
       context 'when term is blank' do
-        before do
-          allow(linear_service).to receive(:search_issue).with('').and_return({ data: [] })
-        end
-
-        it 'returns no issues found message' do
-          expect(service.execute(term: '')).to eq('No issues found, I should try another similar search term')
+        it 'rejects a broad search without calling Linear' do
+          expect(linear_service).not_to receive(:search_issue)
+          expect(service.execute(term: '')).to eq('Please provide a more specific Linear search term')
         end
       end
 
@@ -92,8 +91,8 @@ RSpec.describe Captain::Tools::Copilot::SearchLinearIssuesService do
           allow(linear_service).to receive(:search_issue).and_return({ error: 'API Error' })
         end
 
-        it 'returns the error message' do
-          expect(service.execute(term: 'test')).to eq('API Error')
+        it 'returns a redacted error message' do
+          expect(service.execute(term: 'test')).to eq('Linear search unavailable')
         end
       end
 
