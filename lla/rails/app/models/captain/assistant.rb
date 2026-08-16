@@ -21,13 +21,8 @@ class Captain::Assistant < ApplicationRecord
                              dependent: :destroy_async, inverse_of: :captain_assistant
   has_many :inboxes, through: :captain_inboxes
   has_many :messages, as: :sender, dependent: :nullify
-  # Scenario/AgentSession hiện còn ở lớp EE (sẽ chuyển về lla ở wave E4).
-  # dependent: :destroy_async phải phân giải class ngay lúc destroy nên chỉ
-  # khai báo khi lớp EE có mặt — DISABLE mode không thể có bản ghi nào.
-  if ChatwootApp.enterprise?
-    has_many :scenarios, class_name: 'Captain::Scenario', dependent: :destroy_async, inverse_of: :assistant
-    has_many :agent_sessions, class_name: 'Captain::AgentSession', dependent: :destroy_async, inverse_of: :assistant
-  end
+  has_many :scenarios, class_name: 'Captain::Scenario', dependent: :destroy_async, inverse_of: :assistant
+  has_many :agent_sessions, class_name: 'Captain::AgentSession', dependent: :destroy_async, inverse_of: :assistant
   has_many :faq_suggestions, class_name: 'Captain::FaqSuggestion', dependent: :destroy_async, inverse_of: :assistant
 
   # Cờ tính năng + tham số sinh của trợ lý nằm trong config jsonb (UI chỉnh).
@@ -95,7 +90,7 @@ class Captain::Assistant < ApplicationRecord
       response_guidelines: response_guidelines,
       guardrails: guardrails
     }
-    context[:scenarios] = scenarios_prompt_context if ChatwootApp.enterprise?
+    context[:scenarios] = scenarios_prompt_context
     context
   end
 

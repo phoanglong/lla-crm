@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_16_050000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -163,12 +163,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
     t.jsonb "run_context", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["account_id", "assistant_id", "created_at"], name: "idx_lla_agent_sessions_assistant_recent"
+    t.index ["account_id", "result_type", "result_id"], name: "idx_lla_agent_sessions_unique_result", unique: true, where: "(result_id IS NOT NULL)"
     t.index ["account_id", "result_type", "result_id"], name: "idx_on_account_id_result_type_result_id_ca66c00cd7"
     t.index ["account_id", "session_type", "created_at"], name: "idx_on_account_id_session_type_created_at_c20a14bd4e"
     t.index ["account_id", "subject_type", "subject_id"], name: "idx_on_account_id_subject_type_subject_id_6d60963b3d"
     t.index ["account_id"], name: "index_agent_sessions_on_account_id"
     t.index ["assistant_id"], name: "index_agent_sessions_on_assistant_id"
     t.index ["user_id"], name: "index_agent_sessions_on_user_id"
+    t.check_constraint "session_type = ANY (ARRAY[0, 1])", name: "chk_lla_agent_sessions_type"
   end
 
   create_table "applied_slas", force: :cascade do |t|
@@ -690,8 +693,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
     t.jsonb "phone_number_health", default: {}, null: false
     t.datetime "phone_number_health_checked_at"
     t.string "phone_number_health_error", limit: 500
-    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
+    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -823,7 +826,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
     t.datetime "updated_at", null: false
     t.integer "message_type", default: 0
     t.index ["account_id"], name: "index_copilot_messages_on_account_id"
+    t.index ["copilot_thread_id", "created_at", "id"], name: "idx_lla_copilot_messages_thread_order"
     t.index ["copilot_thread_id"], name: "index_copilot_messages_on_copilot_thread_id"
+    t.check_constraint "message_type = ANY (ARRAY[0, 1, 2])", name: "chk_lla_copilot_messages_type"
   end
 
   create_table "copilot_threads", force: :cascade do |t|
@@ -832,7 +837,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
     t.bigint "account_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "assistant_id"
+    t.integer "assistant_id", null: false
+    t.index ["account_id", "user_id", "created_at"], name: "idx_lla_copilot_threads_owner_recent"
     t.index ["account_id"], name: "index_copilot_threads_on_account_id"
     t.index ["assistant_id"], name: "index_copilot_threads_on_assistant_id"
     t.index ["user_id"], name: "index_copilot_threads_on_user_id"
@@ -996,10 +1002,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "inbox_id"
-    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "(account_id IS NOT NULL) AND (inbox_id IS NULL)"
+    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "((account_id IS NOT NULL) AND (inbox_id IS NULL))"
     t.index ["inbox_id", "name", "template_type", "locale"], name: "index_email_templates_on_inbox_scope", unique: true, where: "(inbox_id IS NOT NULL)"
     t.index ["inbox_id"], name: "index_email_templates_on_inbox_id"
-    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "(account_id IS NULL) AND (inbox_id IS NULL)"
+    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "((account_id IS NULL) AND (inbox_id IS NULL))"
   end
 
   create_table "folders", force: :cascade do |t|
@@ -1504,6 +1510,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_040000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agent_sessions", "accounts", name: "fk_lla_agent_sessions_account"
+  add_foreign_key "agent_sessions", "captain_assistants", column: "assistant_id", name: "fk_lla_agent_sessions_assistant"
+  add_foreign_key "agent_sessions", "users", name: "fk_lla_agent_sessions_user"
+  add_foreign_key "captain_scenarios", "accounts", name: "fk_lla_scenarios_account"
+  add_foreign_key "captain_scenarios", "captain_assistants", column: "assistant_id", name: "fk_lla_scenarios_assistant"
+  add_foreign_key "copilot_messages", "accounts", name: "fk_lla_copilot_messages_account"
+  add_foreign_key "copilot_messages", "copilot_threads", name: "fk_lla_copilot_messages_thread"
+  add_foreign_key "copilot_threads", "accounts", name: "fk_lla_copilot_threads_account"
+  add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"
+  add_foreign_key "copilot_threads", "users", name: "fk_lla_copilot_threads_user"
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
