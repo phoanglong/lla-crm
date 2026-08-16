@@ -111,8 +111,9 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
   end
 
   unless ChatwootApp.enterprise?
-    it 'fails closed to human handoff when V2 is enabled but its E4 runtime is unavailable' do
+    it 'fails closed to human handoff when V2 is enabled but a required runtime constant is unavailable' do
       account.enable_features!('captain_integration_v2')
+      hide_const('Captain::Assistant::SessionCaptureService')
 
       described_class.perform_now(conversation, assistant)
 

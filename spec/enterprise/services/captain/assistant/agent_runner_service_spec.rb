@@ -8,6 +8,7 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
   let(:contact) { create(:contact, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox, contact: contact) }
   let(:assistant) { create(:captain_assistant, account: account) }
+  let(:captain_inbox) { create(:captain_inbox, inbox: inbox, captain_assistant: assistant) }
   let(:scenario) { create(:captain_scenario, assistant: assistant, enabled: true) }
 
   let(:mock_runner) { instance_double(Agents::AgentRunner) }
@@ -24,6 +25,7 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
   end
 
   before do
+    captain_inbox
     allow(assistant).to receive(:agent).and_return(mock_agent)
     scenarios_relation = instance_double(Captain::Scenario)
     allow(scenarios_relation).to receive(:enabled).and_return([scenario])
@@ -153,10 +155,11 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
         service.generate_response(message_history: history_with_prior_image)
       end
 
-      it 'stores multimodal trace payloads in runner context' do
+      it 'stores only redacted multimodal trace metadata in runner context' do
         expect(mock_runner).to receive(:run) do |_input, context:, max_turns:|
-          expect(context[:captain_v2_trace_input]).to include('image_url')
-          expect(context[:captain_v2_trace_current_input]).to include('image_url')
+          expect(context[:captain_v2_trace_input]).to include('"multimodal":true')
+          expect(context[:captain_v2_trace_input]).not_to include('image_url', 'example.com')
+          expect(context[:captain_v2_trace_current_input]).not_to include('image_url', 'example.com')
           expect(max_turns).to eq(10)
         end
 
@@ -234,20 +237,19 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
       end
 
       it 'captures exception and returns error response' do
-        expect(ChatwootExceptionTracker).to receive(:new).with(error, account: conversation.account)
+        expect(ChatwootExceptionTracker).to receive(:new).with(instance_of(StandardError), account: conversation.account)
 
         result = service.generate_response(message_history: message_history)
 
         expect(result).to eq({
                                'response' => 'conversation_handoff',
-                               'reasoning' => 'Error occurred: Test error',
+                               'reasoning' => 'Agent runtime unavailable',
                                'handoff_tool_called' => false
                              })
       end
 
-      it 'logs error details' do
-        expect(Rails.logger).to receive(:error).with('[Captain V2] AgentRunnerService error: Test error')
-        expect(Rails.logger).to receive(:error).with(kind_of(String))
+      it 'logs identifiers and error class without provider text or backtrace' do
+        expect(Rails.logger).to receive(:error).with(include("account_id=#{account.id}", 'error=StandardError'))
 
         service.generate_response(message_history: message_history)
       end
@@ -262,13 +264,13 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
         subject(:service) { described_class.new(assistant: assistant, conversation: nil) }
 
         it 'handles missing conversation gracefully' do
-          expect(ChatwootExceptionTracker).to receive(:new).with(error, account: nil)
+          expect(ChatwootExceptionTracker).to receive(:new).with(instance_of(StandardError), account: assistant.account)
 
           result = service.generate_response(message_history: message_history)
 
           expect(result).to eq({
                                  'response' => 'conversation_handoff',
-                                 'reasoning' => 'Error occurred: Test error',
+                                 'reasoning' => 'Agent runtime unavailable',
                                  'handoff_tool_called' => false
                                })
         end
@@ -292,7 +294,7 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
           expect(result).to eq({
                                  'response' => 'conversation_handoff',
-                                 'reasoning' => 'Error occurred: Test error',
+                                 'reasoning' => 'Agent runtime unavailable',
                                  'handoff_tool_called' => true
                                })
         end
@@ -398,21 +400,21 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
   describe '#dynamic_trace_attributes' do
     subject(:service) { described_class.new(assistant: assistant, conversation: conversation) }
 
-    it 'adds serialized trace input attributes when present in context' do
+    it 'adds only redacted trace summary attributes when present in context' do
       context = {
         state: {
           account_id: account.id,
           assistant_id: assistant.id,
           conversation: { id: conversation.id, display_id: conversation.display_id }
         },
-        captain_v2_trace_input: '[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/image.jpg"}}]}]'
+        captain_v2_trace_input: '{"message_count":1,"roles":{"user":1},"content_bytes":50,"multimodal":true}'
       }
       context_wrapper = Struct.new(:context).new(context)
 
       attributes = service.send(:dynamic_trace_attributes, context_wrapper)
 
-      expect(attributes['langfuse.trace.input']).to include('image_url')
-      expect(attributes['langfuse.observation.input']).to include('image_url')
+      expect(attributes['langfuse.trace.input']).to include('"message_count":1')
+      expect(attributes['langfuse.observation.input']).not_to include('image_url', 'example.com')
       expect(attributes['langfuse.user.id']).to eq(account.id.to_s)
     end
   end
@@ -466,9 +468,9 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
       expect(state).to include(
         account_id: account.id,
-        assistant_id: assistant.id,
-        assistant_config: assistant.config
+        assistant_id: assistant.id
       )
+      expect(state).not_to have_key(:assistant_config)
     end
 
     it 'includes conversation attributes when conversation is present' do
@@ -497,9 +499,9 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
       expect(state[:contact]).to include(
         id: contact.id,
-        name: contact.name,
-        email: contact.email
+        name: contact.name
       )
+      expect(state[:contact]).not_to have_key(:email)
     end
 
     it 'does not include campaign when conversation has no campaign' do
@@ -538,8 +540,7 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
         expect(state).to include(
           account_id: account.id,
-          assistant_id: assistant.id,
-          assistant_config: assistant.config
+          assistant_id: assistant.id
         )
         expect(state).not_to have_key(:conversation)
         expect(state).not_to have_key(:contact)
@@ -643,8 +644,9 @@ RSpec.describe Captain::Assistant::AgentRunnerService do
 
     it 'defines contact state attributes' do
       expect(described_class::CONTACT_STATE_ATTRIBUTES).to include(
-        :id, :name, :email, :phone_number, :identifier, :contact_type
+        :id, :name, :contact_type
       )
+      expect(described_class::CONTACT_STATE_ATTRIBUTES).not_to include(:email, :phone_number, :custom_attributes)
     end
 
     it 'defines campaign state attributes' do

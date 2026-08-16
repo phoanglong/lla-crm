@@ -3,6 +3,7 @@
 *.rake text eol=lf
 *.jbuilder text eol=lf
 *.erb text eol=lf
+*.liquid text eol=lf
 *.js text eol=lf
 *.json text eol=lf
 *.vue text eol=lf

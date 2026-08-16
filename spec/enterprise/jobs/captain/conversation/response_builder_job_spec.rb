@@ -15,6 +15,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
     let(:assistant_model) { Llm::Models.default_model_for('assistant') }
 
     before do
+      captain_inbox_association
       create(:message, conversation: conversation, account: account, content: 'Hello', message_type: :incoming)
 
       allow(inbox).to receive(:captain_active?).and_return(true)
@@ -547,7 +548,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
           user_id: nil
         )
         expect(session).to be_session_assistant
-        expect(session.run_context.first).to include('role' => 'user', 'content' => 'Hello')
+        expect(session.run_context.fetch('messages').first).to include('role' => 'user', 'content' => 'Hello')
       end
 
       it 'creates a zero-credit session when the handoff tool fired' do

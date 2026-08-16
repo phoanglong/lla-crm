@@ -3,7 +3,9 @@ require 'rails_helper'
 RSpec.describe Captain::Assistant::SessionCaptureService do
   let(:account) { create(:account) }
   let(:assistant) { create(:captain_assistant, account: account) }
-  let(:conversation) { create(:conversation, account: account) }
+  let(:inbox) { create(:inbox, account: account) }
+  let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+  let(:captain_inbox) { create(:captain_inbox, inbox: inbox, captain_assistant: assistant) }
   let(:result_message) { create(:message, account: account, conversation: conversation) }
 
   let(:usage) do
@@ -48,6 +50,7 @@ RSpec.describe Captain::Assistant::SessionCaptureService do
   end
 
   before do
+    captain_inbox
     allow(assistant).to receive(:agent_model).and_return('gpt-5.2')
   end
 
@@ -106,7 +109,7 @@ RSpec.describe Captain::Assistant::SessionCaptureService do
     end
 
     it 'stores the trimmed current turn in run_context' do
-      history = service.capture!.run_context
+      history = service.capture!.run_context.fetch('messages')
       expect(history.size).to eq(4)
       expect(history.first).to include('role' => 'user', 'content' => 'CUST001')
     end
@@ -119,13 +122,13 @@ RSpec.describe Captain::Assistant::SessionCaptureService do
         { role: :assistant, content: 'I can see the image', agent_name: 'Assistant' }
       ]
 
-      history = service.capture!.run_context
+      history = service.capture!.run_context.fetch('messages')
 
       expect(history.first).to include(
         'role' => 'user',
         'content' => {
           'text' => 'See image',
-          'attachments' => [{ 'type' => 'image', 'source' => 'https://example.com/image.jpg' }]
+          'attachments' => [{ 'type' => 'image' }]
         }
       )
     end
@@ -133,7 +136,7 @@ RSpec.describe Captain::Assistant::SessionCaptureService do
     it 'stores the full history when it contains no user message' do
       run_context[:conversation_history] = conversation_history.reject { |message| message[:role] == :user }
 
-      history = service.capture!.run_context
+      history = service.capture!.run_context.fetch('messages')
 
       expect(history.size).to eq(4)
     end
@@ -150,7 +153,7 @@ RSpec.describe Captain::Assistant::SessionCaptureService do
       expect(session.result).to eq(result_message)
       expect(session.faq_ids).to eq([])
       expect(session.document_ids).to eq([])
-      expect(session.run_context).to eq([])
+      expect(session.run_context).to eq('messages' => [])
     end
 
     it 'extracts every scenario that authored a message in the current turn' do
