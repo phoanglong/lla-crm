@@ -97,7 +97,7 @@ RSpec.describe Captain::ConversationCompletionService do
             'Conversation status: pending',
             'Conversation transcript:',
             'Customer: I need help with a refund',
-            'Captain: I will transfer this to support for review.'
+            'LLA Assistant: I will transfer this to support for review.'
           )
 
           mock_response
@@ -124,7 +124,7 @@ RSpec.describe Captain::ConversationCompletionService do
         expect(mock_chat).to receive(:ask) do |content|
           expect(content).to include(
             'Conversation status: pending',
-            'Captain: I will transfer this to a specialist and they will follow up here.'
+            'LLA Assistant: I will transfer this to a specialist and they will follow up here.'
           )
 
           mock_response
@@ -177,7 +177,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq('No messages found')
+        expect(result[:reason]).to eq('No public messages found')
       end
     end
 
@@ -200,7 +200,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq('Invalid response format')
+        expect(result[:reason]).to eq('Invalid evaluation response')
       end
     end
 
@@ -214,7 +214,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq('API Error')
+        expect(result[:reason]).to eq('Evaluation unavailable')
       end
     end
 
@@ -254,7 +254,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq(I18n.t('captain.api_key_missing'))
+        expect(result[:reason]).to eq('Evaluation unavailable')
       end
     end
 
