@@ -45,5 +45,17 @@ RSpec.describe Captain::CustomToolPolicy, type: :policy do
 
   context 'with scenario policy' do
     it_behaves_like 'an account-bound Captain configuration policy', Captain::ScenarioPolicy, :captain_scenario
+
+    it 'allows only administrators to create through class authorization' do
+      expect(Captain::ScenarioPolicy.new(administrator_context, Captain::Scenario).create?).to be(true)
+      expect(Captain::ScenarioPolicy.new(agent_context, Captain::Scenario).create?).to be(false)
+    end
+
+    it 'does not expose disabled scenarios to agents' do
+      scenario = create(:captain_scenario, account: account, assistant: create(:captain_assistant, account: account), enabled: false)
+
+      expect(Captain::ScenarioPolicy.new(agent_context, scenario).show?).to be(false)
+      expect(Captain::ScenarioPolicy.new(administrator_context, scenario).show?).to be(true)
+    end
   end
 end

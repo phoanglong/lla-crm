@@ -6,11 +6,11 @@ class Captain::ScenarioPolicy < ApplicationPolicy
   end
 
   def show?
-    account_record?
+    account_record? && (administrator? || record.enabled?)
   end
 
   def create?
-    administrator? && account_record?
+    administrator? && (record == Captain::Scenario || account_record?)
   end
 
   alias update? create?

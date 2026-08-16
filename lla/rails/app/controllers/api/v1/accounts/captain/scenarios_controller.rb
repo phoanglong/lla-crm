@@ -1,10 +1,12 @@
-class Api::V1::Accounts::Captain::ScenariosController < Api::V1::Accounts::BaseController
-  before_action -> { check_authorization(Captain::Scenario) }
+# frozen_string_literal: true
+
+class Api::V1::Accounts::Captain::ScenariosController < Api::V1::Accounts::Captain::BaseController
   before_action :set_assistant
   before_action :set_scenario, only: [:show, :update, :destroy]
+  before_action :authorize_scenario
 
   def index
-    @scenarios = assistant_scenarios.enabled
+    @scenarios = assistant_scenarios.enabled.order(:id)
   end
 
   def show; end
@@ -18,22 +20,22 @@ class Api::V1::Accounts::Captain::ScenariosController < Api::V1::Accounts::BaseC
   end
 
   def destroy
-    @scenario.destroy
+    @scenario.destroy!
     head :no_content
   end
 
   private
 
   def set_assistant
-    @assistant = account_assistants.find(params[:assistant_id])
-  end
-
-  def account_assistants
-    @account_assistants ||= Current.account.captain_assistants
+    @assistant = Current.account.captain_assistants.find(params[:assistant_id])
   end
 
   def set_scenario
     @scenario = assistant_scenarios.find(params[:id])
+  end
+
+  def authorize_scenario
+    authorize(@scenario || Captain::Scenario)
   end
 
   def assistant_scenarios

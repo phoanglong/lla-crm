@@ -82,24 +82,8 @@ const humanizeToolName = name => {
     .join(' ');
 };
 
-// Argument keys are camelCased by the store ("labelName"); show "Label Name".
-const humanizeArgumentKey = key =>
-  key
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-
-const formatArguments = args => {
-  if (!args || typeof args !== 'object') return '';
-  return Object.entries(args)
-    .map(([key, value]) => `${humanizeArgumentKey(key)}: ${value}`)
-    .join(', ');
-};
-
-// Timeline of what Captain did during the run: tool calls (with their
-// arguments) and scenario/agent handoffs. Message bodies and raw tool
-// results are intentionally not echoed here.
+// Timeline of what Captain did during the run. Tool arguments, raw tool
+// results and model reasoning are intentionally never displayed.
 const steps = computed(() => {
   const runContext = session.value?.runContext;
   const result = [];
@@ -124,24 +108,11 @@ const steps = computed(() => {
       result.push({
         type: 'tool',
         name: humanizeToolName(call.name),
-        detail: formatArguments(call.arguments),
       });
     });
   });
 
   return result;
-});
-
-// The final assistant entry stores structured content ({response, reasoning});
-// surface the model's reasoning for the reply it produced.
-const reasoning = computed(() => {
-  const runContext = session.value?.runContext;
-  if (!Array.isArray(runContext)) return '';
-
-  const entry = [...runContext]
-    .reverse()
-    .find(item => item?.role === 'assistant' && item.content?.reasoning);
-  return entry?.content?.reasoning || '';
 });
 
 const STEP_ICONS = {
@@ -279,12 +250,6 @@ const onPopoverHide = () => {
                         </span>
                       </template>
                     </I18nT>
-                    <span
-                      v-if="step.detail"
-                      class="text-xs text-n-slate-11 break-words"
-                    >
-                      {{ step.detail }}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -321,14 +286,6 @@ const onPopoverHide = () => {
                   <span v-else>{{ citation.title }}</span>
                 </li>
               </ul>
-            </div>
-            <div v-if="reasoning" class="flex flex-col gap-2">
-              <span class="text-xs font-medium text-n-slate-11">
-                {{ t('CONVERSATION.CAPTAIN_GENERATION.REASONING') }}
-              </span>
-              <p class="m-0 text-xs leading-normal text-n-slate-12 break-words">
-                {{ reasoning }}
-              </p>
             </div>
             <span v-if="devDetails" class="text-xs text-n-slate-11">
               {{ devDetails }}
