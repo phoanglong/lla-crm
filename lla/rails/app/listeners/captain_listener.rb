@@ -8,7 +8,7 @@ class CaptainListener < BaseListener
     assistant = same_account_assistant(conversation)
     return if assistant.blank? || !conversation.inbox.captain_active?
 
-    generate_contact_notes(assistant, conversation) if enabled?(assistant, 'feature_memory')
+    generate_contact_memory(assistant, conversation) if enabled?(assistant, 'feature_memory')
     enqueue_faq_generation(assistant, conversation) if enabled?(assistant, 'feature_faq')
   end
 
@@ -23,11 +23,18 @@ class CaptainListener < BaseListener
     ActiveModel::Type::Boolean.new.cast(assistant.config[feature])
   end
 
-  def generate_contact_notes(assistant, conversation)
-    service_class = 'Captain::Llm::ContactNotesService'.safe_constantize
-    return log_deferred_feature('contact_notes', conversation) unless service_class
+  def generate_contact_memory(assistant, conversation)
+    invoke_memory_service(
+      'Captain::Llm::ContactAttributesService', :generate_and_update_attributes, assistant, conversation
+    )
+    invoke_memory_service('Captain::Llm::ContactNotesService', :generate_and_update_notes, assistant, conversation)
+  end
 
-    service_class.new(assistant, conversation).generate_and_update_notes
+  def invoke_memory_service(class_name, method_name, assistant, conversation)
+    service_class = class_name.safe_constantize
+    return log_deferred_feature(class_name.demodulize.underscore, conversation) unless service_class
+
+    service_class.new(assistant, conversation).public_send(method_name)
   end
 
   def enqueue_faq_generation(assistant, conversation)

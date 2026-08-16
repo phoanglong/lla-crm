@@ -37,6 +37,14 @@ class Captain::Llm::SystemPromptsService
       PROMPT
     end
 
+    def notes_generator(language = 'English')
+      Captain::Llm::ContactMemoryPrompts.notes(language)
+    end
+
+    def attributes_generator(definitions = [])
+      Captain::Llm::ContactMemoryPrompts.attributes(definitions)
+    end
+
     # Prompt cho trợ lý trả lời khách: ghép từ nền + hướng dẫn riêng của account
     # (trong thẻ <account_custom_instructions>) + thông tin contact + công cụ
     # tuỳ chỉnh + ngữ cảnh tra cứu; khối định dạng JSON luôn nằm CUỐI.
