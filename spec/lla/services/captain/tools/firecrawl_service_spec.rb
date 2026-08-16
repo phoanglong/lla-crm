@@ -7,7 +7,7 @@ RSpec.describe Captain::Tools::FirecrawlService do
   let(:crawl_limit) { 15 }
 
   before do
-    create(:installation_config, name: 'CAPTAIN_FIRECRAWL_API_KEY', value: api_key)
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_FIRECRAWL_API_KEY').update!(value: api_key)
   end
 
   describe '#initialize' do

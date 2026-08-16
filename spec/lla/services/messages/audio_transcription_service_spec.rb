@@ -10,7 +10,7 @@ RSpec.describe Messages::AudioTranscriptionService, type: :service do
 
   before do
     account.enable_features!('captain_integration')
-    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-api-key')
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: 'test-api-key')
   end
 
   it 'rejects an attachment whose tenant does not match its message' do
@@ -43,7 +43,8 @@ RSpec.describe Messages::AudioTranscriptionService, type: :service do
   end
 
   it 'rejects non-HTTPS provider endpoints and embedded credentials' do
-    endpoint = create(:installation_config, name: 'CAPTAIN_OPEN_AI_ENDPOINT', value: 'http://api.example.test/')
+    endpoint = InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')
+    endpoint.update!(value: 'http://api.example.test/')
     expect { service.client }.to raise_error(ArgumentError, 'Audio transcription endpoint must use HTTPS')
 
     endpoint.update!(value: 'https://user:password@api.example.test/')

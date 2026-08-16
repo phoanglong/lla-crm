@@ -8,7 +8,10 @@ RSpec.describe Captain::InboxPendingConversationsResolutionJob, type: :job do
   let(:assistant) { create(:captain_assistant, account: account) }
   let(:captain_inbox) { create(:captain_inbox, inbox: inbox, captain_assistant: assistant) }
 
-  before { captain_inbox }
+  before do
+    captain_inbox
+    account.disable_features!('captain_tasks')
+  end
 
   it 'reloads a valid same-account Captain runtime context' do
     job = described_class.new

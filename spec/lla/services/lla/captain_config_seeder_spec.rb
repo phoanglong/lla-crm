@@ -12,7 +12,7 @@ RSpec.describe Lla::CaptainConfigSeeder do
     end
 
     it 'overwrites a stale value — Infisical/ENV là nguồn sự thật' do
-      InstallationConfig.create!(name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'sk-old')
+      InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: 'sk-old')
 
       with_modified_env CAPTAIN_OPEN_AI_API_KEY: 'sk-new' do
         described_class.perform
@@ -22,14 +22,20 @@ RSpec.describe Lla::CaptainConfigSeeder do
     end
 
     it 'does not touch configs whose environment variable is blank' do
-      InstallationConfig.create!(name: 'CAPTAIN_OPEN_AI_ENDPOINT', value: 'https://openrouter.ai/api/v1')
+      InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT').update!(
+        value: 'https://openrouter.ai/api/v1'
+      )
+      api_key_config = InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY')
+      api_key_config.update!(value: nil)
+      original_updated_at = api_key_config.updated_at
 
       with_modified_env CAPTAIN_OPEN_AI_ENDPOINT: nil, CAPTAIN_OPEN_AI_API_KEY: nil do
         described_class.perform
       end
 
       expect(InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT').value).to eq('https://openrouter.ai/api/v1')
-      expect(InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')).to be_nil
+      expect(api_key_config.reload.value).to be_nil
+      expect(api_key_config.updated_at).to eq(original_updated_at)
     end
 
     it 'is idempotent when values are unchanged' do

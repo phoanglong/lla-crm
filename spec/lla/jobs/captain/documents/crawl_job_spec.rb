@@ -15,7 +15,7 @@ RSpec.describe Captain::Documents::CrawlJob, type: :job do
         allow(Captain::Tools::FirecrawlService).to receive(:new).and_return(firecrawl_service)
         allow(firecrawl_service).to receive(:perform)
         allow(Lla::Captain::FirecrawlWebhookToken).to receive(:generate).with(document.assistant).and_return(token)
-        create(:installation_config, name: 'CAPTAIN_FIRECRAWL_API_KEY', value: 'test-key')
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_FIRECRAWL_API_KEY').update!(value: 'test-key')
       end
 
       context 'with account usage limits' do
@@ -72,6 +72,7 @@ RSpec.describe Captain::Documents::CrawlJob, type: :job do
       let(:simple_crawler) { instance_double(Captain::Tools::SimplePageCrawlService) }
 
       before do
+        InstallationConfig.where(name: 'CAPTAIN_FIRECRAWL_API_KEY').destroy_all
         allow(document.account).to receive(:usage_limits).and_return({})
         allow(Captain::Tools::SimplePageCrawlService)
           .to receive(:new)

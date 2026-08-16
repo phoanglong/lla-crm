@@ -42,7 +42,7 @@ RSpec.describe Account, type: :model do
     end
 
     it 'fails closed when configured plan data is malformed' do
-      create(:installation_config, name: 'CAPTAIN_CLOUD_PLAN_LIMITS', value: '{malformed')
+      InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_CLOUD_PLAN_LIMITS').update!(value: '{malformed')
       account.update!(limits: {})
 
       expect(account.captain_monthly_limit).to eq({ documents: 0, responses: 0 }.with_indifferent_access)
@@ -50,9 +50,7 @@ RSpec.describe Account, type: :model do
     end
 
     it 'fails closed when an account plan is missing from configured plan data' do
-      create(
-        :installation_config,
-        name: 'CAPTAIN_CLOUD_PLAN_LIMITS',
+      InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_CLOUD_PLAN_LIMITS').update!(
         value: { startups: { documents: 10, responses: 20 } }.to_json
       )
       account.update!(limits: {})

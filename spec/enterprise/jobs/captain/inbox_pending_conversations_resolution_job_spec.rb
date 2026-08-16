@@ -15,6 +15,7 @@ RSpec.describe Captain::InboxPendingConversationsResolutionJob, type: :job do
 
   before do
     create(:captain_inbox, inbox: inbox, captain_assistant: captain_assistant)
+    inbox.account.disable_features!('captain_tasks')
     stub_const('Limits::BULK_ACTIONS_LIMIT', 3)
     inbox.reload
   end
