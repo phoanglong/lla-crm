@@ -12,13 +12,20 @@ class WhatsappCallsAPI extends ApiClient {
 
   // Either conversationId, or contactId + inboxId to let the BE resolve the conversation.
   initiate({ conversationId, contactId, inboxId }, sdpOffer) {
+    const idempotencyKey =
+      window.crypto?.randomUUID?.() ||
+      `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return axios
-      .post(`${this.url}/initiate`, {
-        conversation_id: conversationId,
-        contact_id: contactId,
-        inbox_id: inboxId,
-        sdp_offer: sdpOffer,
-      })
+      .post(
+        `${this.url}/initiate`,
+        {
+          conversation_id: conversationId,
+          contact_id: contactId,
+          inbox_id: inboxId,
+          sdp_offer: sdpOffer,
+        },
+        { headers: { 'Idempotency-Key': idempotencyKey } }
+      )
       .then(r => r.data);
   }
 

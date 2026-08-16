@@ -4,7 +4,7 @@ class Lla::Voice::CallOperation < ApplicationRecord
   self.table_name = 'lla_call_operations'
 
   STATES = %w[pending claimed succeeded failed compensating compensated].freeze
-  ACTIONS = %w[dial accept reject terminate provision teardown fetch_recording].freeze
+  ACTIONS = %w[dial accept reject terminate permission_request provision teardown fetch_recording].freeze
 
   belongs_to :account, class_name: '::Account'
   belongs_to :inbox, class_name: '::Inbox'

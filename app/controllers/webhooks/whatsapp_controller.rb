@@ -2,6 +2,7 @@ class Webhooks::WhatsappController < ActionController::API
   include MetaTokenVerifyConcern
 
   before_action :verify_meta_signature!, only: :process_payload
+  before_action :claim_lla_voice_event!, only: :process_payload
 
   def process_payload
     if inactive_whatsapp_number?
@@ -10,7 +11,15 @@ class Webhooks::WhatsappController < ActionController::API
       return
     end
 
-    Webhooks::WhatsappEventsJob.perform_later(params.to_unsafe_hash)
+    if @lla_voice_event
+      return head :ok if @lla_voice_duplicate
+
+      routing = lla_voice_routing_params
+      encrypted_payload = Lla::Voice::PayloadCipher.encrypt(params.to_unsafe_hash)
+      Webhooks::WhatsappEventsJob.perform_later(routing, @lla_voice_event.id, encrypted_payload)
+    else
+      Webhooks::WhatsappEventsJob.perform_later(params.to_unsafe_hash)
+    end
     head :ok
   end
 
@@ -34,11 +43,37 @@ class Webhooks::WhatsappController < ActionController::API
   end
 
   def meta_signature_verification_required?
+    return true if lla_voice_event?
     return true if whatsapp_channel.blank?
     return false unless whatsapp_channel.provider == 'whatsapp_cloud'
     return true if channel_meta_app_secrets(whatsapp_channel).present?
 
     whatsapp_channel.provider_config['source'] == 'embedded_signup'
+  end
+
+  def claim_lla_voice_event!
+    return unless lla_voice_event?
+    return if inactive_whatsapp_number?
+    raise ActiveRecord::RecordNotFound if whatsapp_channel.blank?
+
+    @lla_voice_event, @lla_voice_duplicate = Lla::Voice::WhatsappEventClaim.new(
+      request: request,
+      channel: whatsapp_channel
+    ).claim!
+  end
+
+  def lla_voice_event?
+    field = params.dig(:entry, 0, :changes, 0, :field)
+    permission_type = params.dig(:entry, 0, :changes, 0, :value, :messages, 0, :interactive, :type)
+    field == 'calls' || permission_type == 'call_permission_reply'
+  end
+
+  def lla_voice_routing_params
+    phone_number_id = params.dig(:entry, 0, :changes, 0, :value, :metadata, :phone_number_id)
+    {
+      object: params[:object],
+      entry: [{ changes: [{ value: { metadata: { phone_number_id: phone_number_id } } }] }]
+    }
   end
 
   def whatsapp_business_payload_channel

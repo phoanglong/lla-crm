@@ -259,7 +259,7 @@ Rails.application.routes.draw do
 
           resources :calls, only: [:index] if ChatwootApp.voice_calls?
 
-          if ChatwootApp.enterprise?
+          if ChatwootApp.voice_calls?
             resources :whatsapp_calls, only: [:show] do
               member do
                 post :accept

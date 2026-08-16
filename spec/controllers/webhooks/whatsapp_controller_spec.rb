@@ -25,6 +25,22 @@ RSpec.describe 'Webhooks::WhatsappController', type: :request do
     end
   end
 
+  def voice_body
+    {
+      object: 'whatsapp_business_account',
+      entry: [{
+        changes: [{
+          field: 'calls',
+          value: {
+            metadata: { phone_number_id: channel.provider_config['phone_number_id'] },
+            calls: [{ id: 'wacid-secure-1', from: '15550001111', event: 'connect',
+                      session: { sdp: "v=0\r\no=lla 1 1 IN IP4 127.0.0.1\r\n", sdp_type: 'offer' } }]
+          }
+        }]
+      }]
+    }.to_json
+  end
+
   before do
     InstallationConfig.where(name: 'WHATSAPP_APP_SECRET').delete_all
     GlobalConfig.clear_cache
@@ -145,6 +161,48 @@ RSpec.describe 'Webhooks::WhatsappController', type: :request do
 
       expect(response).to have_http_status(:unauthorized)
       expect(Webhooks::WhatsappEventsJob).not_to have_received(:perform_later)
+    end
+
+    it 'claims and encrypts a signed voice event before enqueueing it' do
+      allow(Webhooks::WhatsappEventsJob).to receive(:perform_later)
+
+      expect do
+        post_whatsapp_webhook("/webhooks/whatsapp/#{channel.phone_number}", voice_body)
+      end.to change(Lla::Voice::CallEvent, :count).by(1)
+
+      event = Lla::Voice::CallEvent.last
+      expect(event).to have_attributes(provider: 'whatsapp', outcome: 'pending', event_type: 'whatsapp.calls')
+      expect(Webhooks::WhatsappEventsJob).to have_received(:perform_later) do |routing, event_id, ciphertext|
+        expect(routing.dig(:entry, 0, :changes, 0, :value, :metadata, :phone_number_id))
+          .to eq(channel.provider_config['phone_number_id'])
+        expect(event_id).to eq(event.id)
+        expect(ciphertext).not_to include('15550001111', 'v=0')
+        expect(Lla::Voice::PayloadCipher.decrypt(ciphertext).dig(:entry, 0, :changes, 0, :field)).to eq('calls')
+      end
+    end
+
+    it 'rejects an unsigned voice event even for a manual cloud channel and creates no ledger row' do
+      channel.update!(provider_config: channel.provider_config.except('source', 'app_secret'))
+      allow(Webhooks::WhatsappEventsJob).to receive(:perform_later)
+
+      expect do
+        post_unsigned_whatsapp_webhook("/webhooks/whatsapp/#{channel.phone_number}", voice_body, env: {})
+      end.not_to change(Lla::Voice::CallEvent, :count)
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(Webhooks::WhatsappEventsJob).not_to have_received(:perform_later)
+    end
+
+    it 'does not enqueue an already-applied duplicate voice event' do
+      allow(Webhooks::WhatsappEventsJob).to receive(:perform_later)
+
+      post_whatsapp_webhook("/webhooks/whatsapp/#{channel.phone_number}", voice_body)
+      Lla::Voice::CallEvent.last.update!(outcome: 'applied')
+      post_whatsapp_webhook("/webhooks/whatsapp/#{channel.phone_number}", voice_body)
+
+      expect(response).to have_http_status(:success)
+      expect(Lla::Voice::CallEvent.count).to eq(1)
+      expect(Webhooks::WhatsappEventsJob).to have_received(:perform_later).once
     end
 
     context 'when phone number is in inactive list' do
