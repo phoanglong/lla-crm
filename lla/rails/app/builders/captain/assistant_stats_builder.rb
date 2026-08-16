@@ -38,11 +38,9 @@ class Captain::AssistantStatsBuilder
 
   def faq_stats
     with_statement_timeout do
-      approved, suggestions, documents = Captain::AssistantResponse.by_assistant(assistant.id).reorder(nil).pick(
-        Arel.sql("COUNT(*) FILTER (WHERE status = #{Captain::AssistantResponse.statuses['approved']})"),
-        Arel.sql("(#{open_suggestion_count_sql})"),
-        Arel.sql("(SELECT COUNT(*) FROM captain_documents WHERE assistant_id = #{assistant.id.to_i})")
-      )
+      approved = Captain::AssistantResponse.by_assistant(assistant.id).approved.count
+      suggestions = suggestions_scope.where(assistant_id: assistant.id).open.reorder(nil).count
+      documents = assistant.documents.count
       total = approved + suggestions
 
       {
@@ -126,17 +124,10 @@ class Captain::AssistantStatsBuilder
   end
 
   def message_window_metrics
-    public_clause = "message_type = #{Message.message_types[:outgoing]} AND private = false"
-    current_clause = window_clause(current_range)
-    previous_clause = window_clause(previous_range)
-
+    current, previous = [current_range, previous_range].map { |range| message_aggregates(range) }
     row = handled_scope(full_span).reorder(nil).pick(
-      Arel.sql("COUNT(DISTINCT conversation_id) FILTER (WHERE #{current_clause})"),
-      Arel.sql("COUNT(DISTINCT conversation_id) FILTER (WHERE #{previous_clause})"),
-      Arel.sql("COUNT(*) FILTER (WHERE #{current_clause} AND #{public_clause})"),
-      Arel.sql("COUNT(*) FILTER (WHERE #{previous_clause} AND #{public_clause})"),
-      Arel.sql("COUNT(DISTINCT conversation_id) FILTER (WHERE #{current_clause} AND #{public_clause})"),
-      Arel.sql("COUNT(DISTINCT conversation_id) FILTER (WHERE #{previous_clause} AND #{public_clause})")
+      current[:handled], previous[:handled], current[:public_count], previous[:public_count],
+      current[:depth_conversations], previous[:depth_conversations]
     )
 
     {
@@ -145,24 +136,41 @@ class Captain::AssistantStatsBuilder
     }
   end
 
+  def message_aggregates(range)
+    messages = Message.arel_table
+    window = created_at_window(messages, range)
+    public_window = window.and(
+      messages[:message_type].eq(Message.message_types[:outgoing]).and(messages[:private].eq(false))
+    )
+
+    {
+      handled: filtered_count(messages[:conversation_id], window, distinct: true),
+      public_count: filtered_count(messages[:id], public_window),
+      depth_conversations: filtered_count(messages[:conversation_id], public_window, distinct: true)
+    }
+  end
+
   def resolution_counts(range)
+    reporting_events = ReportingEvent.arel_table
     row = reporting_events_scope(range)
           .where(name: RESOLVED_EVENT_NAMES + HANDOFF_EVENT_NAMES,
                  conversation_id: handled_scope(range).select(:conversation_id))
           .reorder(nil)
           .pick(
-            Arel.sql("COUNT(DISTINCT conversation_id) FILTER (WHERE #{resolved_clause(range)})"),
-            Arel.sql("COUNT(DISTINCT conversation_id) FILTER (WHERE name IN (#{quoted(HANDOFF_EVENT_NAMES)}))")
+            filtered_count(reporting_events[:conversation_id], resolved_event_predicate(reporting_events, range),
+                           distinct: true),
+            filtered_count(reporting_events[:conversation_id], reporting_events[:name].in(HANDOFF_EVENT_NAMES),
+                           distinct: true)
           )
     { resolved: row[0], handoff: row[1] }
   end
 
-  def resolved_clause(range)
-    "name IN (#{quoted(RESOLVED_EVENT_NAMES)}) AND #{bot_resolve_handoff_exclusion(range)}"
-  end
+  def resolved_event_predicate(reporting_events, range)
+    bot_resolved_after_handoff = reporting_events[:name].eq(BOT_RESOLVED_EVENT_NAME).and(
+      reporting_events[:conversation_id].in(handoff_conversation_ids(range).arel)
+    )
 
-  def bot_resolve_handoff_exclusion(range)
-    "NOT (name = #{quote(BOT_RESOLVED_EVENT_NAME)} AND conversation_id IN (#{handoff_conversation_ids(range).to_sql}))"
+    reporting_events[:name].in(RESOLVED_EVENT_NAMES).and(Arel::Nodes::Not.new(bot_resolved_after_handoff))
   end
 
   def handoff_conversation_ids(range)
@@ -186,16 +194,12 @@ class Captain::AssistantStatsBuilder
     [current_range.begin, previous_range.begin].min...current_range.end
   end
 
-  def window_clause(range)
-    "created_at >= #{quote(range.begin)} AND created_at < #{quote(range.end)}"
+  def created_at_window(table, range)
+    table[:created_at].gteq(range.begin).and(table[:created_at].lt(range.end))
   end
 
-  def quote(value)
-    account.class.connection.quote(value)
-  end
-
-  def quoted(values)
-    values.map { |value| quote(value) }.join(', ')
+  def filtered_count(attribute, predicate, distinct: false)
+    attribute.count(distinct).filter(predicate)
   end
 
   def reopen_rate(range, resolved_count)
@@ -204,7 +208,7 @@ class Captain::AssistantStatsBuilder
     resolved_scope = reporting_events_scope(range)
                      .where(name: RESOLVED_EVENT_NAMES,
                             conversation_id: handled_scope(range).select(:conversation_id))
-                     .where(bot_resolve_handoff_exclusion(range))
+                     .where(resolved_event_predicate(ReportingEvent.arel_table, range))
     reopened = account.reporting_events
                       .where(name: 'conversation_opened', conversation_id: conversations_scope.select(:id))
                       .where('reporting_events.value > 0')
@@ -214,10 +218,6 @@ class Captain::AssistantStatsBuilder
                              'AND reporting_events.event_end_time >= resolves.event_end_time')
                       .distinct.count('reporting_events.conversation_id')
     rate(reopened, resolved_count)
-  end
-
-  def open_suggestion_count_sql
-    suggestions_scope.where(assistant_id: assistant.id).open.reorder(nil).select('COUNT(*)').to_sql
   end
 
   def with_statement_timeout
