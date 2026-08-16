@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -415,6 +415,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
     t.integer "sync_status"
     t.datetime "last_synced_at"
     t.datetime "last_sync_attempted_at"
+    t.string "sync_claim_digest"
+    t.datetime "sync_claimed_at"
     t.index "assistant_id, md5(external_link)", name: "idx_captain_documents_on_assistant_id_and_external_link_md5", unique: true
     t.index ["account_id", "assistant_id", "sync_status", "last_synced_at"], name: "idx_captain_documents_on_account_assistant_sync_stats"
     t.index ["account_id", "sync_status"], name: "index_captain_documents_on_account_id_and_sync_status"
@@ -479,10 +481,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "expires_at", null: false
+    t.index ["account_id", "user_id", "message_id"], name: "idx_lla_message_reports_effective", unique: true
     t.index ["account_id"], name: "index_captain_message_reports_on_account_id"
     t.index ["conversation_id"], name: "index_captain_message_reports_on_conversation_id"
+    t.index ["expires_at"], name: "idx_lla_message_reports_expiry"
     t.index ["message_id"], name: "index_captain_message_reports_on_message_id"
     t.index ["user_id"], name: "index_captain_message_reports_on_user_id"
+    t.check_constraint "description IS NULL OR char_length(description) <= 500", name: "chk_lla_message_reports_description"
+    t.check_constraint "report_reason::text = ANY (ARRAY['incorrect_information'::character varying, 'inappropriate_response'::character varying, 'incomplete_response'::character varying, 'outdated_information'::character varying, 'other'::character varying]::text[])", name: "chk_lla_message_reports_reason"
   end
 
   create_table "captain_scenarios", force: :cascade do |t|
@@ -801,6 +808,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
     t.text "cached_label_list"
     t.bigint "assignee_agent_bot_id"
     t.index ["account_id", "display_id"], name: "index_conversations_on_account_id_and_display_id", unique: true
+    t.index ["account_id", "id"], name: "idx_lla_conversations_feedback_tenant", unique: true
     t.index ["account_id", "id"], name: "index_conversations_on_id_and_account_id"
     t.index ["account_id", "inbox_id", "status", "assignee_id"], name: "conv_acid_inbid_stat_asgnid_idx"
     t.index ["account_id"], name: "index_conversations_on_account_id"
@@ -1143,6 +1151,32 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
     t.index ["user_id"], name: "index_leaves_on_user_id"
   end
 
+  create_table "lla_captain_bulk_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.string "key_digest", null: false
+    t.string "request_digest", null: false
+    t.string "resource_type", null: false
+    t.string "action", null: false
+    t.string "state", default: "pending", null: false
+    t.integer "requested_count", default: 0, null: false
+    t.integer "processed_count", default: 0, null: false
+    t.integer "error_count", default: 0, null: false
+    t.jsonb "result", default: {}, null: false
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "key_digest"], name: "idx_lla_bulk_operations_idempotency", unique: true
+    t.index ["account_id"], name: "index_lla_captain_bulk_operations_on_account_id"
+    t.index ["expires_at"], name: "idx_lla_bulk_operations_expiry"
+    t.index ["user_id"], name: "index_lla_captain_bulk_operations_on_user_id"
+    t.check_constraint "char_length(key_digest::text) = 64 AND char_length(request_digest::text) = 64", name: "chk_lla_bulk_operations_digests"
+    t.check_constraint "requested_count >= 1 AND requested_count <= 100 AND processed_count >= 0 AND processed_count <= requested_count AND error_count >= 0 AND error_count <= requested_count AND (processed_count + error_count) <= requested_count", name: "chk_lla_bulk_operations_counts"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying]::text[])", name: "chk_lla_bulk_operations_state"
+  end
+
   create_table "lla_captain_quota_ledgers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "bucket", limit: 64, default: "captain_responses", null: false
@@ -1239,6 +1273,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
     t.index "((additional_attributes -> 'campaign_id'::text))", name: "index_messages_on_additional_attributes_campaign_id", using: :gin
     t.index ["account_id", "content_type", "created_at"], name: "idx_messages_account_content_created"
     t.index ["account_id", "created_at", "message_type"], name: "index_messages_on_account_created_type"
+    t.index ["account_id", "id", "conversation_id"], name: "idx_lla_messages_feedback_tenant", unique: true
     t.index ["account_id", "inbox_id"], name: "index_messages_on_account_id_and_inbox_id"
     t.index ["account_id", "sender_id", "created_at", "conversation_id"], name: "idx_lla_captain_messages_metrics", where: "((sender_type)::text = 'Captain::Assistant'::text)"
     t.index ["account_id"], name: "index_messages_on_account_id"
@@ -1582,6 +1617,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
   add_foreign_key "agent_sessions", "accounts", name: "fk_lla_agent_sessions_account"
   add_foreign_key "agent_sessions", "captain_assistants", column: "assistant_id", name: "fk_lla_agent_sessions_assistant"
   add_foreign_key "agent_sessions", "users", name: "fk_lla_agent_sessions_user"
+  add_foreign_key "captain_message_reports", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_message_reports_membership", on_delete: :cascade
+  add_foreign_key "captain_message_reports", "conversations", column: ["account_id", "conversation_id"], primary_key: ["account_id", "id"], name: "fk_lla_message_reports_conversation_tenant", on_delete: :cascade
+  add_foreign_key "captain_message_reports", "messages", column: ["account_id", "message_id", "conversation_id"], primary_key: ["account_id", "id", "conversation_id"], name: "fk_lla_message_reports_message_tenant", on_delete: :cascade
   add_foreign_key "captain_scenarios", "accounts", name: "fk_lla_scenarios_account"
   add_foreign_key "captain_scenarios", "captain_assistants", column: "assistant_id", name: "fk_lla_scenarios_assistant"
   add_foreign_key "copilot_messages", "accounts", name: "fk_lla_copilot_messages_account"
@@ -1592,6 +1630,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_080000) do
   add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"
   add_foreign_key "copilot_threads", "users", name: "fk_lla_copilot_threads_user"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "lla_captain_bulk_operations", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_bulk_operations_membership", on_delete: :cascade
+  add_foreign_key "lla_captain_bulk_operations", "accounts", on_delete: :cascade
+  add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
   add_foreign_key "user_sessions", "users"

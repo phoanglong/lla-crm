@@ -7,6 +7,7 @@ module Lla::Internal::TriggerDailyScheduledItemsJob
   def perform
     super
     schedule_captain_document_syncs
+    Lla::Captain::RetentionCleanupJob.perform_later
   end
 
   private
