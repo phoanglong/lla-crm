@@ -1,6 +1,10 @@
 require 'rails_helper'
 
 RSpec.describe Captain::CustomTool, type: :model do
+  def skip_without_encryption
+    skip('encryption keys missing; credential examples run in the encryption-enabled suite') unless Chatwoot.encryption_configured?
+  end
+
   describe 'associations' do
     it { is_expected.to belong_to(:account) }
   end
@@ -112,6 +116,47 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         expect(tool).to be_valid
       end
+
+      it 'rejects unsupported parameter types' do
+        tool = build(:captain_custom_tool, account: account, param_schema: [
+                       { 'name' => 'order_id', 'type' => 'file', 'description' => 'Order ID' }
+                     ])
+
+        expect(tool).not_to be_valid
+      end
+
+      it 'rejects more than the bounded parameter count' do
+        schema = Array.new(33) { |index| { 'name' => "field_#{index}", 'type' => 'string', 'description' => 'Field' } }
+        tool = build(:captain_custom_tool, account: account, param_schema: schema)
+
+        expect(tool).not_to be_valid
+      end
+    end
+
+    describe 'credential validation' do
+      let(:account) { create(:account) }
+
+      it 'rejects missing bearer credentials' do
+        tool = build(:captain_custom_tool, account: account, auth_type: 'bearer', auth_config: {})
+
+        expect(tool).not_to be_valid
+        expect(tool.errors[:auth_config]).to include('is invalid')
+      end
+
+      it 'rejects API key names that can override protected headers' do
+        tool = build(:captain_custom_tool, account: account, auth_type: 'api_key',
+                                           auth_config: { name: 'Authorization', key: 'dummy-key' })
+
+        expect(tool).not_to be_valid
+        expect(tool.errors[:auth_config]).to include('is invalid')
+      end
+
+      it 'clears credentials when authentication is disabled' do
+        tool = build(:captain_custom_tool, account: account, auth_type: 'none', auth_config: { token: 'discard-me' })
+
+        expect(tool).to be_valid
+        expect(tool.auth_config).to be_empty
+      end
     end
   end
 
@@ -203,6 +248,8 @@ RSpec.describe Captain::CustomTool, type: :model do
     end
 
     it 'creates valid tool with bearer auth trait' do
+      skip_without_encryption
+
       tool = create(:captain_custom_tool, :with_bearer_auth)
 
       expect(tool.auth_type).to eq('bearer')
@@ -210,6 +257,8 @@ RSpec.describe Captain::CustomTool, type: :model do
     end
 
     it 'creates valid tool with basic auth trait' do
+      skip_without_encryption
+
       tool = create(:captain_custom_tool, :with_basic_auth)
 
       expect(tool.auth_type).to eq('basic')
@@ -218,6 +267,8 @@ RSpec.describe Captain::CustomTool, type: :model do
     end
 
     it 'creates valid tool with api key trait' do
+      skip_without_encryption
+
       tool = create(:captain_custom_tool, :with_api_key)
 
       expect(tool.auth_type).to eq('api_key')
@@ -275,18 +326,24 @@ RSpec.describe Captain::CustomTool, type: :model do
       end
 
       it 'returns bearer token header' do
+        skip_without_encryption
+
         tool = create(:captain_custom_tool, :with_bearer_auth, account: account)
 
         expect(tool.build_auth_headers).to eq({ 'Authorization' => 'Bearer test_bearer_token_123' })
       end
 
       it 'returns API key header' do
+        skip_without_encryption
+
         tool = create(:captain_custom_tool, :with_api_key, account: account)
 
         expect(tool.build_auth_headers).to eq({ 'X-API-Key' => 'test_api_key' })
       end
 
       it 'returns empty hash for basic auth' do
+        skip_without_encryption
+
         tool = create(:captain_custom_tool, :with_basic_auth, account: account)
 
         expect(tool.build_auth_headers).to eq({})
@@ -301,6 +358,8 @@ RSpec.describe Captain::CustomTool, type: :model do
       end
 
       it 'returns username and password array for basic auth' do
+        skip_without_encryption
+
         tool = create(:captain_custom_tool, :with_basic_auth, account: account)
 
         expect(tool.build_basic_auth_credentials).to eq(%w[test_user test_pass])

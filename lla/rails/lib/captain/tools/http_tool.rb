@@ -9,9 +9,10 @@ require 'uri'
 class Captain::Tools::HttpTool < Captain::Tools::BasePublicTool
   MAX_REDIRECTS = 5
   MAX_REQUEST_BYTES = 256.kilobytes
-  MAX_RESPONSE_BYTES = 1.megabyte
+  MAX_RESPONSE_BYTES = 256.kilobytes
+  MAX_TOOL_OUTPUT_BYTES = 32_000
 
-  Response = Struct.new(:code, :body, :location, keyword_init: true)
+  Response = Struct.new(:code, :body, :location, :content_type, keyword_init: true)
 
   def initialize(assistant, custom_tool)
     @custom_tool = custom_tool
@@ -41,29 +42,66 @@ class Captain::Tools::HttpTool < Captain::Tools::BasePublicTool
   end
 
   def active?
-    @custom_tool.enabled?
+    runtime_tool_valid?
   end
 
   def perform(tool_context, **params)
-    url = @custom_tool.build_request_url(params)
-    body = @custom_tool.build_request_body(params)
-    response = execute_request(url, body, @custom_tool.build_metadata_headers(tool_context.state))
+    raise 'Custom tool is unavailable' unless runtime_tool_valid?
 
-    @custom_tool.format_response(response)
+    result = nil
+    @custom_tool.with_lock do
+      @custom_tool.reload
+      raise 'Custom tool is unavailable' unless runtime_tool_valid?
+
+      response = perform_request(params, tool_context&.state || {})
+      raise "HTTP #{response.code}" unless success_response?(response)
+
+      result = @custom_tool.format_response(response.body)
+    end
+    result.to_s.byteslice(0, MAX_TOOL_OUTPUT_BYTES).to_s.scrub
   rescue StandardError => e
     Rails.logger.error("HttpTool execution error (#{@custom_tool.slug}): #{e.class}")
     'An error occurred while executing the request'
   end
 
+  def perform_test(account:, **params)
+    raise 'Custom tool is unavailable' unless test_tool_valid?(account)
+
+    response = perform_request(params, account_id: account.id)
+    {
+      status: response.code.to_i,
+      response_bytes: response.body.to_s.bytesize,
+      content_type: response.content_type.to_s.byteslice(0, 120).to_s.scrub
+    }
+  end
+
   private
 
-  def execute_request(url, body, metadata_headers)
+  def perform_request(params, state)
+    url = @custom_tool.build_request_url(params)
+    body = @custom_tool.build_request_body(params)
     raise 'Request body is too large' if body.to_s.bytesize > MAX_REQUEST_BYTES
 
-    response = perform_with_redirects(URI.parse(url), body, metadata_headers, @custom_tool.build_auth_headers)
-    raise "HTTP #{response.code}" unless success_response?(response)
+    metadata_headers = @custom_tool.build_metadata_headers(state.deep_symbolize_keys)
+    perform_with_redirects(URI.parse(url), body, metadata_headers, @custom_tool.build_auth_headers)
+  end
 
-    response.body
+  def runtime_tool_valid?
+    valid_runtime_records? && custom_tools_enabled_for_account_id?(assistant.account_id)
+  end
+
+  def valid_runtime_records?
+    assistant&.persisted? && @custom_tool&.persisted? && @custom_tool.enabled? && @custom_tool.valid? &&
+      @custom_tool.account_id == assistant.account_id
+  end
+
+  def test_tool_valid?(account)
+    @custom_tool.account_id == account.id && @custom_tool.valid? && custom_tools_enabled_for_account_id?(account.id)
+  end
+
+  def custom_tools_enabled_for_account_id?(account_id)
+    account = Account.find_by(id: account_id)
+    account.present? && Captain::Assistant.custom_http_tools_enabled_for?(account)
   end
 
   # Chỉ theo redirect cùng origin. Điều này giữ auth, metadata và POST body khỏi
@@ -114,7 +152,12 @@ class Captain::Tools::HttpTool < Captain::Tools::BasePublicTool
       response_body << chunk
       raise 'Response body is too large' if response_body.bytesize > MAX_RESPONSE_BYTES
     end
-    Response.new(code: net_response.code, body: response_body, location: net_response['location'])
+    Response.new(
+      code: net_response.code,
+      body: response_body,
+      location: net_response['location'],
+      content_type: net_response['content-type']
+    )
   end
 
   def build_request(uri, body, headers)

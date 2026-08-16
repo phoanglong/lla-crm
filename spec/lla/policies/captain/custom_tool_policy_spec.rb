@@ -36,6 +36,13 @@ RSpec.describe Captain::CustomToolPolicy, type: :policy do
 
   it_behaves_like 'an account-bound Captain configuration policy', described_class, :captain_custom_tool
 
+  it 'allows only administrators to create or test through class authorization' do
+    expect(described_class.new(administrator_context, Captain::CustomTool).create?).to be(true)
+    expect(described_class.new(administrator_context, Captain::CustomTool).test?).to be(true)
+    expect(described_class.new(agent_context, Captain::CustomTool).create?).to be(false)
+    expect(described_class.new(agent_context, Captain::CustomTool).test?).to be(false)
+  end
+
   context 'with scenario policy' do
     it_behaves_like 'an account-bound Captain configuration policy', Captain::ScenarioPolicy, :captain_scenario
   end

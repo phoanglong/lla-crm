@@ -7,10 +7,23 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
   let(:tool) { described_class.new(assistant, custom_tool) }
   let(:tool_context) { Struct.new(:state).new({}) }
 
+  around do |example|
+    previous_value = ENV.fetch(Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG, nil)
+    ENV[Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG] = 'true'
+    example.run
+  ensure
+    previous_value.nil? ? ENV.delete(Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG) : ENV[Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG] = previous_value
+  end
+
   before do
+    account.enable_features!('custom_tools')
     allow(Lla::Network::UrlSafety).to receive(:validate!) do |url|
       Lla::Network::UrlSafety::Result.new(uri: URI.parse(url), ip_address: '93.184.216.34')
     end
+  end
+
+  def skip_without_encryption
+    skip('encryption keys missing; credential examples run in the encryption-enabled suite') unless Chatwoot.encryption_configured?
   end
 
   describe '#active?' do
@@ -24,6 +37,24 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
       custom_tool.update!(enabled: false)
 
       expect(tool.active?).to be false
+    end
+
+    it 'returns false when the deployment kill switch is disabled' do
+      ENV[Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG] = 'false'
+
+      expect(tool.active?).to be false
+    end
+
+    it 'uses fresh account feature state instead of the assistant association cache' do
+      Account.find(account.id).disable_features!('custom_tools')
+
+      expect(tool.active?).to be false
+    end
+
+    it 'returns false when the tool belongs to another account' do
+      other_tool = create(:captain_custom_tool)
+
+      expect(described_class.new(assistant, other_tool).active?).to be false
     end
   end
 
@@ -89,6 +120,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
     context 'with bearer token authentication' do
       before do
+        skip_without_encryption
         custom_tool.update!(
           auth_type: 'bearer',
           auth_config: { 'token' => 'secret_bearer_token' },
@@ -111,6 +143,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
     context 'with basic authentication' do
       before do
+        skip_without_encryption
         custom_tool.update!(
           auth_type: 'basic',
           auth_config: { 'username' => 'user123', 'password' => 'pass456' },
@@ -133,6 +166,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
     context 'with API key authentication' do
       before do
+        skip_without_encryption
         custom_tool.update!(
           auth_type: 'api_key',
           auth_config: { 'key' => 'api_key_123', 'name' => 'X-API-Key' },
@@ -229,6 +263,8 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
     context 'when integrating with Toolable methods' do
       it 'correctly integrates URL rendering, body rendering, auth, and response formatting' do
+        skip_without_encryption
+
         custom_tool.update!(
           http_method: 'POST',
           endpoint_url: 'https://example.com/users/{{ user_id }}/orders',
@@ -328,6 +364,8 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
       end
 
       it 'includes metadata headers along with authentication headers' do
+        skip_without_encryption
+
         custom_tool.update!(
           auth_type: 'bearer',
           auth_config: { 'token' => 'test_token' }
@@ -436,6 +474,37 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
         expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
           .with(headers: { 'X-LLA-Contact-Inbox-Verified' => 'false' })
       end
+    end
+
+    it 'revalidates persisted configuration under a lock before making the request' do
+      request = stub_request(:get, custom_tool.endpoint_url)
+      custom_tool.update_columns(enabled: false) # rubocop:disable Rails/SkipsModelValidations -- simulate a concurrent configuration change
+
+      result = tool.perform(tool_context)
+
+      expect(result).to eq('An error occurred while executing the request')
+      expect(request).not_to have_been_requested
+    end
+
+    it 'rejects a response larger than the configured buffer limit' do
+      custom_tool.update!(endpoint_url: 'https://example.com/large')
+      stub_request(:get, 'https://example.com/large')
+        .to_return(status: 200, body: 'x' * (described_class::MAX_RESPONSE_BYTES + 1))
+
+      expect(tool.perform(tool_context)).to eq('An error occurred while executing the request')
+    end
+  end
+
+  describe '#perform_test' do
+    it 'returns only bounded response metadata' do
+      custom_tool.update!(endpoint_url: 'https://example.com/health')
+      stub_request(:get, 'https://example.com/health')
+        .to_return(status: 200, body: 'not-returned', headers: { 'Content-Type' => 'text/plain' })
+
+      result = tool.perform_test(account: account)
+
+      expect(result).to eq(status: 200, response_bytes: 12, content_type: 'text/plain')
+      expect(result.to_s).not_to include('not-returned')
     end
   end
 end

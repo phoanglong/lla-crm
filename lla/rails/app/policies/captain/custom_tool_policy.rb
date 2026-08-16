@@ -10,7 +10,7 @@ class Captain::CustomToolPolicy < ApplicationPolicy
   end
 
   def create?
-    administrator? && account_record?
+    administrator? && (record == Captain::CustomTool || account_record?)
   end
 
   alias test? create?
