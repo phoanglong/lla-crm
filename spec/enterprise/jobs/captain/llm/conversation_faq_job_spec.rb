@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'rails_helper'
 
 RSpec.describe Captain::Llm::ConversationFaqJob, type: :job do
@@ -6,52 +8,68 @@ RSpec.describe Captain::Llm::ConversationFaqJob, type: :job do
   let(:assistant) { create(:captain_assistant, account: account, config: { feature_faq: true }) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox, first_reply_created_at: Time.zone.now) }
   let(:faq_service) { instance_double(Captain::Llm::ConversationFaqService, generate_suggestions: []) }
-  let(:lock_manager) { instance_double(Redis::LockManager, lock: true, unlock: true) }
-  let(:lock_key) { "CAPTAIN_CONVERSATION_FAQ_LOCK::#{assistant.id}::en" }
 
   before do
     create(:captain_inbox, inbox: inbox, captain_assistant: assistant)
     conversation.update!(status: :resolved)
-    allow(Redis::LockManager).to receive(:new).and_return(lock_manager)
     allow(Captain::Llm::ConversationFaqService).to receive(:new).and_return(faq_service)
   end
 
-  describe '#perform' do
-    it 'uses the assistant captured when the job was enqueued' do
-      replacement_assistant = create(:captain_assistant, account: account, config: { feature_faq: true })
-      inbox.captain_inbox.update!(captain_assistant: replacement_assistant)
+  it 'runs for the assistant currently attached to the resolved conversation' do
+    expect(Captain::Llm::ConversationFaqService).to receive(:new)
+      .with(assistant, conversation)
+      .and_return(faq_service)
 
-      expect(inbox.reload.captain_assistant).to eq(replacement_assistant)
-      expect(Captain::Llm::ConversationFaqService).to receive(:new)
-        .with(assistant, conversation)
-        .and_return(faq_service)
-      expect(faq_service).to receive(:generate_suggestions)
+    described_class.perform_now(conversation, assistant)
 
-      described_class.perform_now(conversation, assistant)
+    expect(faq_service).to have_received(:generate_suggestions)
+  end
+
+  it 'rejects an assistant replaced after the job was enqueued' do
+    replacement = create(:captain_assistant, account: account, config: { feature_faq: true })
+    inbox.captain_inbox.update!(captain_assistant: replacement)
+
+    described_class.perform_now(conversation, assistant)
+
+    expect(Captain::Llm::ConversationFaqService).not_to have_received(:new)
+  end
+
+  it 'uses a claim scoped to account, assistant, conversation and revision' do
+    allow(Redis::Alfred).to receive(:set).and_call_original
+
+    described_class.perform_now(conversation, assistant)
+
+    expect(Redis::Alfred).to have_received(:set) do |key, _token, options|
+      expect(key).to include("::#{account.id}::#{assistant.id}::#{conversation.id}::")
+      expect(options).to eq(nx: true, ex: described_class::CLAIM_TTL)
     end
+  end
 
-    it 'locks FAQ grouping for the assistant and normalized language' do
-      conversation.update!(additional_attributes: { conversation_language: 'pt-BR' })
-      expected_key = "CAPTAIN_CONVERSATION_FAQ_LOCK::#{assistant.id}::pt"
+  it 'does not run when another worker owns the same revision claim' do
+    allow(Redis::Alfred).to receive(:set).and_return(false)
 
-      expect(lock_manager).to receive(:lock).with(expected_key, described_class::LOCK_TIMEOUT).and_return(true)
-      expect(lock_manager).to receive(:unlock).with(expected_key)
+    described_class.perform_now(conversation, assistant)
 
-      described_class.perform_now(conversation, assistant)
-    end
+    expect(Captain::Llm::ConversationFaqService).not_to have_received(:new)
+  end
 
-    context 'when another job holds the grouping lock' do
-      before do
-        allow(lock_manager).to receive(:lock).with(lock_key, described_class::LOCK_TIMEOUT).and_return(false)
-      end
+  it 'releases only its own token when processing fails' do
+    allow(faq_service).to receive(:generate_suggestions).and_raise(ActiveRecord::Deadlocked)
+    allow(Redis::Alfred).to receive(:delete_if_equals)
 
-      it 'does not generate suggestions concurrently' do
-        expect(Captain::Llm::ConversationFaqService).not_to receive(:new)
+    expect { described_class.new.perform(conversation, assistant) }.to raise_error(ActiveRecord::Deadlocked)
+    expect(Redis::Alfred).to have_received(:delete_if_equals).with(
+      a_string_including("::#{conversation.id}::"), kind_of(String)
+    )
+  end
 
-        expect do
-          described_class.new.perform(conversation, assistant)
-        end.to raise_error(MutexApplicationJob::LockAcquisitionError)
-      end
-    end
+  it 'rejects a cross-account assistant without claiming or calling the provider' do
+    other_assistant = create(:captain_assistant, account: create(:account), config: { feature_faq: true })
+    allow(Redis::Alfred).to receive(:set)
+
+    described_class.perform_now(conversation, other_assistant)
+
+    expect(Redis::Alfred).not_to have_received(:set)
+    expect(Captain::Llm::ConversationFaqService).not_to have_received(:new)
   end
 end

@@ -19,7 +19,15 @@ RSpec.describe Captain::Llm::ConversationFaqService do
   let(:embedding_two) { [0.0, 1.0] + Array.new(1534, 0.0) }
 
   before do
-    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: 'test-key')
+    captain_assistant.update!(config: captain_assistant.config.merge('feature_faq' => true))
+    if conversation.first_reply_created_at.present?
+      create(:message, conversation: conversation, account: conversation.account, inbox: conversation.inbox,
+                       sender: create(:user, account: conversation.account), message_type: :outgoing,
+                       content: 'Default reusable human answer')
+      create(:captain_inbox, inbox: conversation.inbox, captain_assistant: captain_assistant)
+      conversation.update!(status: :resolved)
+    end
     allow(Captain::Llm::EmbeddingService).to receive(:new).and_return(embedding_service)
     allow(RubyLLM).to receive(:chat).and_return(mock_chat)
     allow(mock_chat).to receive(:with_temperature).and_return(mock_chat)
@@ -43,7 +51,7 @@ RSpec.describe Captain::Llm::ConversationFaqService do
       end
 
       it 'uses the conversation FAQ default ahead of the legacy global installation model' do
-        create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-mini')
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'gpt-4.1-mini')
 
         expect(RubyLLM).to receive(:chat).with(
           model: Llm::Models.default_model_for('conversation_faq_generation')
@@ -53,7 +61,7 @@ RSpec.describe Captain::Llm::ConversationFaqService do
       end
 
       it 'keeps account conversation FAQ model overrides ahead of the feature default' do
-        create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1')
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'gpt-4.1')
         conversation.account.update!(captain_models: { 'conversation_faq_generation' => 'gpt-4.1-mini' })
 
         expect(RubyLLM).to receive(:chat).with(model: 'gpt-4.1-mini').and_return(mock_chat)
@@ -84,11 +92,12 @@ RSpec.describe Captain::Llm::ConversationFaqService do
                          private: true, content: 'Private note')
         create(:message, conversation: conversation, account: conversation.account, inbox: conversation.inbox,
                          message_type: :activity, content: 'Activity message')
+        conversation.update!(status: :resolved)
 
         service.generate_suggestions
 
         expected_content = satisfy do |content|
-          content.include?('User: Customer question') &&
+          content.include?('Customer: Customer question') &&
             content.include?('Support Agent: Human answer') &&
             content.exclude?('Bot answer that should not become knowledge') &&
             content.exclude?('Private note') &&
@@ -104,11 +113,12 @@ RSpec.describe Captain::Llm::ConversationFaqService do
         create(:message, conversation: conversation, account: conversation.account, inbox: conversation.inbox,
                          sender: nil, message_type: :outgoing, content: 'Human replied from the native app',
                          content_attributes: { external_echo: true })
+        conversation.update!(status: :resolved)
 
         service.generate_suggestions
 
         expected_content = satisfy do |content|
-          content.include?('User: Customer asks in a native channel') &&
+          content.include?('Customer: Customer asks in a native channel') &&
             content.include?('Support Agent: Human replied from the native app')
         end
         expect(mock_chat).to have_received(:ask).with(expected_content)
@@ -123,14 +133,11 @@ RSpec.describe Captain::Llm::ConversationFaqService do
         create(:message, conversation: conversation, account: conversation.account, inbox: conversation.inbox,
                          sender: create(:user, account: conversation.account), message_type: :outgoing,
                          content: 'Agent gives a public answer')
+        conversation.update!(status: :resolved)
 
-        expect(service).to receive(:instrument_llm_call) do |params, &block|
-          user_message = params[:messages].find { |message| message[:role] == 'user' }[:content]
-
-          expect(user_message).to include('User: Customer asks something')
-          expect(user_message).to include('Support Agent: Agent gives a public answer')
-          expect(user_message).not_to include('Bot-only answer')
-
+        expect(service).to receive(:instrument_private_call) do |params, &block|
+          expect(params).not_to have_key(:messages)
+          expect(params.dig(:metadata, :input_bytes)).to be_positive
           block.call
         end
 
@@ -238,20 +245,16 @@ RSpec.describe Captain::Llm::ConversationFaqService do
         allow(Rails.logger).to receive(:error)
       end
 
-      it 'raises when the comparison response is malformed' do
-        expect do
-          service.generate_suggestions
-        end.to raise_error(JSON::ParserError)
+      it 'isolates a malformed comparison without treating it as a non-match' do
+        expect(service.generate_suggestions).to eq([])
         expect(captain_assistant.faq_suggestions.count).to be_zero
       end
 
       context 'when the response omits the comparison result' do
         let(:comparison_response_content) { {}.to_json }
 
-        it 'raises instead of treating the response as a non-match' do
-          expect do
-            service.generate_suggestions
-          end.to raise_error(KeyError)
+        it 'isolates the candidate instead of treating the response as a non-match' do
+          expect(service.generate_suggestions).to eq([])
           expect(captain_assistant.faq_suggestions.count).to be_zero
         end
       end
@@ -259,10 +262,8 @@ RSpec.describe Captain::Llm::ConversationFaqService do
       context 'when the comparison result is not a boolean' do
         let(:comparison_response_content) { { same_faq: 'false' }.to_json }
 
-        it 'raises instead of treating the response as a non-match' do
-          expect do
-            service.generate_suggestions
-          end.to raise_error(TypeError, 'same_faq must be a boolean')
+        it 'isolates the candidate instead of treating the response as a non-match' do
+          expect(service.generate_suggestions).to eq([])
           expect(captain_assistant.faq_suggestions.count).to be_zero
         end
       end
@@ -276,10 +277,8 @@ RSpec.describe Captain::Llm::ConversationFaqService do
           end
         end
 
-        it 'raises instead of treating the failure as a non-match' do
-          expect do
-            service.generate_suggestions
-          end.to raise_error(RubyLLM::Error)
+        it 'isolates the candidate instead of treating the failure as a non-match' do
+          expect(service.generate_suggestions).to eq([])
           expect(captain_assistant.faq_suggestions.count).to be_zero
         end
       end
@@ -392,8 +391,16 @@ RSpec.describe Captain::Llm::ConversationFaqService do
           answer: 'Ative nas configuracoes.',
           embedding: embedding_one,
           language: 'pt',
-          source_count: 1
-        )
+          source_count: 0
+        ).tap do |suggestion|
+          suggestion.observations.create!(
+            conversation: create(:conversation, account: captain_assistant.account),
+            generated_question: suggestion.question,
+            generated_answer: suggestion.answer,
+            language: suggestion.language
+          )
+          suggestion.update!(source_count: suggestion.observations.attached.count)
+        end
       end
       let(:match_response) { instance_double(RubyLLM::Message, content: { same_faq: true }.to_json) }
 
@@ -472,12 +479,17 @@ RSpec.describe Captain::Llm::ConversationFaqService do
     context 'when LLM API fails' do
       before do
         allow(mock_chat).to receive(:ask).and_raise(RubyLLM::Error.new(nil, 'API Error'))
-        allow(Rails.logger).to receive(:error)
+        allow(Rails.logger).to receive(:warn)
+        allow(ChatwootExceptionTracker).to receive(:new).and_return(
+          instance_double(ChatwootExceptionTracker, capture_exception: nil)
+        )
       end
 
-      it 'returns empty array and logs the error' do
-        expect(Rails.logger).to receive(:error).with('LLM API Error: API Error')
+      it 'returns an empty array and emits redacted telemetry' do
         expect(service.generate_suggestions).to eq([])
+        expect(Rails.logger).to have_received(:warn) do |message|
+          expect(message).not_to include('API Error')
+        end
       end
     end
 
@@ -491,7 +503,6 @@ RSpec.describe Captain::Llm::ConversationFaqService do
       end
 
       it 'handles JSON parsing errors gracefully' do
-        expect(Rails.logger).to receive(:error).with(/Error in parsing GPT processed response:/)
         expect(service.generate_suggestions).to eq([])
       end
     end

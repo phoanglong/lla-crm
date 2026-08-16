@@ -17,35 +17,49 @@ RSpec.describe CaptainListener do
     create(:captain_inbox, captain_assistant: assistant, inbox: inbox)
   end
 
+  def stub_resolved_conversation_features
+    attributes = instance_double(Captain::Llm::ContactAttributesService, generate_and_update_attributes: nil)
+    notes = instance_double(Captain::Llm::ContactNotesService, generate_and_update_notes: nil)
+    allow(Captain::Llm::ContactAttributesService).to receive(:new).and_return(attributes)
+    allow(Captain::Llm::ContactNotesService).to receive(:new).and_return(notes)
+    allow(Captain::Llm::ConversationFaqJob).to receive(:perform_later)
+  end
+
   it 'does not run features represented by false-like configuration values' do
     assistant.update!(config: { feature_memory: 'false', feature_faq: '0' })
-    allow(Rails.logger).to receive(:info).and_call_original
+    stub_resolved_conversation_features
 
     expect { publish_resolution }.not_to raise_error
 
-    expect(Rails.logger).not_to have_received(:info).with(include('resolved-conversation feature deferred'))
+    expect(Captain::Llm::ContactAttributesService).not_to have_received(:new)
+    expect(Captain::Llm::ContactNotesService).not_to have_received(:new)
+    expect(Captain::Llm::ConversationFaqJob).not_to have_received(:perform_later)
   end
 
   it 'rejects an inconsistent cross-account assistant before invoking a feature' do
     foreign_assistant = create(:captain_assistant, config: { feature_memory: true })
     allow(inbox).to receive(:captain_assistant).and_return(foreign_assistant)
     allow(conversation).to receive(:inbox).and_return(inbox)
-    allow(Rails.logger).to receive(:info).and_call_original
+    stub_resolved_conversation_features
 
     expect { publish_resolution }.not_to raise_error
 
-    expect(Rails.logger).not_to have_received(:info).with(include('resolved-conversation feature deferred'))
+    expect(Captain::Llm::ContactAttributesService).not_to have_received(:new)
+    expect(Captain::Llm::ContactNotesService).not_to have_received(:new)
+    expect(Captain::Llm::ConversationFaqJob).not_to have_received(:perform_later)
   end
 
-  unless ChatwootApp.enterprise?
-    it 'defers E4 resolved-conversation features without raising in pure-LLA mode' do
-      assistant.update!(config: { feature_memory: true, feature_faq: true })
-      allow(Rails.logger).to receive(:info).and_call_original
+  it 'runs LLA-owned memory and FAQ features when enabled' do
+    assistant.update!(config: { feature_memory: true, feature_faq: true })
+    attributes = instance_double(Captain::Llm::ContactAttributesService)
+    notes = instance_double(Captain::Llm::ContactNotesService)
+    allow(Captain::Llm::ContactAttributesService).to receive(:new).with(assistant, conversation).and_return(attributes)
+    allow(Captain::Llm::ContactNotesService).to receive(:new).with(assistant, conversation).and_return(notes)
 
-      expect { publish_resolution }.not_to raise_error
+    expect(attributes).to receive(:generate_and_update_attributes)
+    expect(notes).to receive(:generate_and_update_notes)
+    expect(Captain::Llm::ConversationFaqJob).to receive(:perform_later).with(conversation, assistant)
 
-      expect(Rails.logger).to have_received(:info).with(include('feature=contact_notes'))
-      expect(Rails.logger).to have_received(:info).with(include('feature=conversation_faq'))
-    end
+    expect { publish_resolution }.not_to raise_error
   end
 end

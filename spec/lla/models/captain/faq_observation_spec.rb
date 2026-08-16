@@ -30,4 +30,35 @@ RSpec.describe Captain::FaqObservation, type: :model do
     expect(observation.errors[:conversation]).to include('must belong to the same account as the FAQ suggestion')
     expect(observation.account).to eq(account)
   end
+
+  it 'assigns a stable normalized source fingerprint' do
+    conversation = create(:conversation, account: account)
+    first = build_observation(conversation)
+    equivalent = described_class.new(
+      faq_suggestion: suggestion,
+      conversation: conversation,
+      generated_question: "  HOW do I reset my\npassword? ",
+      generated_answer: ' USE the reset link. '
+    )
+
+    first.validate
+    equivalent.validate
+
+    expect(equivalent.source_fingerprint).to eq(first.source_fingerprint)
+  end
+
+  it 'enforces source idempotency across suggestions at the database boundary' do
+    conversation = create(:conversation, account: account)
+    build_observation(conversation).save!
+    other_suggestion = assistant.faq_suggestions.create!(question: 'Where is account recovery?', answer: 'Open your profile.')
+
+    expect do
+      described_class.create!(
+        faq_suggestion: other_suggestion,
+        conversation: conversation,
+        generated_question: 'How do I reset my password?',
+        generated_answer: 'Use the reset link.'
+      )
+    end.to raise_error(ActiveRecord::RecordNotUnique)
+  end
 end

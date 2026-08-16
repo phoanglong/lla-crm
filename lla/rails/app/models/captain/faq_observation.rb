@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'digest'
+
 # Một lần AI quan sát thấy câu hỏi/đáp trong hội thoại thật. Khi trùng một FAQ
 # đề xuất sẵn có, observation được gắn vào suggestion đó làm bằng chứng nguồn.
 class Captain::FaqObservation < ApplicationRecord
@@ -16,13 +18,22 @@ class Captain::FaqObservation < ApplicationRecord
   validates :generated_question, presence: true
   validates :generated_answer, presence: true
 
-  before_validation :assign_account
+  before_validation :assign_account, :assign_source_fingerprint
   validate :conversation_and_suggestion_share_account
 
   private
 
   def assign_account
     self.account = faq_suggestion&.account || conversation&.account
+  end
+
+  def assign_source_fingerprint
+    return if conversation.blank? || generated_question.blank? || generated_answer.blank?
+
+    normalized = [status, language, generated_question, generated_answer]
+                 .map { |value| value.to_s.unicode_normalize(:nfc).squish.downcase }
+                 .join("\n")
+    self.source_fingerprint = Digest::SHA256.hexdigest(normalized)
   end
 
   def conversation_and_suggestion_share_account

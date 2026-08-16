@@ -37,18 +37,19 @@ class Lla::Llm::BackgroundService
       conversation.inbox.captain_assistant&.id == assistant.id
   end
 
-  def request_json(system_prompt:, content:, span_name:, metadata: {})
+  def request_json(system_prompt:, content:, span_name:, metadata: {}, feature: 'assistant')
     Llm::Config.initialize!
+    request_model = model_for(feature)
     response = instrument_private_call(
       span_name: span_name,
-      model: model,
+      model: request_model,
       temperature: DEFAULT_TEMPERATURE,
       account_id: account.id,
       conversation_id: conversation.display_id,
       feature_name: metadata.delete(:feature_name),
       metadata: metadata.merge(input_bytes: content.bytesize)
     ) do
-      RubyLLM.chat(model: model)
+      RubyLLM.chat(model: request_model)
              .with_temperature(DEFAULT_TEMPERATURE)
              .with_params(response_format: { type: 'json_object' })
              .with_instructions(system_prompt)
@@ -68,8 +69,9 @@ class Lla::Llm::BackgroundService
     end
   end
 
-  def model
-    @model ||= Llm::FeatureRouter.resolve(feature: 'assistant', account: account)[:model]
+  def model_for(feature)
+    @models ||= {}
+    @models[feature] ||= Llm::FeatureRouter.resolve(feature: feature, account: account)[:model]
   end
 
   def parse_json_object(content)
