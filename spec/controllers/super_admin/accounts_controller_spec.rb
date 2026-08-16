@@ -27,7 +27,7 @@ RSpec.describe 'Super Admin accounts API', type: :request do
 
   describe 'GET /super_admin/accounts/{account_id}' do
     context 'when it is an authenticated user' do
-      it 'shows effective Captain model routing', if: ChatwootApp.enterprise? do
+      it 'shows effective Captain model routing from the LLA-owned field' do
         account.update!(captain_models: { 'editor' => 'gpt-4.1' })
         sign_in(super_admin, scope: :super_admin)
 
@@ -41,13 +41,14 @@ RSpec.describe 'Super Admin accounts API', type: :request do
         expect(summaries).not_to include('All features')
         expect(summaries).not_to include('Captain models')
         expect(response.body).to include('Editor', 'OpenAI', 'openai', 'gpt-4.1', 'Account override', 'Label suggestion', 'Default')
+        expect(CaptainModelOverridesField.instance_method(:feature_rows).source_location.first).to include('/lla/rails/')
       end
     end
   end
 
   describe 'GET /super_admin/accounts/{account_id}/edit' do
     context 'when it is an authenticated user' do
-      it 'renders a Captain model selector for every AI feature', if: ChatwootApp.enterprise? do
+      it 'renders a Captain model selector for every AI feature' do
         account.update!(captain_models: { 'editor' => 'gpt-4.1' })
         sign_in(super_admin, scope: :super_admin)
 
@@ -66,7 +67,7 @@ RSpec.describe 'Super Admin accounts API', type: :request do
         expect(editor_select.at_css('option[value=""]').text.squish).to eq("Use default: #{default_model} (#{default_model_id})")
       end
 
-      it 'shows the Captain V2 assistant default in the model selector', if: ChatwootApp.enterprise? do
+      it 'shows the Captain V2 assistant default in the model selector' do
         account.enable_features!('captain_integration_v2')
         sign_in(super_admin, scope: :super_admin)
 
@@ -129,6 +130,74 @@ RSpec.describe 'Super Admin accounts API', type: :request do
         expect(response).to have_http_status(:unprocessable_entity)
         expect(response.body).to include('not a valid model for label_suggestion')
         expect(account.reload.captain_models).to eq(existing_captain_models)
+      end
+
+      it 'records old and new effective routes without provider credentials' do
+        account.update!(captain_models: { 'editor' => 'gpt-4.1' })
+        sign_in(super_admin, scope: :super_admin)
+
+        expect do
+          patch "/super_admin/accounts/#{account.id}",
+                params: {
+                  account: {
+                    name: account.name,
+                    locale: account.locale,
+                    status: account.status,
+                    captain_models: { editor: 'gpt-4.1-mini' }
+                  }
+                }
+        end.to change { Audited::Audit.where(comment: Lla::Captain::ModelOverrideAudit::COMMENT).count }.by(1)
+
+        audit = Audited::Audit.where(comment: Lla::Captain::ModelOverrideAudit::COMMENT).last
+        before_routes, after_routes = audit.audited_changes.fetch('captain_model_routes')
+        aggregate_failures do
+          expect(response).to have_http_status(:redirect)
+          expect(audit).to have_attributes(auditable: account, associated: account, user: super_admin)
+          expect(before_routes.fetch('editor')).to include('provider' => 'openai', 'model' => 'gpt-4.1', 'source' => 'account_override')
+          expect(after_routes.fetch('editor')).to include('provider' => 'openai', 'model' => 'gpt-4.1-mini', 'source' => 'account_override')
+          expect(audit.audited_changes.to_json).not_to match(/api[_-]?key|secret|credential/i)
+        end
+      end
+
+      it 'does not write a route audit when model overrides are unchanged' do
+        account.update!(captain_models: { 'editor' => 'gpt-4.1' })
+        sign_in(super_admin, scope: :super_admin)
+
+        expect do
+          patch "/super_admin/accounts/#{account.id}",
+                params: {
+                  account: {
+                    name: "#{account.name} updated",
+                    locale: account.locale,
+                    status: account.status,
+                    captain_models: { editor: 'gpt-4.1' }
+                  }
+                }
+        end.not_to(change { Audited::Audit.where(comment: Lla::Captain::ModelOverrideAudit::COMMENT).count })
+
+        expect(response).to have_http_status(:redirect)
+        expect(account.reload.name).to end_with(' updated')
+      end
+
+      it 'rolls back the override when its durable audit cannot be written' do
+        account.update!(captain_models: { 'editor' => 'gpt-4.1' })
+        sign_in(super_admin, scope: :super_admin)
+        audit_service = instance_double(Lla::Captain::ModelOverrideAudit)
+        allow(Lla::Captain::ModelOverrideAudit).to receive(:new).and_return(audit_service)
+        allow(audit_service).to receive(:record!).and_raise(ActiveRecord::RecordInvalid)
+
+        patch "/super_admin/accounts/#{account.id}",
+              params: {
+                account: {
+                  name: account.name,
+                  locale: account.locale,
+                  status: account.status,
+                  captain_models: { editor: 'gpt-4.1-mini' }
+                }
+              }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(account.reload.captain_models).to eq('editor' => 'gpt-4.1')
       end
     end
   end
