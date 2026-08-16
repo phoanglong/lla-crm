@@ -6,3 +6,5 @@
 *.json text eol=lf
 *.vue text eol=lf
 *.yml text eol=lf
+Gemfile text eol=lf
+Gemfile.lock text eol=lf

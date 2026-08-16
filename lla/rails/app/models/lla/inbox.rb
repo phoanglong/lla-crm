@@ -14,6 +14,17 @@
 # - Không cấu hình gì → toàn bộ thành viên (hành vi CE).
 # - max_assignment_limit nếu khai phải là số nguyên dương.
 module Lla::Inbox
+  def active_bot?
+    super || captain_active?
+  end
+
+  def captain_active?
+    assistant = captain_assistant
+    return false if assistant.blank? || assistant.account_id != account_id
+
+    account.usage_limits.dig(:captain, :responses, :current_available).to_i.positive?
+  end
+
   def member_ids_with_assignment_capacity
     if auto_assignment_v2_enabled? && account.feature_enabled?('advanced_assignment')
       capacity_service = Lla::AutoAssignment::CapacityService.new
