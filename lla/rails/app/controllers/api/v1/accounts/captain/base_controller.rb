@@ -4,11 +4,12 @@
 # `meta` (hợp đồng từ app/javascript/dashboard/api/captain/*).
 class Api::V1::Accounts::Captain::BaseController < Api::V1::Accounts::BaseController
   RESULTS_PER_PAGE = 25
+  MAX_PAGE = 10_000
 
   private
 
   def current_page
-    (params[:page].presence || 1).to_i
+    (params[:page].presence || 1).to_i.clamp(1, MAX_PAGE)
   end
 
   def paginate(scope)

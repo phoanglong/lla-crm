@@ -2,7 +2,10 @@ class ApiController < ApplicationController
   skip_before_action :set_current_user, only: [:index]
 
   def index
-    render json: { version: Chatwoot.config[:version],
+    render json: { product: Lla::ProductVersion.name,
+                   version: Lla::ProductVersion.current,
+                   compatibility_product: Lla::ProductVersion.compatibility_product,
+                   compatibility_version: Lla::ProductVersion.compatibility_version,
                    timestamp: Time.now.utc.to_fs(:db),
                    queue_services: redis_status,
                    data_services: postgres_status }

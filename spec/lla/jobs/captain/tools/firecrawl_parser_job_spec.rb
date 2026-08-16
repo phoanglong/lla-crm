@@ -14,6 +14,14 @@ RSpec.describe Captain::Tools::FirecrawlParserJob, type: :job do
       }
     end
 
+    before do
+      allow(Lla::Network::UrlSafety).to receive(:validate!) do |url|
+        raise Lla::Network::UrlSafety::UnsafeUrlError, 'missing URL' if url.blank?
+
+        Lla::Network::UrlSafety::Result.new(uri: URI.parse(url), ip_address: '93.184.216.34')
+      end
+    end
+
     it 'creates a new document when one does not exist' do
       freeze_time do
         expect do
@@ -91,6 +99,20 @@ RSpec.describe Captain::Tools::FirecrawlParserJob, type: :job do
       described_class.perform_now(assistant_id: assistant.id, payload: payload)
 
       expect(assistant.documents.last.external_link).to eq('https://www.firecrawl.dev/source')
+    end
+
+    it 'rejects an unsafe or missing source URL without creating a document' do
+      payload[:metadata]['url'] = 'http://127.0.0.1/metadata'
+      allow(Lla::Network::UrlSafety).to receive(:validate!).with('http://127.0.0.1/metadata')
+                                                           .and_raise(
+                                                             Lla::Network::UrlSafety::UnsafeUrlError,
+                                                             'host resolves to a non-public address'
+                                                           )
+
+      expect do
+        described_class.new.perform(assistant_id: assistant.id, payload: payload)
+      end.to raise_error(described_class::PermanentPayloadError)
+        .and not_change(assistant.documents, :count)
     end
 
     context 'when an error occurs' do

@@ -28,11 +28,11 @@ class Captain::AssistantPolicy < ApplicationPolicy
   end
 
   def drilldown?
-    true
+    @account_user.administrator?
   end
 
   def tools?
-    true
+    @account_user.administrator?
   end
 
   def create?
@@ -45,5 +45,17 @@ class Captain::AssistantPolicy < ApplicationPolicy
 
   def destroy?
     @account_user.administrator?
+  end
+
+  def sync?
+    @account_user.administrator?
+  end
+
+  def approve?
+    update?
+  end
+
+  def dismiss?
+    update?
   end
 end

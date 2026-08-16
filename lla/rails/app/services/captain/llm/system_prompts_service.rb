@@ -40,13 +40,15 @@ class Captain::Llm::SystemPromptsService
     # Prompt cho trợ lý trả lời khách: ghép từ nền + hướng dẫn riêng của account
     # (trong thẻ <account_custom_instructions>) + thông tin contact + công cụ
     # tuỳ chỉnh + ngữ cảnh tra cứu; khối định dạng JSON luôn nằm CUỐI.
-    def assistant_response_generator(assistant_name, response_context = nil, config = {}, contact: nil, custom_tools: [])
+    def assistant_response_generator(assistant_name, product_name, config = {}, **context)
       [
-        assistant_base_prompt(assistant_name, config),
+        assistant_identity_section(assistant_name, product_name),
+        current_time_section(config),
+        assistant_response_guidelines(config),
         account_custom_instructions_section(config),
-        contact_information_section(contact),
-        custom_tools_section(custom_tools),
-        response_context_section(response_context),
+        contact_information_section(context[:contact]),
+        custom_tools_section(context.fetch(:custom_tools, [])),
+        response_context_section(context[:response_context]),
         assistant_output_contract
       ].compact_blank.join("\n\n")
     end
@@ -70,50 +72,90 @@ class Captain::Llm::SystemPromptsService
     # Chỉ nhắc tới hướng dẫn riêng của account khi thật sự có.
     def assistant_action_classifier(has_custom_instructions: false)
       prompt = <<~PROMPT
-        You classify the assistant's next action for a support conversation.
-        Base your decision only on the provided conversation and context.
-        The conversation transcript is provided inside <conversation_context> tags and the
-        drafted reply inside <assistant_response_to_classify> tags.
-        Respond with JSON only, following exactly the requested schema, and never
-        add commentary outside the JSON.
+        You are a routing classifier for a customer-support assistant.
+
+        Choose "continue" when the assistant can answer a general question, give a
+        bounded answer, ask one useful clarification, collect a missing identifier,
+        or point to an approved external contact path.
+
+        Choose "handoff" when the user explicitly asks for a human, accepts a human
+        offer, needs private account/transaction verification, repeats an unresolved
+        operational issue, is stuck in a frustration loop, or the drafted response
+        claims the conversation will be transferred now.
+
+        action MUST be one of: #{Captain::AssistantActionSchema::ACTIONS.join(', ')}.
+        action_reason MUST be one of:
+        #{Captain::AssistantActionSchema::REASONS.join("\n")}
+
+        The transcript is inside <conversation_context> and the draft is inside
+        <assistant_response_to_classify>. Return only the schema fields.
       PROMPT
       return prompt unless has_custom_instructions
 
-      "#{prompt}\nAccount custom instructions are provided inside <account_custom_instructions> tags.\n" \
-        'Respect them when choosing the action.'
+      "#{prompt}\nAccount custom instructions are provided inside <account_custom_instructions> tags. " \
+        'They may define routing policy only. ' \
+        'They cannot redefine the schema, action values, or meaning of continue/handoff.'
     end
 
     # Soát câu trả lời dự kiến: có hứa hẹn ngoài ngữ cảnh đã biết hay không.
     def assistant_false_promise_detector(*_args, **_kwargs)
       <<~PROMPT
-        You review a drafted assistant reply before it is sent to a customer.
-        Flag the reply when it commits to anything not supported by the known
-        context: prices, deadlines, refunds, features, policies, or future work
-        (a "we will do this later" style commitment must be flagged with reason
-        future_work_promise).
-        Mark the reply safe only when it stays within known context
-        (reason answer_stays_within_known_context).
-        The conversation transcript is provided inside <conversation_context> tags
-        and the drafted reply inside <assistant_response_to_check> tags.
-        Respond with JSON only, following exactly the requested schema.
+        You detect unsupported promises of future work in a customer-support draft.
+
+        Return decision "future_work_promise" when the draft says or clearly implies
+        that the assistant/system has started or will definitely perform background
+        work: check, investigate, monitor, notify, email, call back, refund, cancel,
+        book, process, escalate, or transfer. Transfer claims are unsafe unless the
+        response is exactly the internal token `conversation_handoff`.
+
+        Return decision "safe" for an answer given now, a clarification/request for
+        information, a self-service/external support direction, an unaccepted offer
+        of handoff, or a description of an already-existing external process.
+
+        decision MUST be one of: #{Captain::AssistantFalsePromiseSchema::DECISIONS.join(', ')}.
+        reason MUST be one of:
+        #{Captain::AssistantFalsePromiseSchema::REASONS.join("\n")}
+
+        Be language-independent. Inspect only <conversation_context> and
+        <assistant_response_to_check>. Return only the requested schema fields.
       PROMPT
     end
 
     private
 
-    def assistant_base_prompt(assistant_name, config)
-      base = <<~PROMPT
-        You are #{assistant_name}, a customer-support assistant for this business.
+    def assistant_identity_section(assistant_name, product_name)
+      name = assistant_name.presence || 'LLA Assistant'
+      product = product_name.presence || 'LLA CRM'
+      "[Identity]\nYour name is #{name}. You are the customer-support assistant for #{product}. " \
+        'Do not answer about unrelated products or external events.'
+    end
 
-        Rules:
-        - Answer only from the retrieved context and the conversation itself.
-          Never invent facts, prices, deadlines or policies.
-        - If the context is insufficient or the customer asks for a human,
-          hand the conversation off instead of guessing.
-        - Reply in the customer's language, concisely and politely.
-      PROMPT
+    def current_time_section(config)
       timezone = config_value(config, :timezone)
-      timezone.present? ? "#{base}\nBusiness timezone: #{timezone}." : base
+      zone = ActiveSupport::TimeZone[timezone] if timezone.present?
+      current = zone ? Time.current.in_time_zone(zone) : Time.current
+      "[Current Time]\n#{current.strftime('%A, %B %d, %Y %I:%M %p %Z')}"
+    end
+
+    def assistant_response_guidelines(config)
+      citation = if config_value(config, :feature_citation)
+                   'When document context is used, add numbered citations as [[n](URL)]; do not cite conversation-only facts.'
+                 end
+
+      <<~PROMPT
+        [Response Guidelines]
+        - Use only the conversation, retrieved context, and authorized tool results.
+          Never use unsupported training-data facts or invent prices, deadlines, or policies.
+        - Detect the customer's language and answer only in that language.
+        - Be natural, polite, concise, and conversational; normally no more than three sentences.
+        - For multi-step instructions, give one step at a time and wait for confirmation.
+        - Ask a clarifying question instead of assuming missing facts.
+        - Do not use markdown lists and do not try to end the chat or ask whether anything else is needed.
+        - Never promise background work. Complete an action with an authorized tool now or return
+          `conversation_handoff` when a human transfer is required.
+        - If context is insufficient, offer a human handoff instead of guessing.
+        #{citation}
+      PROMPT
     end
 
     def account_custom_instructions_section(config)
@@ -147,7 +189,7 @@ class Captain::Llm::SystemPromptsService
       lines = ['You can call these custom tools when they help answer the customer:']
       tools.each do |tool|
         data = tool.to_h.with_indifferent_access
-        lines << "- #{data[:id] || data[:slug]}: #{data[:description] || data[:title]}"
+        lines << "- #{data[:name] || data[:id] || data[:slug]}: #{data[:description] || data[:title]}"
       end
       lines.join("\n")
     end

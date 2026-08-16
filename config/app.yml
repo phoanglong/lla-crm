@@ -1,5 +1,8 @@
 shared: &shared
-  version: '4.16.2'
+  product_name: 'LLA CRM'
+  version: <%= Rails.root.join('VERSION_LLA').read.strip.inspect %>
+  compatibility_product: 'Chatwoot'
+  compatibility_version: <%= Rails.root.join('VERSION_CW').read.strip.inspect %>
 
 development:
   <<: *shared

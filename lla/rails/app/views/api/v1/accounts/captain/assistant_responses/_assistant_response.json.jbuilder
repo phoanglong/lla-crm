@@ -8,13 +8,16 @@ json.updated_at assistant_response.updated_at.to_i
 json.assistant do
   json.partial! 'api/v1/accounts/captain/assistants/assistant', assistant: assistant_response.assistant
 end
-if assistant_response.documentable.present?
+documentable = assistant_response.documentable
+documentable_visible = documentable.present? &&
+                       (!documentable.respond_to?(:account_id) || documentable.account_id == assistant_response.account_id)
+if documentable_visible
   json.documentable do
     json.id assistant_response.documentable_id
     json.type assistant_response.documentable_type
-    if assistant_response.documentable.is_a?(Captain::Document)
-      json.name assistant_response.documentable.name
-      json.external_link assistant_response.documentable.external_link
+    if documentable.is_a?(Captain::Document)
+      json.name documentable.name
+      json.external_link documentable.external_link
     end
   end
 end

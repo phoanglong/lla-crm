@@ -54,6 +54,43 @@ RSpec.describe 'Api::V1::Accounts::Captain::Assistants', type: :request do
         expect(response).to have_http_status(:success)
         expect(json_response[:id]).to eq(assistant.id)
       end
+
+      it 'does not expose prompt guardrails or response guidelines' do
+        assistant.update!(
+          guardrails: ['Internal guardrail'],
+          response_guidelines: ['Internal guideline'],
+          config: { 'product_name' => 'Safe name', 'instructions' => 'Internal system instructions' }
+        )
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(json_response).not_to have_key(:guardrails)
+        expect(json_response).not_to have_key(:response_guidelines)
+        expect(json_response[:config]).to eq(product_name: 'Safe name')
+      end
+    end
+
+    context 'when it is an admin' do
+      it 'includes fields needed to edit the assistant prompt' do
+        assistant.update!(
+          guardrails: ['Internal guardrail'],
+          response_guidelines: ['Internal guideline'],
+          config: { 'instructions' => 'Internal system instructions' }
+        )
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}",
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(json_response).to include(
+          guardrails: ['Internal guardrail'],
+          response_guidelines: ['Internal guideline']
+        )
+        expect(json_response[:config][:instructions]).to eq('Internal system instructions')
+      end
     end
   end
 
@@ -124,6 +161,19 @@ RSpec.describe 'Api::V1::Accounts::Captain::Assistants', type: :request do
 
         expect(json_response[:config][:feature_citation]).to be(false)
         expect(response).to have_http_status(:success)
+      end
+
+      it 'ignores unrecognized nested assistant config' do
+        attributes = valid_attributes.deep_dup
+        attributes[:assistant][:config][:provider_secret] = 'must-not-persist'
+
+        post "/api/v1/accounts/#{account.id}/captain/assistants",
+             params: attributes,
+             headers: admin.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(json_response[:config]).not_to have_key(:provider_secret)
       end
     end
   end
@@ -249,6 +299,39 @@ RSpec.describe 'Api::V1::Accounts::Captain::Assistants', type: :request do
 
         expect(response).to have_http_status(:no_content)
       end
+    end
+  end
+
+  describe 'GET /api/v1/accounts/{account.id}/captain/assistants/tools' do
+    let!(:custom_tool) { create(:captain_custom_tool, account: account) }
+
+    it 'denies non-administrator users' do
+      get "/api/v1/accounts/#{account.id}/captain/assistants/tools",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'omits custom HTTP tools while the safety flag is disabled' do
+      allow(Captain::Assistant).to receive(:custom_http_tools_enabled_for?).and_return(false)
+
+      get "/api/v1/accounts/#{account.id}/captain/assistants/tools",
+          headers: admin.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(json_response[:payload].pluck(:id)).not_to include(custom_tool.slug)
+    end
+
+    it 'returns enabled custom HTTP tools when the safety flag is enabled' do
+      allow(Captain::Assistant).to receive(:custom_http_tools_enabled_for?).and_return(true)
+
+      get "/api/v1/accounts/#{account.id}/captain/assistants/tools",
+          headers: admin.create_new_auth_token,
+          as: :json
+
+      expect(json_response[:payload].pluck(:id)).to include(custom_tool.slug)
     end
   end
 

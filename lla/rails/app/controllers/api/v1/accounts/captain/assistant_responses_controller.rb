@@ -16,12 +16,16 @@ class Api::V1::Accounts::Captain::AssistantResponsesController < Api::V1::Accoun
   def show; end
 
   def create
-    @response = Current.account.captain_assistant_responses.create!(response_params.merge(status: :approved))
+    attributes, assistant_id = scoped_response_attributes
+    assistant = scoped_assistant(assistant_id)
+    @response = Current.account.captain_assistant_responses.create!(attributes.merge(assistant: assistant, status: :approved))
     render :show
   end
 
   def update
-    @response.update!(response_params)
+    attributes, assistant_id = scoped_response_attributes
+    attributes[:assistant] = scoped_assistant(assistant_id) if assistant_id
+    @response.update!(attributes)
     render :show
   end
 
@@ -43,11 +47,26 @@ class Api::V1::Accounts::Captain::AssistantResponsesController < Api::V1::Accoun
   def apply_filters(scope)
     scope = scope.by_assistant(params[:assistant_id]) if params[:assistant_id].present?
     scope = scope.where(documentable_id: params[:document_id], documentable_type: 'Captain::Document') if params[:document_id].present?
-    scope = scope.where('question ILIKE :term OR answer ILIKE :term', term: "%#{params[:search]}%") if params[:search].present?
+    search = params[:search].to_s.strip.first(200)
+    if search.present?
+      term = "%#{ActiveRecord::Base.sanitize_sql_like(search)}%"
+      scope = scope.where('question ILIKE :term OR answer ILIKE :term', term: term)
+    end
     scope
   end
 
   def response_params
     params.require(:assistant_response).permit(:question, :answer, :assistant_id)
+  end
+
+  def scoped_response_attributes
+    attributes = response_params.to_h.symbolize_keys
+    [attributes.except(:assistant_id), attributes[:assistant_id]]
+  end
+
+  def scoped_assistant(assistant_id)
+    return if assistant_id.nil?
+
+    Current.account.captain_assistants.find(assistant_id)
   end
 end

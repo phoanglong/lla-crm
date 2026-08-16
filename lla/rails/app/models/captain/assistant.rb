@@ -8,6 +8,8 @@
 class Captain::Assistant < ApplicationRecord
   self.table_name = 'captain_assistants'
 
+  CUSTOM_HTTP_TOOLS_FLAG = 'LLA_AI_CUSTOM_HTTP_TOOLS_ENABLED'
+
   include Concerns::Agentable
   include Avatarable
 
@@ -37,6 +39,14 @@ class Captain::Assistant < ApplicationRecord
   validates :name, presence: true
   validates :description, presence: true
 
+  def self.custom_http_tools_enabled?
+    ActiveModel::Type::Boolean.new.cast(ENV.fetch(CUSTOM_HTTP_TOOLS_FLAG, 'false'))
+  end
+
+  def self.custom_http_tools_enabled_for?(account)
+    custom_http_tools_enabled? && account.feature_enabled?('custom_tools')
+  end
+
   def available_name
     name
   end
@@ -44,7 +54,10 @@ class Captain::Assistant < ApplicationRecord
   # Danh mục công cụ khả dụng của trợ lý (metadata cho UI/scenario): built-in +
   # công cụ HTTP tuỳ chỉnh đang bật của account.
   def available_agent_tools
-    Concerns::CaptainToolsHelpers::BUILT_IN_AGENT_TOOLS + account.captain_custom_tools.enabled.map(&:to_tool_metadata)
+    tools = Concerns::CaptainToolsHelpers::BUILT_IN_AGENT_TOOLS.dup
+    return tools unless custom_http_tools_enabled?
+
+    tools + account.captain_custom_tools.enabled.map(&:to_tool_metadata)
   end
 
   def available_tool_ids
@@ -106,10 +119,16 @@ class Captain::Assistant < ApplicationRecord
       Captain::Tools::HandoffTool.new(self)
     ]
 
-    account.captain_custom_tools.enabled.find_each do |custom_tool|
-      tools << Captain::Tools::HttpTool.new(self, custom_tool)
+    if custom_http_tools_enabled?
+      account.captain_custom_tools.enabled.find_each do |custom_tool|
+        tools << Captain::Tools::HttpTool.new(self, custom_tool)
+      end
     end
 
     tools
+  end
+
+  def custom_http_tools_enabled?
+    self.class.custom_http_tools_enabled_for?(account)
   end
 end

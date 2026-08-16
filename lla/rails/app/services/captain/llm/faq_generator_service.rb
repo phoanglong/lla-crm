@@ -13,7 +13,7 @@ class Captain::Llm::FaqGeneratorService
     response = chat.ask(@document.content.to_s)
     parse_faqs(response&.content)
   rescue RubyLLM::Error => e
-    Rails.logger.error("LLM API Error: #{e.message}")
+    Rails.logger.error("LLM API error: #{e.class}")
     []
   end
 
@@ -38,7 +38,7 @@ class Captain::Llm::FaqGeneratorService
 
     JSON.parse(content).fetch('faqs')
   rescue JSON::ParserError => e
-    Rails.logger.error("Error in parsing GPT processed response: #{e.message}")
+    Rails.logger.error("Error parsing LLM FAQ response: #{e.class}")
     []
   rescue KeyError
     []

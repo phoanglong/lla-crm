@@ -5,6 +5,7 @@ json.observations do
     json.generated_question observation.generated_question
     json.generated_answer observation.generated_answer
     json.language observation.language
+    json.status observation.status
     json.created_at observation.created_at.to_i
     json.conversation do
       json.id observation.conversation.id

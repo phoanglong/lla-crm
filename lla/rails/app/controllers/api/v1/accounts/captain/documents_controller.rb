@@ -3,6 +3,10 @@
 # Quản lý tài liệu tri thức: liệt kê/xem cho mọi thành viên; nạp mới (kích
 # hoạt crawl), sync lại và xoá dành cho administrator.
 class Api::V1::Accounts::Captain::DocumentsController < Api::V1::Accounts::Captain::BaseController
+  MANUAL_PENDING_STALE_TIMEOUT = 1.hour
+
+  rescue_from ActiveJob::EnqueueError, with: :render_enqueue_failure
+
   before_action :set_document, only: [:show, :sync, :destroy]
   before_action :check_authorization
 
@@ -19,18 +23,18 @@ class Api::V1::Accounts::Captain::DocumentsController < Api::V1::Accounts::Capta
     @document = Current.account.captain_documents.new(document_params)
     @document.assistant = Current.account.captain_assistants.find(document_params[:assistant_id]) if document_params[:assistant_id].present?
     @document.save!
-    Captain::Documents::CrawlJob.perform_later(@document)
+    enqueue_crawl
     render :show
   end
 
-  # Cho phép sync lại cả khi đang "syncing" (kẹt hay không) — PerformSyncJob tự
-  # chống chồng bằng khoá Redis; chỉ chặn PDF và tài liệu chưa crawl xong.
+  # Claim trạng thái pending dưới row lock trước khi enqueue; request lặp lại
+  # không sinh thêm job. Chỉ tài liệu web đã crawl xong mới sync được.
   def sync
     return render_could_not_sync(I18n.t('captain.documents.sync_not_supported_for_pdf')) unless @document.syncable?
     return render_could_not_sync(I18n.t('captain.documents.sync_only_available_documents')) unless @document.available?
+    return head :accepted unless claim_sync
 
-    @document.update!(sync_status: :syncing, last_sync_attempted_at: Time.current)
-    Captain::Documents::PerformSyncJob.perform_later(@document)
+    enqueue_sync
     head :accepted
   end
 
@@ -55,5 +59,58 @@ class Api::V1::Accounts::Captain::DocumentsController < Api::V1::Accounts::Capta
 
   def render_could_not_sync(message)
     render json: { error: message }, status: :unprocessable_entity
+  end
+
+  def render_enqueue_failure
+    render json: { error: 'Knowledge processing queue is temporarily unavailable' }, status: :service_unavailable
+  end
+
+  def sync_already_queued?
+    return true if @document.sync_in_progress?
+
+    @document.sync_pending? && @document.last_sync_attempted_at.present? &&
+      @document.last_sync_attempted_at > MANUAL_PENDING_STALE_TIMEOUT.ago
+  end
+
+  def claim_sync
+    claimed = false
+    @document.with_lock do
+      next if sync_already_queued?
+
+      @document.update!(sync_status: :pending, last_sync_error_code: nil, last_sync_attempted_at: Time.current)
+      @sync_claimed_at = @document.last_sync_attempted_at
+      claimed = true
+    end
+    claimed
+  end
+
+  def enqueue_sync
+    ensure_enqueued!(Captain::Documents::PerformSyncJob.perform_later(@document))
+  rescue StandardError
+    mark_enqueue_failed
+    raise
+  end
+
+  def enqueue_crawl
+    ensure_enqueued!(Captain::Documents::CrawlJob.perform_later(@document))
+  rescue StandardError
+    metadata = @document.metadata.to_h.merge('ingestion_error_code' => 'enqueue_failed')
+    @document.update!(status: :failed, metadata: metadata)
+    raise
+  end
+
+  def ensure_enqueued!(job)
+    raise ActiveJob::EnqueueError, 'Job enqueue was rejected' unless job
+    raise job.enqueue_error if job.respond_to?(:enqueue_error) && job.enqueue_error
+
+    job
+  end
+
+  def mark_enqueue_failed
+    @document.with_lock do
+      next unless @document.sync_pending? && @document.last_sync_attempted_at == @sync_claimed_at
+
+      @document.update!(sync_status: :failed, last_sync_error_code: 'enqueue_failed', last_sync_attempted_at: nil)
+    end
   end
 end

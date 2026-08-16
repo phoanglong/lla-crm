@@ -17,15 +17,21 @@ class Captain::AssistantResponse < ApplicationRecord
   scope :by_assistant, ->(assistant_id) { where(assistant_id: assistant_id) }
 
   before_validation :assign_account_from_assistant
+  validate :document_belongs_to_account
 
-  # FAQ tạo qua pipeline (ResponseBuilderJob…) chưa có vector — tính async.
+  # FAQ tạo hoặc đổi nội dung phải tính lại vector; không giữ embedding cũ của
+  # một câu hỏi/câu trả lời đã bị chỉnh sửa.
+  before_save :clear_stale_embedding, if: :faq_content_changed?
   after_commit :enqueue_embedding_update, if: :embedding_update_due?
 
-  # Tìm câu trả lời gần nghĩa nhất với câu hỏi (semantic search) — dùng cho
-  # copilot/tra cứu tài liệu. Gọi được trên relation đã scope theo assistant.
-  def self.search(query)
-    embedding = Captain::Llm::EmbeddingService.new(account_id: nil).get_embedding(query)
-    approved.nearest_neighbors(:embedding, embedding, distance: 'cosine').limit(5)
+  # Không cung cấp biến thể unscoped: mọi tìm kiếm phải nêu rõ tenant và
+  # assistant để không thể vô tình đọc vector của tài khoản khác.
+  def self.search(query, account_id:, assistant_id:)
+    embedding = Captain::Llm::EmbeddingService.new(account_id: account_id).get_embedding(query)
+    where(account_id: account_id, assistant_id: assistant_id)
+      .approved
+      .nearest_neighbors(:embedding, embedding, distance: 'cosine')
+      .limit(5)
   end
 
   validates :question, presence: true
@@ -40,8 +46,25 @@ class Captain::AssistantResponse < ApplicationRecord
     self.account = assistant.account if assistant.present?
   end
 
+  def document_belongs_to_account
+    return unless documentable.is_a?(Captain::Document) && assistant.present?
+    return if documentable.account_id == assistant.account_id
+
+    errors.add(:documentable, 'must belong to the same account as the assistant')
+  end
+
   def embedding_update_due?
-    embedding.blank? && (saved_change_to_id? || saved_change_to_question? || saved_change_to_answer?)
+    return embedding.blank? if saved_change_to_id?
+
+    saved_change_to_question? || saved_change_to_answer?
+  end
+
+  def faq_content_changed?
+    will_save_change_to_question? || will_save_change_to_answer?
+  end
+
+  def clear_stale_embedding
+    self.embedding = nil if persisted?
   end
 
   def enqueue_embedding_update

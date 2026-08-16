@@ -274,6 +274,75 @@ RSpec.describe Captain::Documents::ScheduleSyncsJob, type: :job do
     end
   end
 
+  context 'when the account plan cadence is invalid' do
+    it 'does not turn zero or negative configuration into a mass sync' do
+      set_installation_config('CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', { business: -1 }.to_json)
+      create(:captain_document, assistant: assistant, account: account, status: :available)
+      clear_enqueued_jobs
+
+      expect { described_class.new.perform }.not_to have_enqueued_job(Captain::Documents::PerformSyncJob)
+    end
+  end
+
+  context 'when a document is already queued inside the jitter window' do
+    it 'does not enqueue a duplicate sync' do
+      document = create(:captain_document, assistant: assistant, account: account, status: :available)
+      document.update!(sync_status: :pending, last_sync_attempted_at: 1.day.ago)
+      clear_enqueued_jobs
+
+      expect { described_class.new.perform }.not_to have_enqueued_job(Captain::Documents::PerformSyncJob)
+    end
+
+    it 'recovers a stale pending sync' do
+      document = create(:captain_document, assistant: assistant, account: account, status: :available)
+      document.update!(
+        sync_status: :pending,
+        last_sync_attempted_at: (described_class::PENDING_STALE_TIMEOUT + 1.minute).ago
+      )
+      clear_enqueued_jobs
+
+      expect { described_class.new.perform }.to sync_job_for(document)
+    end
+
+    it 'rechecks the row under lock when another scheduler claimed a stale selection' do
+      document = create(:captain_document, assistant: assistant, account: account, status: :available)
+      document.update!(sync_status: :synced, last_synced_at: 8.days.ago)
+      stale_selection = Captain::Document.find(document.id)
+      document.update!(sync_status: :pending, last_sync_attempted_at: Time.current)
+      clear_enqueued_jobs
+
+      expect do
+        described_class.new.send(:enqueue_sync, stale_selection, 168.hours)
+      end.not_to have_enqueued_job(Captain::Documents::PerformSyncJob)
+    end
+
+    it 'recovers pending state with no attempt timestamp' do
+      document = create(:captain_document, assistant: assistant, account: account, status: :available)
+      # rubocop:disable Rails/SkipsModelValidations
+      document.update_columns(sync_status: Captain::Document.sync_statuses[:pending], last_sync_attempted_at: nil)
+      # rubocop:enable Rails/SkipsModelValidations
+      clear_enqueued_jobs
+
+      expect { described_class.new.perform }.to sync_job_for(document)
+    end
+  end
+
+  context 'when enqueueing the sync job fails' do
+    it 'marks the document for retry without leaving it stuck as pending' do
+      document = create(:captain_document, assistant: assistant, account: account, status: :available)
+      clear_enqueued_jobs
+      allow(Captain::Documents::PerformSyncJob).to receive(:set).and_raise(StandardError, 'queue unavailable')
+
+      expect { described_class.new.perform }.to raise_error('queue unavailable')
+
+      expect(document.reload).to have_attributes(
+        sync_status: 'failed',
+        last_sync_error_code: 'enqueue_failed',
+        last_sync_attempted_at: nil
+      )
+    end
+  end
+
   context 'when the only eligible document is a PDF' do
     it 'leaves it alone since PDFs are not syncable' do
       pdf_document = build(:captain_document, assistant: assistant, account: account, status: :available)

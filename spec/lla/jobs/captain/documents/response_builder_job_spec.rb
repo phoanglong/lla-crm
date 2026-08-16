@@ -19,7 +19,8 @@ RSpec.describe Captain::Documents::ResponseBuilderJob, type: :job do
   describe '#perform' do
     context 'when processing a document' do
       it 'deletes previous responses' do
-        existing_response = create(:captain_assistant_response, documentable: document)
+        existing_response = create(:captain_assistant_response, assistant: assistant, account: assistant.account,
+                                                                documentable: document)
 
         described_class.new.perform(document)
 
@@ -39,6 +40,38 @@ RSpec.describe Captain::Documents::ResponseBuilderJob, type: :job do
         expect(first_response.answer).to eq('A programming language')
         expect(first_response.assistant).to eq(assistant)
         expect(first_response.documentable).to eq(document)
+      end
+
+      it 'preserves previous responses when generation fails' do
+        existing_response = create(:captain_assistant_response, assistant: assistant, account: assistant.account,
+                                                                documentable: document)
+        allow(faq_generator).to receive(:generate).and_raise(StandardError, 'LLM unavailable')
+
+        expect { described_class.new.perform(document) }.to raise_error('LLM unavailable')
+
+        expect(existing_response.reload).to be_present
+      end
+
+      it 'preserves previous responses when generation is empty' do
+        existing_response = create(:captain_assistant_response, assistant: assistant, account: assistant.account,
+                                                                documentable: document)
+        allow(faq_generator).to receive(:generate).and_return([])
+
+        described_class.new.perform(document)
+
+        expect(existing_response.reload).to be_present
+      end
+
+      it 'rolls back deletion when a replacement cannot be persisted' do
+        existing_response = create(:captain_assistant_response, assistant: assistant, account: assistant.account,
+                                                                documentable: document)
+        responses = document.responses
+        allow(document).to receive(:responses).and_return(responses)
+        allow(responses).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+
+        expect { described_class.new.perform(document) }.to raise_error(ActiveRecord::RecordInvalid)
+
+        expect(existing_response.reload).to be_present
       end
     end
 

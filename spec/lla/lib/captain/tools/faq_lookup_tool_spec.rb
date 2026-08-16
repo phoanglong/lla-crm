@@ -75,8 +75,9 @@ RSpec.describe Captain::Tools::FaqLookupTool, type: :model do
       end
 
       it 'logs tool usage for search' do
-        expect(tool).to receive(:log_tool_usage).with('searching', { query: 'password reset' })
-        expect(tool).to receive(:log_tool_usage).with('found_results', { query: 'password reset', count: 2 })
+        query_metadata = { query_length: 14, query_sha256: Digest::SHA256.hexdigest('password reset')[0, 12] }
+        expect(tool).to receive(:log_tool_usage).with('searching', query_metadata)
+        expect(tool).to receive(:log_tool_usage).with('found_results', query_metadata.merge(count: 2))
 
         tool.perform(tool_context, query: 'password reset')
       end
@@ -109,8 +110,9 @@ RSpec.describe Captain::Tools::FaqLookupTool, type: :model do
       end
 
       it 'logs tool usage for no results' do
-        expect(tool).to receive(:log_tool_usage).with('searching', { query: 'nonexistent topic' })
-        expect(tool).to receive(:log_tool_usage).with('no_results', { query: 'nonexistent topic' })
+        query_metadata = { query_length: 17, query_sha256: Digest::SHA256.hexdigest('nonexistent topic')[0, 12] }
+        expect(tool).to receive(:log_tool_usage).with('searching', query_metadata)
+        expect(tool).to receive(:log_tool_usage).with('no_results', query_metadata)
 
         tool.perform(tool_context, query: 'nonexistent topic')
       end

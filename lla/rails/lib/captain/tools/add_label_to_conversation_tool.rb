@@ -13,9 +13,12 @@ class Captain::Tools::AddLabelToConversationTool < Captain::Tools::BasePublicToo
     label = account_scoped(Label).find_by(title: label_name.strip.downcase)
     return 'Label not found' if label.blank?
 
-    conversation.add_labels([label.title])
+    conversation.add_labels(label.title)
     log_tool_usage('added_label', { conversation_id: conversation.id, label: label.title })
 
     "Label '#{label.title}' added to conversation ##{conversation.display_id}"
+  rescue StandardError => e
+    Rails.logger.error("Failed to add label to conversation: #{e.class.name}")
+    raise
   end
 end

@@ -7,6 +7,7 @@ class Captain::Documents::CrawlJob < ApplicationJob
 
   DEFAULT_CRAWL_LIMIT = 10
   MAX_CRAWL_LIMIT = 500
+  MAX_SIMPLE_CRAWL_PAGES = 50
 
   def perform(document)
     return process_pdf(document) if document.pdf_document?
@@ -31,17 +32,18 @@ class Captain::Documents::CrawlJob < ApplicationJob
     available = account.usage_limits.dig(:captain, :documents, :current_available)
     return DEFAULT_CRAWL_LIMIT if available.blank?
 
-    [available, MAX_CRAWL_LIMIT].min
+    available.to_i.clamp(1, MAX_CRAWL_LIMIT)
   end
 
   def webhook_url(document)
-    token = Digest::SHA256.hexdigest("#{firecrawl_api_key[-4..]}#{document.assistant_id}#{document.account_id}")
+    token = Lla::Captain::FirecrawlWebhookToken.generate(document.assistant)
     "#{Rails.application.routes.url_helpers.enterprise_webhooks_firecrawl_url}?assistant_id=#{document.assistant_id}&token=#{token}"
   end
 
   def simple_crawl(document)
     crawler = Captain::Tools::SimplePageCrawlService.new(document.external_link)
-    links = ([document.external_link] + crawler.page_links).uniq
+    page_limit = [crawl_limit(document.account), MAX_SIMPLE_CRAWL_PAGES].min
+    links = ([document.external_link] + crawler.page_links).uniq.first(page_limit)
 
     links.each do |link|
       Captain::Tools::SimplePageCrawlParserJob.perform_later(assistant_id: document.assistant_id, page_link: link)

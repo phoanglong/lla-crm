@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Hành vi "công cụ HTTP" cho Captain::CustomTool: render template liquid cho
-# URL/body/phản hồi, dựng header xác thực + metadata X-Chatwoot-* và tạo
+# URL/body/phản hồi, dựng header xác thực + metadata X-LLA-* và tạo
 # instance HttpTool chạy trong agent.
 module Concerns::Toolable
   extend ActiveSupport::Concern
@@ -41,10 +41,12 @@ module Concerns::Toolable
   end
 
   # Header ngữ cảnh gửi kèm để hệ thống đối tác nhận diện nguồn gọi.
+  # Không gửi email/số điện thoại: endpoint tùy chỉnh phải tra cứu dữ liệu qua
+  # integration đã được ủy quyền, không nhận PII ngầm từ agent runtime.
   def build_metadata_headers(state)
-    headers = { 'X-Chatwoot-Tool-Slug' => slug }
-    headers['X-Chatwoot-Account-Id'] = state[:account_id].to_s if state[:account_id]
-    headers['X-Chatwoot-Assistant-Id'] = state[:assistant_id].to_s if state[:assistant_id]
+    headers = { 'X-LLA-Tool-Slug' => slug }
+    headers['X-LLA-Account-Id'] = state[:account_id].to_s if state[:account_id]
+    headers['X-LLA-Assistant-Id'] = state[:assistant_id].to_s if state[:assistant_id]
     headers.merge!(conversation_metadata_headers(state[:conversation]))
     headers.merge!(contact_inbox_metadata_headers(state[:contact_inbox]))
     headers.merge!(contact_metadata_headers(state[:contact]))
@@ -75,23 +77,20 @@ module Concerns::Toolable
     return {} if conversation.blank?
 
     {
-      'X-Chatwoot-Conversation-Id' => conversation[:id].to_s,
-      'X-Chatwoot-Conversation-Display-Id' => conversation[:display_id].to_s
+      'X-LLA-Conversation-Id' => conversation[:id].to_s,
+      'X-LLA-Conversation-Display-Id' => conversation[:display_id].to_s
     }
   end
 
   def contact_inbox_metadata_headers(contact_inbox)
-    headers = { 'X-Chatwoot-Contact-Inbox-Verified' => (contact_inbox&.dig(:hmac_verified) || false).to_s }
-    headers['X-Chatwoot-Contact-Inbox-Id'] = contact_inbox[:id].to_s if contact_inbox&.dig(:id)
+    headers = { 'X-LLA-Contact-Inbox-Verified' => (contact_inbox&.dig(:hmac_verified) || false).to_s }
+    headers['X-LLA-Contact-Inbox-Id'] = contact_inbox[:id].to_s if contact_inbox&.dig(:id)
     headers
   end
 
   def contact_metadata_headers(contact)
     return {} if contact.blank?
 
-    headers = { 'X-Chatwoot-Contact-Id' => contact[:id].to_s }
-    headers['X-Chatwoot-Contact-Email'] = contact[:email] if contact[:email].present?
-    headers['X-Chatwoot-Contact-Phone'] = contact[:phone_number] if contact[:phone_number].present?
-    headers
+    { 'X-LLA-Contact-Id' => contact[:id].to_s }
   end
 end

@@ -10,7 +10,7 @@ class Captain::Tools::HandoffTool < Captain::Tools::BasePublicTool
     conversation = find_conversation(tool_context.state)
     return 'Conversation not found' if conversation.blank?
 
-    log_tool_usage('tool_handoff', { conversation_id: conversation.id, reason: reason.presence || 'Agent requested handoff' })
+    log_tool_usage('tool_handoff', { conversation_id: conversation.id, reason_present: reason.present? })
 
     note = create_handoff_note(conversation, reason)
     set_run_metadata(tool_context.state, :handoff_note_id, note.id) if reason.present?

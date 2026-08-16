@@ -77,6 +77,29 @@ RSpec.describe Captain::Llm::AssistantActionClassifierService do
       expect(result).to include('model' => 'gpt-5.2')
     end
 
+    it 'uses deterministic temperature and parses fenced JSON output' do
+      response = instance_double(
+        RubyLLM::Message,
+        content: "```json\n{\"action\":\"continue\",\"action_reason\":\"general_product_question\"}\n```"
+      )
+
+      expect(mock_chat).to receive(:with_temperature).with(0.0).and_return(mock_chat)
+      allow(mock_chat).to receive(:ask).and_return(response)
+
+      expect(service.classify(message_history: message_history, assistant_response: 'Here is the answer.')).to include(
+        'action' => 'continue', 'action_reason' => 'general_product_question'
+      )
+    end
+
+    it 'fails closed when the provider returns a value outside the schema enum' do
+      response = instance_double(RubyLLM::Message, content: { 'action' => 'delete', 'action_reason' => 'unknown' })
+      allow(mock_chat).to receive(:ask).and_return(response)
+
+      expect(service.classify(message_history: message_history, assistant_response: 'Draft')).to include(
+        'action' => nil, 'action_reason' => nil, 'error' => 'invalid_classifier_response'
+      )
+    end
+
     context 'when the assistant has no custom instructions' do
       before do
         assistant.update!(config: assistant.config.except('instructions'))
@@ -91,5 +114,13 @@ RSpec.describe Captain::Llm::AssistantActionClassifierService do
         service.classify(message_history: message_history, assistant_response: 'Would you like to talk to support?')
       end
     end
+  end
+
+  it 'rejects a conversation from another account before sending data to the LLM' do
+    other_conversation = create(:conversation)
+
+    expect do
+      described_class.new(assistant: assistant, conversation: other_conversation)
+    end.to raise_error(ArgumentError, /same account/)
   end
 end

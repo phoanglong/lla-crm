@@ -3,10 +3,10 @@
 # Đóng hội thoại khi trợ lý xác định vấn đề đã xử lý xong, kèm lý do vào thông
 # điệp hoạt động. Tôn trọng cấu hình tắt auto-resolve của account.
 class Captain::Tools::ResolveConversationTool < Captain::Tools::BasePublicTool
-  description 'Resolve the conversation when the issue is handled'
-  param :reason, type: 'string', desc: 'The reason why the conversation can be resolved', required: false
+  description 'Resolve a conversation when the issue has been addressed or the conversation should be closed'
+  param :reason, type: 'string', desc: 'Brief reason for resolving the conversation', required: true
 
-  def perform(tool_context, reason: nil)
+  def perform(tool_context, reason:)
     conversation = find_conversation(tool_context.state)
     return 'Conversation not found' if conversation.blank?
     return 'Auto-resolve is disabled for this account' if conversation.account.captain_auto_resolve_disabled?
@@ -17,6 +17,6 @@ class Captain::Tools::ResolveConversationTool < Captain::Tools::BasePublicTool
       conversation.resolved!
     end
 
-    "Conversation ##{conversation.display_id} resolved"
+    "Conversation ##{conversation.display_id} resolved#{" (Reason: #{reason})" if reason.present?}"
   end
 end

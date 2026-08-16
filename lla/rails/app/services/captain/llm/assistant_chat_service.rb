@@ -7,12 +7,17 @@
 # Đường v2 (agent + tool) nằm ở Captain::Assistant::AgentRunnerService.
 class Captain::Llm::AssistantChatService
   include Integrations::LlmInstrumentation
+  include Captain::Llm::AssistantContextHelpers
 
   DEFAULT_TEMPERATURE = 0.5
   SPAN_NAME = 'captain.assistant.chat'
   RESPONSE_CONTEXT_LIMIT = 5
 
   def initialize(assistant:, conversation: nil, source: nil)
+    if conversation.present? && assistant.account_id != conversation.account_id
+      raise ArgumentError, 'assistant and conversation must belong to the same account'
+    end
+
     @assistant = assistant
     @conversation = conversation
     @source = source
@@ -39,7 +44,10 @@ class Captain::Llm::AssistantChatService
 
   def temperature
     value = assistant.config.to_h.with_indifferent_access[:temperature]
-    value.presence || DEFAULT_TEMPERATURE
+    parsed = value.is_a?(Numeric) ? value.to_f : Float(value, exception: false)
+    return DEFAULT_TEMPERATURE unless parsed&.finite?
+
+    parsed.clamp(0.0, 2.0)
   end
 
   def build_chat
@@ -79,8 +87,10 @@ class Captain::Llm::AssistantChatService
   def parse_response(response)
     content = response&.content
     return { 'response' => nil } if content.blank?
+    return content.stringify_keys if content.is_a?(Hash)
 
-    parsed = JSON.parse(content)
+    sanitized = content.to_s.strip.sub(/\A```(?:\w*)\s*\n?/, '').sub(/\n?\s*```\s*\z/, '').strip
+    parsed = JSON.parse(sanitized)
     parsed.is_a?(Hash) ? parsed : { 'response' => content }
   rescue JSON::ParserError => e
     Rails.logger.error("AssistantChatService parse error: #{e.message}")
@@ -122,62 +132,12 @@ class Captain::Llm::AssistantChatService
   def system_prompt
     Captain::Llm::SystemPromptsService.assistant_response_generator(
       assistant.name,
-      response_context,
-      assistant.config,
+      assistant.config['product_name'],
+      assistant.config.merge('timezone' => inbox_timezone),
       contact: contact_payload,
-      custom_tools: custom_tools_metadata
+      custom_tools: custom_tools_metadata,
+      response_context: response_context
     )
-  end
-
-  # Chỉ chèn thông tin liên hệ khi trợ lý được bật tính năng tương ứng.
-  def contact_payload
-    return if assistant.config.to_h.with_indifferent_access[:feature_contact_attributes].blank?
-
-    contact = conversation&.contact
-    return if contact.blank?
-
-    {
-      name: contact.name,
-      email: contact.email,
-      phone_number: contact.phone_number,
-      identifier: contact.identifier,
-      custom_attributes: contact.custom_attributes
-    }
-  end
-
-  def custom_tools_metadata
-    assistant.account.captain_custom_tools.enabled.map(&:to_tool_metadata)
-  rescue StandardError => e
-    Rails.logger.error("AssistantChatService custom tools error: #{e.message}")
-    []
-  end
-
-  # Ngữ cảnh FAQ đã duyệt (RAG) — chỉ tra khi trợ lý bật feature_faq và đã có
-  # dữ liệu, để không gọi embedding vô ích.
-  def response_context
-    return if assistant.config.to_h.with_indifferent_access[:feature_faq].blank?
-
-    responses = nearest_responses
-    return if responses.blank?
-
-    responses.map { |item| "Q: #{item.question}\nA: #{item.answer}" }.join("\n\n")
-  end
-
-  def nearest_responses
-    scope = assistant.responses.approved
-    return if scope.none?
-
-    embedding = Captain::Llm::EmbeddingService.new(account_id: assistant.account_id).get_embedding(last_user_text.to_s)
-    scope.nearest_neighbors(:embedding, embedding, distance: 'cosine').limit(RESPONSE_CONTEXT_LIMIT).to_a
-  rescue StandardError => e
-    Rails.logger.error("AssistantChatService retrieval error: #{e.message}")
-    nil
-  end
-
-  def last_user_text
-    entry = Array(@last_messages).reverse.find { |item| item[:role].to_s == 'user' }
-    text, = split_content(entry&.[](:content))
-    text
   end
 
   # --- Ghi vết -----------------------------------------------------------

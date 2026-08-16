@@ -7,6 +7,12 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
   let(:tool) { described_class.new(assistant, custom_tool) }
   let(:tool_context) { Struct.new(:state).new({}) }
 
+  before do
+    allow(Lla::Network::UrlSafety).to receive(:validate!) do |url|
+      Lla::Network::UrlSafety::Result.new(uri: URI.parse(url), ip_address: '93.184.216.34')
+    end
+  end
+
   describe '#active?' do
     it 'returns true when custom tool is enabled' do
       custom_tool.update!(enabled: true)
@@ -146,20 +152,14 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
           .with(headers: { 'X-API-Key' => 'api_key_123' })
       end
 
-      it 'strips the API key header on cross-origin redirects' do
+      it 'blocks cross-origin redirects before sending credentials' do
         redirect_url = 'http://example.com/data'
-        redirected_headers = nil
         stub_request(:get, 'https://example.com/data').to_return(status: 302, headers: { 'Location' => redirect_url })
-        stub_request(:get, redirect_url)
-          .with do |request|
-            redirected_headers = request.headers.transform_keys(&:downcase)
-            true
-          end
-          .to_return(status: 200, body: '{"authenticated": false}')
 
-        tool.perform(tool_context)
+        result = tool.perform(tool_context)
 
-        expect(redirected_headers).not_to include('x-api-key')
+        expect(result).to eq('An error occurred while executing the request')
+        expect(WebMock).not_to have_requested(:get, redirect_url)
       end
     end
 
@@ -221,7 +221,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
         custom_tool.update!(endpoint_url: 'https://example.com/data')
         stub_request(:get, 'https://example.com/data').to_raise(StandardError.new('Test error'))
 
-        expect(Rails.logger).to receive(:error).with(/HttpTool execution error.*Test error/)
+        expect(Rails.logger).to receive(:error).with("HttpTool execution error (#{custom_tool.slug}): StandardError")
 
         tool.perform(tool_context)
       end
@@ -287,15 +287,14 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
       it 'includes metadata headers in GET request' do
         stub_request(:get, 'https://example.com/api/data')
           .with(headers: {
-                  'X-Chatwoot-Account-Id' => account.id.to_s,
-                  'X-Chatwoot-Assistant-Id' => assistant.id.to_s,
-                  'X-Chatwoot-Tool-Slug' => custom_tool.slug,
-                  'X-Chatwoot-Conversation-Id' => conversation.id.to_s,
-                  'X-Chatwoot-Conversation-Display-Id' => conversation.display_id.to_s,
-                  'X-Chatwoot-Contact-Inbox-Id' => conversation.contact_inbox.id.to_s,
-                  'X-Chatwoot-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s,
-                  'X-Chatwoot-Contact-Id' => contact.id.to_s,
-                  'X-Chatwoot-Contact-Email' => contact.email
+                  'X-LLA-Account-Id' => account.id.to_s,
+                  'X-LLA-Assistant-Id' => assistant.id.to_s,
+                  'X-LLA-Tool-Slug' => custom_tool.slug,
+                  'X-LLA-Conversation-Id' => conversation.id.to_s,
+                  'X-LLA-Conversation-Display-Id' => conversation.display_id.to_s,
+                  'X-LLA-Contact-Inbox-Id' => conversation.contact_inbox.id.to_s,
+                  'X-LLA-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s,
+                  'X-LLA-Contact-Id' => contact.id.to_s
                 })
           .to_return(status: 200, body: '{"success": true}')
 
@@ -303,9 +302,8 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
         expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
           .with(headers: {
-                  'X-Chatwoot-Account-Id' => account.id.to_s,
-                  'X-Chatwoot-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s,
-                  'X-Chatwoot-Contact-Email' => contact.email
+                  'X-LLA-Account-Id' => account.id.to_s,
+                  'X-LLA-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s
                 })
       end
 
@@ -317,10 +315,9 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
             body: '{"data": "test"}',
             headers: {
               'Content-Type' => 'application/json',
-              'X-Chatwoot-Account-Id' => account.id.to_s,
-              'X-Chatwoot-Tool-Slug' => custom_tool.slug,
-              'X-Chatwoot-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s,
-              'X-Chatwoot-Contact-Email' => contact.email
+              'X-LLA-Account-Id' => account.id.to_s,
+              'X-LLA-Tool-Slug' => custom_tool.slug,
+              'X-LLA-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s
             }
           )
           .to_return(status: 200, body: '{"success": true}')
@@ -339,9 +336,9 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
         stub_request(:get, 'https://example.com/api/data')
           .with(headers: {
                   'Authorization' => 'Bearer test_token',
-                  'X-Chatwoot-Account-Id' => account.id.to_s,
-                  'X-Chatwoot-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s,
-                  'X-Chatwoot-Contact-Id' => contact.id.to_s
+                  'X-LLA-Account-Id' => account.id.to_s,
+                  'X-LLA-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s,
+                  'X-LLA-Contact-Id' => contact.id.to_s
                 })
           .to_return(status: 200, body: '{"success": true}')
 
@@ -350,7 +347,7 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
         expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
           .with(headers: {
                   'Authorization' => 'Bearer test_token',
-                  'X-Chatwoot-Contact-Id' => contact.id.to_s
+                  'X-LLA-Contact-Id' => contact.id.to_s
                 })
       end
 
@@ -370,9 +367,9 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
         stub_request(:get, 'https://example.com/api/data')
           .with(headers: {
-                  'X-Chatwoot-Account-Id' => account.id.to_s,
-                  'X-Chatwoot-Conversation-Id' => conversation.id.to_s,
-                  'X-Chatwoot-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s
+                  'X-LLA-Account-Id' => account.id.to_s,
+                  'X-LLA-Conversation-Id' => conversation.id.to_s,
+                  'X-LLA-Contact-Inbox-Verified' => conversation.contact_inbox.hmac_verified.to_s
                 })
           .to_return(status: 200, body: '{"success": true}')
 
@@ -397,30 +394,31 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
         stub_request(:get, 'https://example.com/api/data')
           .with(headers: {
-                  'X-Chatwoot-Contact-Inbox-Verified' => 'false'
+                  'X-LLA-Contact-Inbox-Verified' => 'false'
                 })
           .to_return(status: 200, body: '{"success": true}')
 
         tool.perform(tool_context_without_contact_inbox)
 
         expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
-          .with(headers: { 'X-Chatwoot-Contact-Inbox-Verified' => 'false' })
+          .with(headers: { 'X-LLA-Contact-Inbox-Verified' => 'false' })
       end
 
-      it 'includes contact phone when present' do
+      it 'does not forward contact phone or email PII' do
         contact.update!(phone_number: '+1234567890')
         tool_context_with_state.state[:contact][:phone_number] = '+1234567890'
+        captured_headers = nil
 
         stub_request(:get, 'https://example.com/api/data')
-          .with(headers: {
-                  'X-Chatwoot-Contact-Phone' => '+1234567890'
-                })
+          .with do |request|
+            captured_headers = request.headers.transform_keys(&:downcase)
+            true
+          end
           .to_return(status: 200, body: '{"success": true}')
 
         tool.perform(tool_context_with_state)
 
-        expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
-          .with(headers: { 'X-Chatwoot-Contact-Phone' => '+1234567890' })
+        expect(captured_headers).not_to include('x-lla-contact-phone', 'x-lla-contact-email')
       end
 
       it 'includes unverified contact inbox status explicitly as false' do
@@ -429,14 +427,14 @@ RSpec.describe Captain::Tools::HttpTool, type: :model do
 
         stub_request(:get, 'https://example.com/api/data')
           .with(headers: {
-                  'X-Chatwoot-Contact-Inbox-Verified' => 'false'
+                  'X-LLA-Contact-Inbox-Verified' => 'false'
                 })
           .to_return(status: 200, body: '{"success": true}')
 
         tool.perform(tool_context_with_state)
 
         expect(WebMock).to have_requested(:get, 'https://example.com/api/data')
-          .with(headers: { 'X-Chatwoot-Contact-Inbox-Verified' => 'false' })
+          .with(headers: { 'X-LLA-Contact-Inbox-Verified' => 'false' })
       end
     end
   end

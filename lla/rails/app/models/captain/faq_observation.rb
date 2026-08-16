@@ -17,10 +17,18 @@ class Captain::FaqObservation < ApplicationRecord
   validates :generated_answer, presence: true
 
   before_validation :assign_account
+  validate :conversation_and_suggestion_share_account
 
   private
 
   def assign_account
-    self.account ||= faq_suggestion&.account || conversation&.account
+    self.account = faq_suggestion&.account || conversation&.account
+  end
+
+  def conversation_and_suggestion_share_account
+    return if faq_suggestion.blank? || conversation.blank?
+    return if faq_suggestion.account_id == conversation.account_id
+
+    errors.add(:conversation, 'must belong to the same account as the FAQ suggestion')
   end
 end

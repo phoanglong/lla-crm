@@ -4,8 +4,10 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useI18n } from 'vue-i18n';
-
-import semver from 'semver';
+import {
+  hasAnUpdateAvailable as checkForUpdate,
+  resolveCompatibilityVersion,
+} from 'dashboard/components/app/versionCheckHelper';
 
 const { t } = useI18n();
 const { currentAccount } = useAccount();
@@ -17,11 +19,10 @@ const latestChatwootVersion = computed(() => {
 const globalConfig = useMapGetter('globalConfig/get');
 
 const hasAnUpdateAvailable = computed(() => {
-  if (!semver.valid(latestChatwootVersion.value)) {
-    return false;
-  }
-
-  return semver.lt(globalConfig.value.appVersion, latestChatwootVersion.value);
+  return checkForUpdate(
+    latestChatwootVersion.value,
+    resolveCompatibilityVersion(globalConfig.value)
+  );
 });
 
 const gitSha = computed(() => {

@@ -5,6 +5,8 @@ describe '/app/login', type: :request do
     it 'renders the dashboard' do
       get '/app/login'
       expect(response).to have_http_status(:success)
+      expect(response.body).to include(%(APP_VERSION":"#{Lla::ProductVersion.current}))
+      expect(response.body).to include(%(COMPATIBILITY_VERSION":"#{Lla::ProductVersion.compatibility_version}))
     end
   end
 

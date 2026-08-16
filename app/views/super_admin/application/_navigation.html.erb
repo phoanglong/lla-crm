@@ -36,7 +36,7 @@ as defined by the routes in the `admin/` namespace
     <div class="flex mx-4 mb-4 border-slate-100 border-b py-6">
       <%= link_to image_tag('/brand-assets/logo_thumbnail.svg', alt: 'LLA CRM Admin Dashboard', class: 'h-10'), super_admin_root_url %>
       <div class="flex flex-col ml-3">
-        <div class="text-sm">LLA CRM <%= Chatwoot.config[:version] %></div>
+        <div class="text-sm">LLA CRM <%= Lla::ProductVersion.current %></div>
         <div class="text-xs text-slate-700 mt-0.5">Trung tâm quản trị</div>
       </div>
     </div>

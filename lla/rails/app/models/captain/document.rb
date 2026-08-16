@@ -6,6 +6,7 @@ class Captain::Document < ApplicationRecord
   self.table_name = 'captain_documents'
 
   MAX_PDF_SIZE = 10.megabytes
+  PDF_CONTENT_TYPE = 'application/pdf'
 
   # Quá ngưỡng này mà vẫn "syncing" thì coi là kẹt — cho phép sync lại.
   SYNC_STALE_TIMEOUT = 1.hour
@@ -121,9 +122,10 @@ class Captain::Document < ApplicationRecord
 
   def validate_pdf_file
     return unless pdf_file.attached?
-    return if pdf_file.byte_size <= MAX_PDF_SIZE
 
-    errors.add(:pdf_file, I18n.t('captain.documents.pdf_size_error'))
+    valid_metadata = pdf_file.content_type == PDF_CONTENT_TYPE && File.extname(pdf_file.filename.to_s).casecmp?('.pdf')
+    errors.add(:pdf_file, 'must be a PDF') unless valid_metadata
+    errors.add(:pdf_file, I18n.t('captain.documents.pdf_size_error')) if pdf_file.byte_size > MAX_PDF_SIZE
   end
 
   # Hạn mức tài liệu theo gói (chỉ khi lớp quota có mặt và cấu hình giới hạn).

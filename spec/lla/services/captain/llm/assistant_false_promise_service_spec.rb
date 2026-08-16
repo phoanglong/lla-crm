@@ -9,7 +9,7 @@ RSpec.describe Captain::Llm::AssistantFalsePromiseService do
   let(:mock_response) do
     instance_double(
       RubyLLM::Message,
-      content: { 'decision' => 'safe', 'reason' => 'answer_stays_within_known_context' }
+      content: { 'decision' => 'safe', 'reason' => 'safe_response' }
     )
   end
 
@@ -55,7 +55,38 @@ RSpec.describe Captain::Llm::AssistantFalsePromiseService do
 
       result = service.detect(message_history: message_history, assistant_response: 'Try restarting the app.')
 
-      expect(result).to include('decision' => 'safe', 'reason' => 'answer_stays_within_known_context')
+      expect(result).to include('decision' => 'safe', 'reason' => 'safe_response')
     end
+
+    it 'uses deterministic temperature and parses fenced JSON output' do
+      response = instance_double(
+        RubyLLM::Message,
+        content: "```json\n{\"decision\":\"safe\",\"reason\":\"safe_response\"}\n```"
+      )
+
+      expect(mock_chat).to receive(:with_temperature).with(0.0).and_return(mock_chat)
+      allow(mock_chat).to receive(:ask).and_return(response)
+
+      expect(service.detect(message_history: message_history, assistant_response: 'Try restarting.')).to include(
+        'decision' => 'safe', 'reason' => 'safe_response'
+      )
+    end
+
+    it 'fails closed when the provider returns a value outside the schema enum' do
+      response = instance_double(RubyLLM::Message, content: { 'decision' => 'unsafe', 'reason' => 'anything' })
+      allow(mock_chat).to receive(:ask).and_return(response)
+
+      expect(service.detect(message_history: message_history, assistant_response: 'I will check later.')).to include(
+        'decision' => nil, 'reason' => nil, 'error' => 'invalid_false_promise_response'
+      )
+    end
+  end
+
+  it 'rejects a conversation from another account before sending data to the LLM' do
+    other_conversation = create(:conversation)
+
+    expect do
+      described_class.new(assistant: assistant, conversation: other_conversation)
+    end.to raise_error(ArgumentError, /same account/)
   end
 end

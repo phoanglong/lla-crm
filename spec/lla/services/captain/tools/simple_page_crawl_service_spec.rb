@@ -6,6 +6,9 @@ RSpec.describe Captain::Tools::SimplePageCrawlService do
 
   before do
     WebMock.disable_net_connect!
+    allow(Lla::Network::UrlSafety).to receive(:validate!) do |url|
+      Lla::Network::UrlSafety::Result.new(uri: URI.parse(url), ip_address: '93.184.216.34')
+    end
   end
 
   after do
@@ -79,13 +82,10 @@ RSpec.describe Captain::Tools::SimplePageCrawlService do
         stub_request(:get, base_url).to_return(body: html_content)
       end
 
-      it 'extracts and absolutizes all links' do
+      it 'extracts only same-origin links and removes fragments' do
         links = service.page_links
-        expect(links).to include(
-          'https://example.com/relative',
-          'https://external.com',
-          'https://example.com#anchor'
-        )
+        expect(links).to contain_exactly('https://example.com/relative', 'https://example.com')
+        expect(links).not_to include('https://external.com')
       end
     end
 

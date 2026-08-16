@@ -1,32 +1,54 @@
 # frozen_string_literal: true
 
-# Webhook công khai nhận kết quả crawl từ Firecrawl. Xác thực bằng token dẫn
-# xuất từ đuôi API key + assistant + account (đúng token CrawlJob đã phát).
+# Webhook công khai nhận kết quả crawl từ Firecrawl. Xác thực bằng token ký,
+# có hạn dùng và ràng buộc assistant/account do CrawlJob phát.
 # Giữ namespace Enterprise::Webhooks để không đổi URL/route name của CE.
 class Enterprise::Webhooks::FirecrawlController < ActionController::API
+  MAX_PAGES_PER_REQUEST = 100
+  MAX_PAGE_PAYLOAD_BYTES = 1.megabyte
+
   def process_payload
     assistant = Captain::Assistant.find_by(id: params[:assistant_id])
-    return head :not_found if assistant.blank?
-    return head :unauthorized unless valid_token?(assistant)
+    return head :unauthorized if assistant.blank? || !valid_token?(assistant)
 
-    enqueue_crawled_pages(assistant) if params[:type] == 'crawl.page'
+    if params[:type] == 'crawl.page'
+      pages = permitted_pages
+      return head :content_too_large if pages.nil?
+
+      enqueue_crawled_pages(assistant, pages)
+    end
     head :ok
   end
 
   private
 
-  def enqueue_crawled_pages(assistant)
-    Array(params[:data]).each do |page|
-      payload = page.respond_to?(:to_unsafe_h) ? page.to_unsafe_h : page.to_h
-      Captain::Tools::FirecrawlParserJob.perform_later(assistant_id: assistant.id, payload: payload.deep_symbolize_keys)
+  def enqueue_crawled_pages(assistant, pages)
+    pages.each do |payload|
+      Captain::Tools::FirecrawlParserJob.perform_later(assistant_id: assistant.id, payload: payload)
     end
   end
 
   def valid_token?(assistant)
-    api_key = InstallationConfig.find_by(name: 'CAPTAIN_FIRECRAWL_API_KEY')&.value
-    return false if api_key.blank?
+    Lla::Captain::FirecrawlWebhookToken.valid?(params[:token], assistant)
+  end
 
-    expected = Digest::SHA256.hexdigest("#{api_key[-4..]}#{assistant.id}#{assistant.account_id}")
-    ActiveSupport::SecurityUtils.secure_compare(params[:token].to_s, expected)
+  def permitted_pages
+    raw_pages = Array(params[:data])
+    return if raw_pages.length > MAX_PAGES_PER_REQUEST
+    return unless raw_pages.all? { |raw_page| page_payload?(raw_page) }
+
+    pages = raw_pages.map { |raw_page| permit_page(raw_page) }
+    return if pages.sum { |page| page.to_json.bytesize } > MAX_PAGE_PAYLOAD_BYTES
+
+    pages
+  end
+
+  def page_payload?(raw_page)
+    raw_page.is_a?(ActionController::Parameters) || raw_page.is_a?(Hash)
+  end
+
+  def permit_page(raw_page)
+    page_params = raw_page.respond_to?(:permit) ? raw_page : ActionController::Parameters.new(raw_page)
+    page_params.permit(:markdown, metadata: %i[sourceURL url title]).to_h.deep_symbolize_keys
   end
 end

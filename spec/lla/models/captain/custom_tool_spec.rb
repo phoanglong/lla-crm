@@ -15,6 +15,27 @@ RSpec.describe Captain::CustomTool, type: :model do
                                                                  'api_key' => 'api_key').backed_by_column_of_type(:string).with_prefix(:auth)
     }
 
+    it 'rejects a private endpoint address' do
+      tool = build(:captain_custom_tool, endpoint_url: 'http://127.0.0.1/admin')
+
+      expect(tool).not_to be_valid
+      expect(tool.errors[:endpoint_url]).to include('cannot point to a local or private address')
+    end
+
+    it 'rejects Liquid templates in the URL authority' do
+      tool = build(:captain_custom_tool, endpoint_url: 'https://{{ host }}/orders')
+
+      expect(tool).not_to be_valid
+      expect(tool.errors[:endpoint_url]).to include('cannot template the URL authority')
+    end
+
+    it 'rejects credentials embedded in the endpoint URL' do
+      tool = build(:captain_custom_tool, endpoint_url: 'https://user:pass@example.com/orders')
+
+      expect(tool).not_to be_valid
+      expect(tool.errors[:endpoint_url]).to include('cannot contain credentials')
+    end
+
     describe 'slug uniqueness' do
       let(:account) { create(:account) }
 
@@ -349,35 +370,36 @@ RSpec.describe Captain::CustomTool, type: :model do
       it 'includes account and assistant metadata' do
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Account-Id']).to eq(account.id.to_s)
-        expect(headers['X-Chatwoot-Assistant-Id']).to eq('123')
+        expect(headers['X-LLA-Account-Id']).to eq(account.id.to_s)
+        expect(headers['X-LLA-Assistant-Id']).to eq('123')
       end
 
       it 'includes tool slug' do
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Tool-Slug']).to eq('custom_test_tool')
+        expect(headers['X-LLA-Tool-Slug']).to eq('custom_test_tool')
       end
 
       it 'includes conversation metadata when present' do
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Conversation-Id']).to eq(conversation.id.to_s)
-        expect(headers['X-Chatwoot-Conversation-Display-Id']).to eq(conversation.display_id.to_s)
+        expect(headers['X-LLA-Conversation-Id']).to eq(conversation.id.to_s)
+        expect(headers['X-LLA-Conversation-Display-Id']).to eq(conversation.display_id.to_s)
       end
 
-      it 'includes contact metadata when present' do
+      it 'includes only the contact identifier and omits direct PII' do
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Contact-Id']).to eq(contact.id.to_s)
-        expect(headers['X-Chatwoot-Contact-Email']).to eq(contact.email)
+        expect(headers['X-LLA-Contact-Id']).to eq(contact.id.to_s)
+        expect(headers).not_to have_key('X-LLA-Contact-Email')
+        expect(headers).not_to have_key('X-LLA-Contact-Phone')
       end
 
       it 'includes contact inbox verification metadata when present' do
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Contact-Inbox-Id']).to eq(conversation.contact_inbox.id.to_s)
-        expect(headers['X-Chatwoot-Contact-Inbox-Verified']).to eq(conversation.contact_inbox.hmac_verified.to_s)
+        expect(headers['X-LLA-Contact-Inbox-Id']).to eq(conversation.contact_inbox.id.to_s)
+        expect(headers['X-LLA-Contact-Inbox-Verified']).to eq(conversation.contact_inbox.hmac_verified.to_s)
       end
 
       it 'handles missing conversation gracefully' do
@@ -385,9 +407,9 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Conversation-Id']).to be_nil
-        expect(headers['X-Chatwoot-Conversation-Display-Id']).to be_nil
-        expect(headers['X-Chatwoot-Account-Id']).to eq(account.id.to_s)
+        expect(headers['X-LLA-Conversation-Id']).to be_nil
+        expect(headers['X-LLA-Conversation-Display-Id']).to be_nil
+        expect(headers['X-LLA-Account-Id']).to eq(account.id.to_s)
       end
 
       it 'handles missing contact gracefully' do
@@ -395,9 +417,9 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Contact-Id']).to be_nil
-        expect(headers['X-Chatwoot-Contact-Email']).to be_nil
-        expect(headers['X-Chatwoot-Account-Id']).to eq(account.id.to_s)
+        expect(headers['X-LLA-Contact-Id']).to be_nil
+        expect(headers['X-LLA-Contact-Email']).to be_nil
+        expect(headers['X-LLA-Account-Id']).to eq(account.id.to_s)
       end
 
       it 'handles missing contact inbox gracefully' do
@@ -405,16 +427,16 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Contact-Inbox-Id']).to be_nil
-        expect(headers['X-Chatwoot-Contact-Inbox-Verified']).to eq('false')
+        expect(headers['X-LLA-Contact-Inbox-Id']).to be_nil
+        expect(headers['X-LLA-Contact-Inbox-Verified']).to eq('false')
       end
 
       it 'handles empty state' do
         headers = tool.build_metadata_headers({})
 
         expect(headers).to be_a(Hash)
-        expect(headers['X-Chatwoot-Tool-Slug']).to eq('custom_test_tool')
-        expect(headers['X-Chatwoot-Contact-Inbox-Verified']).to eq('false')
+        expect(headers['X-LLA-Tool-Slug']).to eq('custom_test_tool')
+        expect(headers['X-LLA-Contact-Inbox-Verified']).to eq('false')
       end
 
       it 'omits contact email header when email is blank' do
@@ -422,7 +444,7 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers).not_to have_key('X-Chatwoot-Contact-Email')
+        expect(headers).not_to have_key('X-LLA-Contact-Email')
       end
 
       it 'omits contact phone header when phone number is blank' do
@@ -430,7 +452,7 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers).not_to have_key('X-Chatwoot-Contact-Phone')
+        expect(headers).not_to have_key('X-LLA-Contact-Phone')
       end
 
       it 'includes contact inbox verified header when false' do
@@ -438,7 +460,7 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Contact-Inbox-Verified']).to eq('false')
+        expect(headers['X-LLA-Contact-Inbox-Verified']).to eq('false')
       end
 
       it 'defaults contact inbox verified header to false when value is nil' do
@@ -446,7 +468,7 @@ RSpec.describe Captain::CustomTool, type: :model do
 
         headers = tool.build_metadata_headers(state)
 
-        expect(headers['X-Chatwoot-Contact-Inbox-Verified']).to eq('false')
+        expect(headers['X-LLA-Contact-Inbox-Verified']).to eq('false')
       end
     end
 

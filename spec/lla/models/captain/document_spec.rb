@@ -43,6 +43,22 @@ RSpec.describe Captain::Document, type: :model do
         expect(doc).not_to be_valid
         expect(doc.errors[:pdf_file]).to include(I18n.t('captain.documents.pdf_size_error'))
       end
+
+      it 'rejects a PDF attachment with a mismatched MIME type' do
+        doc = build(:captain_document, assistant: assistant, account: account, external_link: nil)
+        doc.pdf_file.attach(io: StringIO.new('PDF content'), filename: 'test.pdf', content_type: 'text/plain')
+
+        expect(doc).not_to be_valid
+        expect(doc.errors[:pdf_file]).to include('must be a PDF')
+      end
+
+      it 'rejects an attachment with a mismatched filename extension' do
+        doc = build(:captain_document, assistant: assistant, account: account, external_link: nil)
+        doc.pdf_file.attach(io: StringIO.new('PDF content'), filename: 'test.txt', content_type: 'application/pdf')
+
+        expect(doc).not_to be_valid
+        expect(doc.errors[:pdf_file]).to include('must be a PDF')
+      end
     end
 
     describe '#pdf_document?' do

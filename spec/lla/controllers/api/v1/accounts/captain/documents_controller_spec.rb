@@ -241,6 +241,23 @@ RSpec.describe 'Api::V1::Accounts::Captain::Documents', type: :request do
           expect(json_response[:name]).to eq('Test Document')
           expect(json_response[:external_link]).to eq('https://example.com/doc')
         end
+
+        it 'marks the document failed when its crawl job cannot be enqueued' do
+          allow(Captain::Documents::CrawlJob).to receive(:perform_later)
+            .and_raise(ActiveJob::EnqueueError, 'queue unavailable')
+
+          post "/api/v1/accounts/#{account.id}/captain/documents",
+               params: valid_attributes,
+               headers: admin.create_new_auth_token,
+               as: :json
+
+          expect(response).to have_http_status(:service_unavailable)
+          expect(json_response[:error]).to eq('Knowledge processing queue is temporarily unavailable')
+          expect(Captain::Document.last).to have_attributes(
+            status: 'failed',
+            metadata: hash_including('ingestion_error_code' => 'enqueue_failed')
+          )
+        end
       end
 
       context 'with invalid parameters' do
@@ -285,7 +302,7 @@ RSpec.describe 'Api::V1::Accounts::Captain::Documents', type: :request do
           end.to have_enqueued_job(Captain::Documents::PerformSyncJob).with(document).on_queue('low')
 
           expect(document.reload).to have_attributes(
-            sync_status: 'syncing',
+            sync_status: 'pending',
             last_sync_attempted_at: Time.current
           )
         end
@@ -293,15 +310,41 @@ RSpec.describe 'Api::V1::Accounts::Captain::Documents', type: :request do
         expect(response).to have_http_status(:accepted)
       end
 
-      it 'queues documents that already have a sync in progress' do
+      it 'does not enqueue another job for documents with a sync in progress' do
         document.update!(sync_status: :syncing, last_sync_attempted_at: 1.minute.ago)
 
         expect do
           post "/api/v1/accounts/#{account.id}/captain/documents/#{document.id}/sync",
                headers: admin.create_new_auth_token, as: :json
-        end.to have_enqueued_job(Captain::Documents::PerformSyncJob).with(document).on_queue('low')
+        end.not_to have_enqueued_job(Captain::Documents::PerformSyncJob)
 
         expect(response).to have_http_status(:accepted)
+        expect(document.reload).to be_sync_syncing
+      end
+
+      it 'does not enqueue another job for a recent manual pending claim' do
+        document.update!(sync_status: :pending, last_sync_attempted_at: 1.minute.ago)
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/captain/documents/#{document.id}/sync",
+               headers: admin.create_new_auth_token, as: :json
+        end.not_to have_enqueued_job(Captain::Documents::PerformSyncJob)
+
+        expect(response).to have_http_status(:accepted)
+      end
+
+      it 'recovers a stale manual pending claim' do
+        document.update!(
+          sync_status: :pending,
+          last_sync_attempted_at: (Api::V1::Accounts::Captain::DocumentsController::MANUAL_PENDING_STALE_TIMEOUT + 1.minute).ago
+        )
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/captain/documents/#{document.id}/sync",
+               headers: admin.create_new_auth_token, as: :json
+        end.to have_enqueued_job(Captain::Documents::PerformSyncJob).with(document)
+
+        expect(document.reload).to be_sync_pending
       end
 
       it 'queues stale syncing documents again' do
@@ -314,12 +357,28 @@ RSpec.describe 'Api::V1::Accounts::Captain::Documents', type: :request do
           end.to have_enqueued_job(Captain::Documents::PerformSyncJob).with(document)
 
           expect(document.reload).to have_attributes(
-            sync_status: 'syncing',
+            sync_status: 'pending',
             last_sync_attempted_at: Time.current
           )
         end
 
         expect(response).to have_http_status(:accepted)
+      end
+
+      it 'marks the claim failed when the queue rejects the job' do
+        allow(Captain::Documents::PerformSyncJob).to receive(:perform_later)
+          .and_raise(ActiveJob::EnqueueError, 'queue unavailable')
+
+        post "/api/v1/accounts/#{account.id}/captain/documents/#{document.id}/sync",
+             headers: admin.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:service_unavailable)
+        expect(json_response[:error]).to eq('Knowledge processing queue is temporarily unavailable')
+        expect(document.reload).to have_attributes(
+          sync_status: 'failed',
+          last_sync_error_code: 'enqueue_failed',
+          last_sync_attempted_at: nil
+        )
       end
 
       it 'rejects PDF documents with an explanatory error' do

@@ -85,7 +85,14 @@ RSpec.describe Captain::Scenario, type: :model do
     let(:account) { create(:account) }
     let(:assistant) { create(:captain_assistant, account: account) }
 
+    around do |example|
+      with_modified_env 'LLA_AI_CUSTOM_HTTP_TOOLS_ENABLED' => 'true' do
+        example.run
+      end
+    end
+
     before do
+      account.enable_features('custom_tools')
       # Mock available tools
       allow(described_class).to receive(:built_in_tool_ids).and_return(%w[
                                                                          add_contact_note add_private_note update_priority
@@ -232,7 +239,14 @@ RSpec.describe Captain::Scenario, type: :model do
     let(:account) { create(:account) }
     let(:assistant) { create(:captain_assistant, account: account) }
 
+    around do |example|
+      with_modified_env 'LLA_AI_CUSTOM_HTTP_TOOLS_ENABLED' => 'true' do
+        example.run
+      end
+    end
+
     before do
+      account.enable_features('custom_tools')
       allow(described_class).to receive(:built_in_tool_ids).and_return(%w[add_contact_note])
       allow(described_class).to receive(:built_in_agent_tools).and_return([
                                                                             { id: 'add_contact_note', title: 'Add Contact Note',

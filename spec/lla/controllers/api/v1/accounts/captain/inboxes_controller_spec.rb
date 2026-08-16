@@ -22,6 +22,19 @@ RSpec.describe 'Api::V1::Accounts::Captain::Inboxes', type: :request do
         expect(response).to have_http_status(:ok)
         expect(json_response[:payload].first[:id]).to eq(captain_inbox.inbox.id)
       end
+
+      it 'does not expose a cross-account inbox from inconsistent legacy data' do
+        other_inbox = create(:inbox)
+        # rubocop:disable Rails/SkipsModelValidations
+        captain_inbox.update_column(:inbox_id, other_inbox.id)
+        # rubocop:enable Rails/SkipsModelValidations
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+            headers: agent.create_new_auth_token
+
+        expect(response).to have_http_status(:ok)
+        expect(json_response[:payload]).to be_empty
+      end
     end
 
     context 'when user is unauthorized' do

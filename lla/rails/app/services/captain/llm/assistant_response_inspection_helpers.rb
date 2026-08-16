@@ -1,3 +1,8 @@
+# frozen_string_literal: true
+
+# Shared prompt and response normalization for the v1 routing/false-promise
+# inspectors. Adapted from the authorized Enterprise implementation so the LLA
+# services keep the same context bound and tolerate both Hash and JSON output.
 module Captain::Llm::AssistantResponseInspectionHelpers
   MAX_CONTEXT_MESSAGES = 10
 
@@ -29,25 +34,23 @@ module Captain::Llm::AssistantResponseInspectionHelpers
   end
 
   def normalize_messages(message_history)
-    message_history.filter_map do |message|
-      role = message[:role] || message['role']
-      next if role.blank?
+    Array(message_history).filter_map do |message|
+      data = message.to_h.with_indifferent_access
+      next if data[:role].blank?
 
-      { role: role.to_s, content: normalize_content(message[:content] || message['content']) }
+      { role: data[:role].to_s, content: normalize_content(data[:content]) }
     end
   end
 
   def normalize_content(content)
     return content if content.is_a?(String)
-    return content.filter_map { |part| part[:text] || part['text'] if text_part?(part) }.join("\n") if content.is_a?(Array)
+    return content.filter_map { |part| part.to_h.with_indifferent_access[:text] if text_part?(part) }.join("\n") if content.is_a?(Array)
 
     content.to_s
   end
 
   def text_part?(part)
-    return false unless part.is_a?(Hash)
-
-    (part[:type] || part['type']).to_s == 'text'
+    part.is_a?(Hash) && part.to_h.with_indifferent_access[:type].to_s == 'text'
   end
 
   def role_label(role)
@@ -57,11 +60,17 @@ module Captain::Llm::AssistantResponseInspectionHelpers
     role.to_s.titleize
   end
 
-  def parse_response(content)
-    return content if content.is_a?(Hash)
+  def parse_inspection_response(content)
+    return content.stringify_keys if content.is_a?(Hash)
 
     JSON.parse(sanitize_json_response(content))
   rescue JSON::ParserError, TypeError
     {}
+  end
+
+  def sanitize_json_response(response)
+    return response if response.nil?
+
+    response.strip.sub(/\A```(?:\w*)\s*\n?/, '').sub(/\n?\s*```\s*\z/, '').strip
   end
 end

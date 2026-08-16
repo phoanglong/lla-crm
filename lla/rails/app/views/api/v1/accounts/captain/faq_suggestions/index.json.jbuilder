@@ -3,5 +3,5 @@ json.payload do
 end
 json.meta do
   json.total_count @suggestions_count
-  json.page @suggestions.current_page
+  json.page @current_page.to_i
 end

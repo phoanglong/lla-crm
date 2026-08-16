@@ -33,8 +33,31 @@ RSpec.describe 'Api::V1::Accounts::Captain::FaqSuggestions', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['payload']).to contain_exactly(
-        include('id' => suggestion.id, 'question' => suggestion.question, 'status' => 'open')
+        include(
+          'id' => suggestion.id,
+          'question' => suggestion.question,
+          'status' => 'open',
+          'assistant' => include('id' => assistant.id, 'name' => assistant.name)
+        )
       )
+      expect(response.parsed_body['meta']).to include('total_count' => 1)
+    end
+
+    it 'applies the search and status filters used by the Captain UI' do
+      approved = assistant.faq_suggestions.create!(
+        question: 'Approved billing question',
+        answer: 'Billing answer',
+        status: :approved
+      )
+      assistant.faq_suggestions.create!(question: 'Unrelated', answer: 'Nothing to see')
+
+      get "/api/v1/accounts/#{account.id}/captain/faq_suggestions",
+          params: { assistant_id: assistant.id, search: 'billing', status: 'approved' },
+          headers: admin.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload'].pluck('id')).to contain_exactly(approved.id)
       expect(response.parsed_body['meta']).to include('total_count' => 1)
     end
 
@@ -126,6 +149,18 @@ RSpec.describe 'Api::V1::Accounts::Captain::FaqSuggestions', type: :request do
       expect(response).to have_http_status(:not_found)
       expect(suggestion.reload.question).to eq('How do I enable the feature?')
     end
+
+    it 'does not edit a suggestion after it has left the open queue' do
+      suggestion.approved!
+
+      patch "/api/v1/accounts/#{account.id}/captain/faq_suggestions/#{suggestion.id}",
+            params: { faq_suggestion: { question: 'Should not change' } },
+            headers: admin.create_new_auth_token,
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(suggestion.reload.question).to eq('How do I enable the feature?')
+    end
   end
 
   describe 'POST /api/v1/accounts/:account_id/captain/faq_suggestions/:id/approve' do
@@ -179,6 +214,20 @@ RSpec.describe 'Api::V1::Accounts::Captain::FaqSuggestions', type: :request do
       expect(response).to have_http_status(:not_found)
       expect(suggestion.reload).to be_open
     end
+
+    it 'does not create a duplicate FAQ when approve is retried' do
+      post "/api/v1/accounts/#{account.id}/captain/faq_suggestions/#{suggestion.id}/approve",
+           headers: admin.create_new_auth_token,
+           as: :json
+
+      expect do
+        post "/api/v1/accounts/#{account.id}/captain/faq_suggestions/#{suggestion.id}/approve",
+             headers: admin.create_new_auth_token,
+             as: :json
+      end.not_to change(assistant.responses, :count)
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe 'POST /api/v1/accounts/:account_id/captain/faq_suggestions/:id/dismiss' do
@@ -211,6 +260,17 @@ RSpec.describe 'Api::V1::Accounts::Captain::FaqSuggestions', type: :request do
 
       expect(response).to have_http_status(:not_found)
       expect(suggestion.reload).to be_open
+    end
+
+    it 'does not dismiss an already approved suggestion' do
+      suggestion.approved!
+
+      post "/api/v1/accounts/#{account.id}/captain/faq_suggestions/#{suggestion.id}/dismiss",
+           headers: admin.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(suggestion.reload).to be_approved
     end
   end
 end

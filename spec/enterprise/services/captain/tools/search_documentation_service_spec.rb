@@ -26,6 +26,7 @@ RSpec.describe Captain::Tools::SearchDocumentationService do
   end
 
   describe '#execute' do
+    let(:translation_service) { instance_double(Captain::Llm::TranslateQueryService) }
     let!(:response) do
       create(
         :captain_assistant_response,
@@ -38,10 +39,19 @@ RSpec.describe Captain::Tools::SearchDocumentationService do
 
     let(:documentable) { create(:captain_document, external_link: external_link) }
 
+    before do
+      allow(Captain::Llm::TranslateQueryService).to receive(:new).with(account: assistant.account).and_return(translation_service)
+      allow(translation_service).to receive(:translate)
+        .with(question, target_language: assistant.account.locale_english_name)
+        .and_return(question)
+    end
+
     context 'when matching responses exist' do
       before do
         response.update(documentable: documentable)
-        allow(Captain::AssistantResponse).to receive(:search).with(question).and_return([response])
+        allow(Captain::AssistantResponse).to receive(:search)
+          .with(question, account_id: assistant.account_id, assistant_id: assistant.id)
+          .and_return([response])
       end
 
       it 'returns formatted responses for the search query' do
@@ -55,7 +65,9 @@ RSpec.describe Captain::Tools::SearchDocumentationService do
 
     context 'when no matching responses exist' do
       before do
-        allow(Captain::AssistantResponse).to receive(:search).with(question).and_return([])
+        allow(Captain::AssistantResponse).to receive(:search)
+          .with(question, account_id: assistant.account_id, assistant_id: assistant.id)
+          .and_return([])
       end
 
       it 'returns an empty string' do

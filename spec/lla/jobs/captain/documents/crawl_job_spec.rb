@@ -9,11 +9,12 @@ RSpec.describe Captain::Documents::CrawlJob, type: :job do
     context 'when CAPTAIN_FIRECRAWL_API_KEY is configured' do
       let(:firecrawl_service) { instance_double(Captain::Tools::FirecrawlService) }
       let(:account) { document.account }
-      let(:token) { Digest::SHA256.hexdigest("-key#{document.assistant_id}#{document.account_id}") }
+      let(:token) { 'signed-firecrawl-webhook-token' }
 
       before do
         allow(Captain::Tools::FirecrawlService).to receive(:new).and_return(firecrawl_service)
         allow(firecrawl_service).to receive(:perform)
+        allow(Lla::Captain::FirecrawlWebhookToken).to receive(:generate).with(document.assistant).and_return(token)
         create(:installation_config, name: 'CAPTAIN_FIRECRAWL_API_KEY', value: 'test-key')
       end
 
@@ -71,6 +72,7 @@ RSpec.describe Captain::Documents::CrawlJob, type: :job do
       let(:simple_crawler) { instance_double(Captain::Tools::SimplePageCrawlService) }
 
       before do
+        allow(document.account).to receive(:usage_limits).and_return({})
         allow(Captain::Tools::SimplePageCrawlService)
           .to receive(:new)
           .with(document.external_link)

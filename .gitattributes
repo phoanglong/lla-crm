@@ -1,0 +1,8 @@
+*.rb text eol=lf
+*.rake text eol=lf
+*.jbuilder text eol=lf
+*.erb text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.vue text eol=lf
+*.yml text eol=lf

@@ -14,6 +14,13 @@ describe ChatwootHub do
     expect(described_class.installation_identifier).to eq installation_identifier
   end
 
+  it 'reports the upstream compatibility version to Chatwoot Hub' do
+    expect(described_class.instance_config).to include(
+      installation_version: Rails.root.join('VERSION_CW').read.strip
+    )
+    expect(described_class.instance_config[:installation_version]).not_to eq(Rails.root.join('VERSION_LLA').read.strip)
+  end
+
   context 'when fetching sync_with_hub' do
     it 'get latest version from chatwoot hub' do
       version = '1.1.1'

@@ -8,6 +8,7 @@ RSpec.describe 'Api::V1::Accounts::Captain::AssistantResponses', type: :request 
   let(:agent) { create(:user, account: account, role: :agent) }
   let(:another_assistant) { create(:captain_assistant, account: account) }
   let(:another_document) { create(:captain_document, account: account, assistant: assistant) }
+  let(:other_account_assistant) { create(:captain_assistant) }
 
   def json_response
     JSON.parse(response.body, symbolize_names: true)
@@ -152,6 +153,21 @@ RSpec.describe 'Api::V1::Accounts::Captain::AssistantResponses', type: :request 
       expect(json_response[:question]).to eq(response_record.question)
       expect(json_response[:answer]).to eq(response_record.answer)
     end
+
+    it 'does not expose a cross-account document from inconsistent legacy data' do
+      other_document = create(:captain_document)
+      # Simulate an inconsistent legacy row that predates the account validation.
+      # rubocop:disable Rails/SkipsModelValidations
+      response_record.update_columns(documentable_type: 'Captain::Document', documentable_id: other_document.id)
+      # rubocop:enable Rails/SkipsModelValidations
+
+      get "/api/v1/accounts/#{account.id}/captain/assistant_responses/#{response_record.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(json_response).not_to have_key(:documentable)
+    end
   end
 
   describe 'POST /api/v1/accounts/:account_id/captain/assistant_responses' do
@@ -190,6 +206,19 @@ RSpec.describe 'Api::V1::Accounts::Captain::AssistantResponses', type: :request 
 
       expect(response).to have_http_status(:success)
       expect(Captain::AssistantResponse.last).to be_approved
+    end
+
+    it 'does not create a response under an assistant from another account' do
+      params = valid_params.deep_merge(assistant_response: { assistant_id: other_account_assistant.id })
+
+      expect do
+        post "/api/v1/accounts/#{account.id}/captain/assistant_responses",
+             params: params,
+             headers: admin.create_new_auth_token,
+             as: :json
+      end.not_to change(Captain::AssistantResponse, :count)
+
+      expect(response).to have_http_status(:not_found)
     end
 
     context 'with invalid params' do
@@ -234,6 +263,19 @@ RSpec.describe 'Api::V1::Accounts::Captain::AssistantResponses', type: :request 
 
       expect(json_response[:question]).to eq('Updated question?')
       expect(json_response[:answer]).to eq('Updated answer')
+    end
+
+    it 'does not move a response to an assistant from another account' do
+      original_assistant = response_record.assistant
+
+      patch "/api/v1/accounts/#{account.id}/captain/assistant_responses/#{response_record.id}",
+            params: { assistant_response: { assistant_id: other_account_assistant.id } },
+            headers: admin.create_new_auth_token,
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(response_record.reload.assistant).to eq(original_assistant)
+      expect(response_record.account).to eq(account)
     end
 
     context 'with invalid params' do

@@ -5,9 +5,14 @@ RSpec.describe 'API Base', type: :request do
     it 'returns api version' do
       get '/api/'
       expect(response).to have_http_status(:success)
-      expect(response.body).to include(Chatwoot.config[:version])
-      expect(response.body).to include('queue_services')
-      expect(response.body).to include('data_services')
+      expect(response.parsed_body).to include(
+        'product' => 'LLA CRM',
+        'version' => Rails.root.join('VERSION_LLA').read.strip,
+        'compatibility_product' => 'Chatwoot',
+        'compatibility_version' => Rails.root.join('VERSION_CW').read.strip,
+        'queue_services' => 'ok',
+        'data_services' => 'ok'
+      )
     end
   end
 end

@@ -23,26 +23,28 @@ module Lla::ActivityMessageHandler
   def captain_resolved_activity_content
     user_name = Current.executed_by.name
     reason = captain_activity_reason
+    locale = Current.executed_by.account.locale
 
     if reason.present? && captain_activity_reason_type.to_s == 'tool'
-      I18n.t('conversations.activity.captain.resolved_by_tool', user_name: user_name, reason: reason)
+      I18n.t('conversations.activity.captain.resolved_by_tool', user_name: user_name, reason: reason, locale: locale)
     elsif reason.present?
-      I18n.t('conversations.activity.captain.resolved_with_reason', user_name: user_name, reason: reason)
+      I18n.t('conversations.activity.captain.resolved_with_reason', user_name: user_name, reason: reason, locale: locale)
     else
-      I18n.t('conversations.activity.captain.resolved', user_name: user_name)
+      I18n.t('conversations.activity.captain.resolved', user_name: user_name, locale: locale)
     end
   end
 
   def captain_open_activity_content
     user_name = Current.executed_by.name
     reason = captain_activity_reason
+    locale = Current.executed_by.account.locale
 
     if captain_activity_reason_type.to_s == 'auto_opened_after_agent_reply'
-      I18n.t('conversations.activity.captain.auto_opened_after_agent_reply')
+      I18n.t('conversations.activity.captain.auto_opened_after_agent_reply', locale: locale)
     elsif reason.present?
-      I18n.t('conversations.activity.captain.open_with_reason', user_name: user_name, reason: reason)
+      I18n.t('conversations.activity.captain.open_with_reason', user_name: user_name, reason: reason, locale: locale)
     else
-      I18n.t('conversations.activity.captain.open', user_name: user_name)
+      I18n.t('conversations.activity.captain.open', user_name: user_name, locale: locale)
     end
   end
 end

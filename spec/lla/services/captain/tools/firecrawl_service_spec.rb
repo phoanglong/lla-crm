@@ -131,8 +131,9 @@ RSpec.describe Captain::Tools::FirecrawlService do
           .to_return(status: 422, body: '{"error": "Invalid URL"}')
       end
 
-      it 'makes the request but does not raise an error' do
-        expect { service.perform(url, webhook_url, crawl_limit) }.not_to raise_error
+      it 'raises an error so the job can retry or surface the failure' do
+        expect { service.perform(url, webhook_url, crawl_limit) }
+          .to raise_error('Failed to crawl URL: Firecrawl returned HTTP 422')
 
         expect(WebMock).to have_requested(:post, 'https://api.firecrawl.dev/v2/crawl')
           .with(

@@ -7,7 +7,7 @@ class Api::V1::Accounts::Captain::InboxesController < Api::V1::Accounts::Captain
   before_action :check_authorization
 
   def index
-    @inboxes = @assistant.inboxes
+    @inboxes = @assistant.inboxes.where(account_id: Current.account.id)
   end
 
   def create

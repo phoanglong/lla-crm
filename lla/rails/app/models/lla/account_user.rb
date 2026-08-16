@@ -8,21 +8,31 @@ module Lla::AccountUser
   prepended do
     belongs_to :custom_role, optional: true
     belongs_to :agent_capacity_policy, optional: true
+    validate :custom_role_belongs_to_account
   end
 
-  # Quyền hiệu lực của thành viên. Khi có vai trò tuỳ chỉnh thì trả về đúng danh
-  # sách quyền của vai trò đó; ngược lại giữ nguyên hành vi CE (['administrator']
-  # hoặc ['agent']) — frontend dựa vào cả hai dạng, xem
+  # Quyền hiệu lực của thành viên. Khi có vai trò tuỳ chỉnh thì trả về danh sách
+  # quyền của vai trò đó cùng marker `custom_role`; ngược lại giữ nguyên hành vi
+  # CE (['administrator'] hoặc ['agent']) — frontend/router dựa vào cả hai dạng, xem
   # app/javascript/dashboard/helper/permissionsHelper.js.
   def permissions
-    return super if custom_role_id.blank?
+    return super if custom_role.blank?
 
-    custom_role&.permissions.presence || super
+    (custom_role.permissions.map(&:to_s) + ['custom_role']).uniq
   end
 
   # Đúng khi đây là agent bị giới hạn bởi vai trò tuỳ chỉnh. Administrator không
   # bao giờ bị lọc theo permission.
   def custom_role_agent?
     agent? && custom_role_id.present?
+  end
+
+  private
+
+  def custom_role_belongs_to_account
+    return if custom_role_id.blank?
+    return if custom_role&.account_id == account_id
+
+    errors.add(:custom_role, 'must belong to the same account as the account user')
   end
 end

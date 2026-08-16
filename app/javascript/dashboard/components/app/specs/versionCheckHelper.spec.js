@@ -1,4 +1,24 @@
-import { hasAnUpdateAvailable } from '../versionCheckHelper';
+import {
+  hasAnUpdateAvailable,
+  resolveCompatibilityVersion,
+} from '../versionCheckHelper';
+
+describe('#resolveCompatibilityVersion', () => {
+  it('uses the upstream compatibility version for update checks', () => {
+    expect(
+      resolveCompatibilityVersion({
+        appVersion: '0.9.0-dev.1',
+        compatibilityVersion: '4.16.2',
+      })
+    ).toBe('4.16.2');
+  });
+
+  it('falls back to the product version for older global config payloads', () => {
+    expect(resolveCompatibilityVersion({ appVersion: '4.16.2' })).toBe(
+      '4.16.2'
+    );
+  });
+});
 
 describe('#hasAnUpdateAvailable', () => {
   it('return false if latest version is invalid', () => {

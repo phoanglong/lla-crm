@@ -16,11 +16,15 @@ class Captain::Tools::FirecrawlService
   end
 
   def perform(url, webhook_url, crawl_limit = DEFAULT_CRAWL_LIMIT)
-    HTTParty.post(
+    response = HTTParty.post(
       API_ENDPOINT,
       headers: { 'Authorization' => "Bearer #{@api_key}", 'Content-Type' => 'application/json' },
-      body: crawl_payload(url, webhook_url, crawl_limit).to_json
+      body: crawl_payload(url, webhook_url, crawl_limit).to_json,
+      timeout: 15
     )
+    raise "Firecrawl returned HTTP #{response.code}" unless response.success?
+
+    response
   rescue StandardError => e
     raise "Failed to crawl URL: #{e.message}"
   end

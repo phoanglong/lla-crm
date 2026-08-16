@@ -76,7 +76,7 @@ RSpec.describe Captain::Llm::FaqGeneratorService do
       end
 
       it 'returns empty array and logs the error' do
-        expect(Rails.logger).to receive(:error).with('LLM API Error: API Error')
+        expect(Rails.logger).to receive(:error).with('LLM API error: RubyLLM::Error')
         expect(service.generate).to eq([])
       end
     end
@@ -101,7 +101,7 @@ RSpec.describe Captain::Llm::FaqGeneratorService do
       end
 
       it 'logs error and returns empty array' do
-        expect(Rails.logger).to receive(:error).with(/Error in parsing GPT processed response:/)
+        expect(Rails.logger).to receive(:error).with('Error parsing LLM FAQ response: JSON::ParserError')
         expect(service.generate).to eq([])
       end
     end

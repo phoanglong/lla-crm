@@ -24,7 +24,8 @@ class SuperAdmin::InstanceStatusesController < SuperAdmin::ApplicationController
   end
 
   def chatwoot_version
-    @metrics['LLA CRM version'] = Chatwoot.config[:version]
+    @metrics['LLA CRM version'] = Lla::ProductVersion.current
+    @metrics['Chatwoot compatibility version'] = Lla::ProductVersion.compatibility_version
   end
 
   def sha

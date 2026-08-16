@@ -4,7 +4,10 @@ import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { mapGetters } from 'vuex';
 import { useAdmin } from 'dashboard/composables/useAdmin';
-import { hasAnUpdateAvailable } from './versionCheckHelper';
+import {
+  hasAnUpdateAvailable,
+  resolveCompatibilityVersion,
+} from './versionCheckHelper';
 
 export default {
   components: { Banner },
@@ -25,7 +28,7 @@ export default {
     updateAvailable() {
       return hasAnUpdateAvailable(
         this.latestChatwootVersion,
-        this.globalConfig.appVersion
+        resolveCompatibilityVersion(this.globalConfig)
       );
     },
     bannerMessage() {

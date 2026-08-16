@@ -81,7 +81,7 @@ RSpec.describe Captain::Tools::HandoffTool, type: :model do
           reason = 'Customer needs help'
           expect(tool).to receive(:log_tool_usage).with(
             'tool_handoff',
-            { conversation_id: conversation.id, reason: reason }
+            { conversation_id: conversation.id, reason_present: true }
           )
 
           tool.perform(tool_context, reason: reason)
@@ -108,7 +108,7 @@ RSpec.describe Captain::Tools::HandoffTool, type: :model do
         it 'logs tool usage with default reason' do
           expect(tool).to receive(:log_tool_usage).with(
             'tool_handoff',
-            { conversation_id: conversation.id, reason: 'Agent requested handoff' }
+            { conversation_id: conversation.id, reason_present: false }
           )
 
           tool.perform(tool_context)

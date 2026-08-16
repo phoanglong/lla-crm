@@ -78,7 +78,7 @@ class Captain::Llm::PaginatedFaqGeneratorService
     parsed = JSON.parse(content.to_s)
     { faqs: Array(parsed['faqs']), has_content: parsed['has_content'] == true }
   rescue JSON::ParserError => e
-    Rails.logger.error("Error in parsing GPT processed response: #{e.message}")
+    Rails.logger.error("Error parsing paginated LLM FAQ response: #{e.class}")
     { faqs: [], has_content: false }
   end
 

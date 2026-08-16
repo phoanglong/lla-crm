@@ -57,6 +57,16 @@ RSpec.describe Captain::Llm::AssistantChatService do
       service.generate_response(message_history: [{ role: 'user', content: 'Hello' }])
     end
 
+    it 'normalizes a string temperature and clamps unsafe values' do
+      assistant.update!(config: assistant.config.merge('temperature' => '9.5'))
+
+      expect(mock_chat).to receive(:with_temperature).with(2.0).and_return(mock_chat)
+      allow(mock_chat).to receive(:ask).and_return(mock_response)
+
+      described_class.new(assistant: assistant, conversation: conversation)
+                     .generate_response(message_history: [{ role: 'user', content: 'Hello' }])
+    end
+
     it 'passes channel_type to the agent session instrumentation' do
       service = described_class.new(assistant: assistant, conversation: conversation)
 
@@ -154,6 +164,21 @@ RSpec.describe Captain::Llm::AssistantChatService do
         service = described_class.new(assistant: assistant, conversation: conversation)
         service.generate_response(message_history: message_history)
       end
+    end
+  end
+
+  describe 'response normalization' do
+    it 'parses JSON wrapped in a markdown fence' do
+      response = instance_double(
+        RubyLLM::Message,
+        content: "```json\n{\"response\":\"Hello\",\"reasoning\":\"Greeting\"}\n```"
+      )
+      allow(mock_chat).to receive(:ask).and_return(response)
+
+      result = described_class.new(assistant: assistant, conversation: conversation)
+                              .generate_response(message_history: [{ role: 'user', content: 'Hello' }])
+
+      expect(result).to eq('response' => 'Hello', 'reasoning' => 'Greeting')
     end
   end
 
@@ -263,6 +288,29 @@ RSpec.describe Captain::Llm::AssistantChatService do
 
       service = described_class.new(assistant: assistant, conversation: conversation)
       service.generate_response(message_history: [{ role: 'user', content: 'Hello' }])
+    end
+  end
+
+  describe 'tenant and custom-tool boundaries' do
+    it 'rejects a conversation from another account before sending contact data to the LLM' do
+      other_conversation = create(:conversation)
+
+      expect do
+        described_class.new(assistant: assistant, conversation: other_conversation)
+      end.to raise_error(ArgumentError, /same account/)
+    end
+
+    it 'does not advertise custom HTTP tools unless both gates are enabled' do
+      create(:captain_custom_tool, account: account, title: 'Lookup order')
+      account.enable_features('custom_tools')
+      account.save!
+      ENV.delete(Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG)
+      allow(mock_chat).to receive(:ask).and_return(mock_response)
+
+      expect(mock_chat).to receive(:with_instructions).with(satisfy { |prompt| prompt.exclude?('Lookup order') }).and_return(mock_chat)
+
+      described_class.new(assistant: assistant, conversation: conversation)
+                     .generate_response(message_history: [{ role: 'user', content: 'Hello' }])
     end
   end
 end
