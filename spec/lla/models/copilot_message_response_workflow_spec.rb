@@ -28,7 +28,7 @@ RSpec.describe CopilotMessage, type: :model do
 
       expect(source.reload).to be_response_reserved
       expect(source.response_job_token).to match(described_class::RESPONSE_TOKEN_FORMAT)
-      expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, reserved: 1, current_available: 1)
     end
 
     it 'releases quota exactly once across duplicate cleanup paths' do
@@ -40,7 +40,7 @@ RSpec.describe CopilotMessage, type: :model do
       expect(stale_copy.release_response!).to be false
 
       expect(source.reload).to be_response_released
-      expect(account.reload.custom_attributes['captain_responses_usage']).to eq(0)
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, current_available: 2)
     end
 
     it 'fails closed after the last configured response is reserved' do
@@ -53,7 +53,7 @@ RSpec.describe CopilotMessage, type: :model do
 
       expect(first.reload).to be_response_reserved
       expect(second.reload).to be_response_none
-      expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, reserved: 1, current_available: 0)
     end
 
     it 'releases quota and stores one generic response when enqueueing fails' do
@@ -66,7 +66,7 @@ RSpec.describe CopilotMessage, type: :model do
       expect(source.copilot_response.message['content']).to eq(
         I18n.t('captain.copilot_generation_failed', default: 'Copilot could not generate a response. Please try again.')
       )
-      expect(account.reload.custom_attributes['captain_responses_usage']).to eq(0)
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, current_available: 2)
 
       expect { source.persist_failure_response! }.not_to change(described_class, :count)
     end

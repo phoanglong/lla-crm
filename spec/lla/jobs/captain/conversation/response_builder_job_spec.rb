@@ -31,7 +31,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
     replies = conversation.messages.outgoing.where(sender_type: 'Captain::Assistant')
     expect(replies.count).to eq(1)
     expect(replies.first.additional_attributes['captain_source_message_id']).to eq(incoming_message.id)
-    expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 1, current_available: 9)
     expect(chat_service).to have_received(:generate_response).once
   end
 
@@ -98,7 +98,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
 
     expect(conversation.reload).to be_open
     expect(conversation.messages.outgoing.last.content).to eq(I18n.t('conversations.captain.handoff'))
-    expect(account.reload.custom_attributes['captain_responses_usage']).to be_nil
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, current_available: 0)
   end
 
   it 'removes a malformed scheduling token without invoking the model' do

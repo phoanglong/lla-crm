@@ -6,24 +6,31 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   include Captain::Conversation::MessageBuilder
   include Captain::Conversation::ResponseCoordination
   include Captain::Conversation::V2Runtime
+  include Captain::Conversation::QuotaAccounting
 
   MAX_MESSAGE_LENGTH = 10_000
-  retry_on ActiveStorage::FileNotFoundError, attempts: 3, wait: 2.seconds
-  retry_on Faraday::BadRequestError, attempts: 3, wait: 2.seconds
+  retry_on ActiveStorage::FileNotFoundError, attempts: 3, wait: 2.seconds do |job, _error|
+    job.send(:release_quota_after_retry_exhaustion)
+  end
+  retry_on Faraday::BadRequestError, attempts: 3, wait: 2.seconds do |job, _error|
+    job.send(:release_quota_after_retry_exhaustion)
+  end
 
   def perform(conversation, assistant)
     assign_context(conversation, assistant)
-    return unless prepare_response_job
+    return unless response_execution_ready?
 
     Current.executed_by = @assistant
-    captain_v2_enabled? ? generate_response_with_v2 : generate_and_process_response
+    generate_current_response
   rescue ActiveStorage::FileNotFoundError, Faraday::BadRequestError => e
+    @keep_quota_reservation = true
     handle_error(e)
     raise e
   rescue StandardError => e
     handle_error(e)
   ensure
     Current.executed_by = nil
+    release_response_quota unless @quota_settled || @keep_quota_reservation
     release_coordination
     reschedule_latest_response if @reschedule_required
   end
@@ -31,6 +38,18 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   private
 
   delegate :account, :inbox, to: :@conversation
+
+  def response_execution_ready?
+    return false unless prepare_response_job
+    return true if reserve_response_quota
+
+    handle_quota_denial
+    false
+  end
+
+  def generate_current_response
+    captain_v2_enabled? ? generate_response_with_v2 : generate_and_process_response
+  end
 
   def assign_context(conversation, assistant)
     @conversation = conversation
@@ -78,14 +97,14 @@ class Captain::Conversation::ResponseBuilderJob < ApplicationJob
   def deliver_standard_response
     result = @conversation.reload.with_lock do
       next :stale unless delivery_allowed?
-      next :quota_exhausted unless account.increment_response_usage
 
-      create_messages
+      message = create_messages
+      raise ActiveRecord::RecordInvalid, @conversation unless consume_response_quota
+
+      message
     end
 
-    if result == :quota_exhausted
-      process_v1_handoff
-    elsif result == :stale
+    if result == :stale
       mark_for_reschedule if conversation_pending? && latest_incoming_message_id != @starting_message_id
     else
       capture_assistant_session(result_message: result, credits_consumed: 1.0)

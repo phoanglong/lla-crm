@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_16_070000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_16_080000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1143,6 +1143,55 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_070000) do
     t.index ["user_id"], name: "index_leaves_on_user_id"
   end
 
+  create_table "lla_captain_quota_ledgers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "bucket", limit: 64, default: "captain_responses", null: false
+    t.datetime "period_start", null: false
+    t.datetime "period_end", null: false
+    t.bigint "limit_snapshot", default: 0, null: false
+    t.bigint "opening_consumed_units", default: 0, null: false
+    t.bigint "reserved_units", default: 0, null: false
+    t.bigint "consumed_units", default: 0, null: false
+    t.bigint "released_units", default: 0, null: false
+    t.integer "reconciliation_state", default: 0, null: false
+    t.datetime "last_reconciled_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "bucket", "period_start"], name: "idx_lla_quota_ledgers_account_bucket_period", unique: true
+    t.index ["account_id"], name: "index_lla_captain_quota_ledgers_on_account_id"
+    t.check_constraint "limit_snapshot >= 0 AND opening_consumed_units >= 0 AND reserved_units >= 0 AND consumed_units >= 0 AND released_units >= 0", name: "lla_quota_ledgers_non_negative"
+    t.check_constraint "period_end > period_start", name: "lla_quota_ledgers_valid_period"
+    t.check_constraint "reconciliation_state = ANY (ARRAY[0, 1, 2])", name: "lla_quota_ledgers_reconciliation_state"
+  end
+
+  create_table "lla_captain_quota_reservations", force: :cascade do |t|
+    t.bigint "quota_ledger_id", null: false
+    t.string "idempotency_key_digest", limit: 64, null: false
+    t.string "owner_token_digest", limit: 64
+    t.string "feature", limit: 128, null: false
+    t.string "provider", limit: 64, null: false
+    t.string "credential_source", limit: 32, null: false
+    t.string "reason", limit: 128, null: false
+    t.integer "state", default: 0, null: false
+    t.integer "units", default: 1, null: false
+    t.integer "attempts", default: 1, null: false
+    t.string "rejection_code", limit: 64
+    t.string "request_fingerprint", limit: 64
+    t.datetime "claimed_at"
+    t.datetime "consumed_at"
+    t.datetime "released_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["idempotency_key_digest"], name: "idx_lla_quota_reservations_idempotency", unique: true
+    t.index ["quota_ledger_id", "state"], name: "idx_lla_quota_reservations_ledger_state"
+    t.index ["state", "claimed_at"], name: "idx_lla_quota_reservations_stale_claims"
+    t.check_constraint "state = 0 AND owner_token_digest IS NOT NULL AND claimed_at IS NOT NULL OR state <> 0", name: "lla_quota_reservations_claimed_when_reserved"
+    t.check_constraint "state = ANY (ARRAY[0, 1, 2, 3])", name: "lla_quota_reservations_state"
+    t.check_constraint "units > 0 AND attempts > 0", name: "lla_quota_reservations_positive_values"
+  end
+
   create_table "macros", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1540,6 +1589,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_070000) do
   add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"
   add_foreign_key "copilot_threads", "users", name: "fk_lla_copilot_threads_user"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
+  add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").

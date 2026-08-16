@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class CopilotMessage < ApplicationRecord
+  include Lla::CopilotMessageQuota
+
   ALLOWED_MESSAGE_KEYS = %w[content reasoning function_name reply_suggestion].freeze
   STRING_MESSAGE_KEYS = %w[content reasoning function_name].freeze
   MESSAGE_BYTES_LIMIT = 49_152
@@ -33,20 +35,6 @@ class CopilotMessage < ApplicationRecord
       created_at: created_at.to_i,
       copilot_thread: copilot_thread.push_event_data
     }
-  end
-
-  def reserve_response!
-    with_lock do
-      next true if response_reserved? || response_processing?
-      next false unless user? && response_none? && account.increment_response_usage
-
-      update!(
-        response_state: :reserved,
-        response_job_token: SecureRandom.uuid,
-        response_reserved_at: Time.current
-      )
-      true
-    end
   end
 
   def enqueue_response_job
@@ -91,20 +79,6 @@ class CopilotMessage < ApplicationRecord
       next false unless response_processing? && reservable_token?(token)
 
       update!(response_state: :reserved)
-      true
-    end
-  end
-
-  def complete_response!
-    update!(response_state: :completed, response_completed_at: Time.current)
-  end
-
-  def release_response!
-    with_lock do
-      next false unless response_reserved? || response_processing?
-
-      account.decrement_response_usage
-      update!(response_state: :released, response_completed_at: Time.current)
       true
     end
   end

@@ -39,7 +39,7 @@ RSpec.describe Messages::AudioTranscriptionService, type: :service do
     expect(service.send(:update_transcription, 'second')).to eq('first')
 
     expect(attachment.reload.meta).to include('duration' => 12, 'transcribed_text' => 'first')
-    expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 1, current_available: 1)
   end
 
   it 'rejects non-HTTPS provider endpoints and embedded credentials' do

@@ -86,13 +86,32 @@ module Lla::Account::PlanUsageAndLimits
 
   def captain_limit(type)
     total = captain_monthly_limit[type].to_i
-    key = type == :documents ? CAPTAIN_DOCUMENTS_USAGE : CAPTAIN_RESPONSES_USAGE
-    consumed = non_negative_limit(custom_attributes[key])
+    usage = captain_usage(type)
 
     {
       total_count: total,
-      current_available: (total - consumed).clamp(0, total),
-      consumed: consumed
+      current_available: (total - usage[:consumed] - usage[:reserved]).clamp(0, total),
+      consumed: usage[:consumed]
+    }.tap { |result| result[:reserved] = usage[:reserved] if type == :responses }
+  end
+
+  def captain_usage(type)
+    return current_response_usage if type == :responses
+
+    { consumed: non_negative_limit(custom_attributes[CAPTAIN_DOCUMENTS_USAGE]), reserved: 0 }
+  end
+
+  def current_response_usage
+    now = Time.current
+    ledger = Lla::Captain::QuotaLedger.where(account_id: id, bucket: Lla::Captain::QuotaLedger::BUCKET)
+                                      .where('period_start <= ? AND period_end > ?', now, now)
+                                      .order(period_start: :desc)
+                                      .first
+    return { consumed: non_negative_limit(custom_attributes[CAPTAIN_RESPONSES_USAGE]), reserved: 0 } unless ledger
+
+    {
+      consumed: non_negative_limit(ledger.opening_consumed_units + ledger.consumed_units),
+      reserved: non_negative_limit(ledger.reserved_units)
     }
   end
 

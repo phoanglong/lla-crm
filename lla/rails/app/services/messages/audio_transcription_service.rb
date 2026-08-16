@@ -4,6 +4,8 @@ require 'tempfile'
 require 'uri'
 
 class Messages::AudioTranscriptionService
+  include Lla::Messages::AudioTranscriptionQuota
+
   class QuotaExceededError < StandardError; end
 
   TRANSCRIPTION_BYTE_LIMIT = 25_000_000
@@ -19,12 +21,8 @@ class Messages::AudioTranscriptionService
   end
 
   def perform
-    return { error: 'Invalid audio attachment context' } unless valid_context?
-
-    return successful_response(cached_transcription) if cached_transcription
-
-    error = transcription_preflight_error
-    return { error: error } if error
+    early_response = transcription_preflight_response
+    return early_response if early_response
 
     transcriptions = transcribe_audio
     Rails.logger.info(
@@ -37,9 +35,20 @@ class Messages::AudioTranscriptionService
   rescue Faraday::UnauthorizedError => e
     Rails.logger.warn("LLA audio transcription unauthorized account_id=#{account&.id} error=#{e.class.name}")
     { error: 'Audio transcription provider unauthorized' }
+  ensure
+    release_transcription_quota unless @quota_settled
   end
 
   private
+
+  def transcription_preflight_response
+    return { error: 'Invalid audio attachment context' } unless valid_context?
+    return successful_response(cached_transcription) if cached_transcription
+
+    error = transcription_preflight_error
+    return { error: error } if error
+    return { error: quota_denial_message } unless reserve_transcription_quota
+  end
 
   def valid_context?
     message.present? && account.present? && attachment.account_id == message.account_id && message.account_id == account.id && attachment.audio?
@@ -61,7 +70,7 @@ class Messages::AudioTranscriptionService
   def can_transcribe?
     account.feature_enabled?('captain_integration') &&
       ActiveModel::Type::Boolean.new.cast(account.audio_transcriptions) &&
-      account.usage_limits.dig(:captain, :responses, :current_available).to_i.positive? &&
+      (!transcription_billable? || account.usage_limits.dig(:captain, :responses, :current_available).to_i.positive?) &&
       api_key.present?
   end
 
@@ -113,6 +122,7 @@ class Messages::AudioTranscriptionService
 
   def persist_transcription(transcribed_text)
     return '' if transcribed_text.blank?
+    raise QuotaExceededError unless @quota_reserved || reserve_transcription_quota
 
     persisted_text = attachment.with_lock { persist_transcription_with_quota!(transcribed_text) }
 
@@ -125,9 +135,9 @@ class Messages::AudioTranscriptionService
     existing = attachment.meta&.dig('transcribed_text').presence
     return existing if existing
 
-    raise QuotaExceededError unless account.increment_response_usage
-
     attachment.update!(meta: (attachment.meta || {}).merge('transcribed_text' => transcribed_text))
+    raise QuotaExceededError unless consume_transcription_quota
+
     transcribed_text
   end
 
