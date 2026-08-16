@@ -55,10 +55,14 @@ class ContactAPI extends ApiClient {
   }
 
   initiateCall(contactId, inboxId, conversationId = null) {
-    return axios.post(`${this.url}/${contactId}/call`, {
-      inbox_id: inboxId,
-      conversation_id: conversationId,
-    });
+    const idempotencyKey =
+      window.crypto?.randomUUID?.() ||
+      `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return axios.post(
+      `${this.url}/${contactId}/call`,
+      { inbox_id: inboxId, conversation_id: conversationId },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
   }
 
   updateContactLabels(contactId, labels) {

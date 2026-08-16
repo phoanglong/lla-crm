@@ -59,6 +59,13 @@ RSpec.describe Call do
     expect(call.reload.started_at.to_i).to eq(earlier.to_i)
   end
 
+  it 'supports compare-and-set transitions for human actions racing provider callbacks' do
+    call.transition_to!('in_progress')
+
+    expect(call.transition_to!('rejected', from_status: 'ringing')).to eq(:stale)
+    expect(call.reload.status).to eq('in_progress')
+  end
+
   it 'reads the legacy meta end timestamp during provider migration' do
     timestamp = 1.minute.ago.change(usec: 0)
     call.update!(meta: call.meta.merge('ended_at' => timestamp.to_i))

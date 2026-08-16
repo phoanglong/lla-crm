@@ -98,19 +98,16 @@ class Call < ApplicationRecord
 
   # Returns :applied, :duplicate or :stale. The row lock and lock_version make
   # concurrent provider/human events converge on one monotonic state.
-  def transition_to!(target_status, occurred_at: Time.current, duration_seconds: nil, end_reason: nil)
+  def transition_to!(target_status, **options)
     target_status = target_status.to_s
     raise ArgumentError, 'invalid call status' unless STATUSES.include?(target_status)
 
     with_lock do
-      if status == target_status
-        preserve_earliest_start!(occurred_at) if target_status == 'in_progress'
-        next :duplicate
-      end
+      next :stale unless expected_from_status?(options[:from_status])
+      next duplicate_transition(target_status, options[:occurred_at]) if status == target_status
       next :stale unless TRANSITIONS.fetch(status, []).include?(target_status)
 
-      update!(transition_attributes(target_status, occurred_at, duration_seconds, end_reason))
-      :applied
+      apply_transition!(target_status, options)
     end
   end
 
@@ -133,6 +130,27 @@ class Call < ApplicationRecord
   end
 
   private
+
+  def expected_from_status?(from_status)
+    from_status.blank? || status == from_status.to_s
+  end
+
+  def duplicate_transition(target_status, occurred_at)
+    preserve_earliest_start!(occurred_at || Time.current) if target_status == 'in_progress'
+    :duplicate
+  end
+
+  def apply_transition!(target_status, options)
+    attributes = transition_attributes(
+      target_status,
+      options.fetch(:occurred_at, Time.current),
+      options[:duration_seconds],
+      options[:end_reason]
+    )
+    attributes[:accepted_by_agent] = options[:accepted_by_agent] if options[:accepted_by_agent]
+    update!(attributes)
+    :applied
+  end
 
   def transition_attributes(target_status, occurred_at, supplied_duration, supplied_reason)
     timestamp = occurred_at.respond_to?(:to_time) ? occurred_at.to_time : Time.zone.at(occurred_at.to_i)
