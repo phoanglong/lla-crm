@@ -55,6 +55,12 @@ module ChatwootApp
     enterprise? || lla?
   end
 
+  # Voice routes must exist in pure LLA mode so signed provider callbacks can be
+  # received. Account/channel/provider gates still default the capability off.
+  def self.voice_calls?
+    enterprise? || lla?
+  end
+
   def self.chatwoot_cloud?
     enterprise? && GlobalConfig.get_value('DEPLOYMENT_ENV') == 'cloud'
   end

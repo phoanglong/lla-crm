@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -307,15 +307,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
     t.datetime "started_at"
     t.integer "duration_seconds"
     t.string "end_reason"
-    t.jsonb "meta", default: {}
+    t.jsonb "meta", default: {}, null: false
     t.text "transcript"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "ended_at"
     t.index ["account_id", "contact_id"], name: "index_calls_on_account_id_and_contact_id"
     t.index ["account_id", "conversation_id"], name: "index_calls_on_account_id_and_conversation_id"
     t.index ["account_id", "created_at"], name: "index_calls_on_account_id_and_created_at"
+    t.index ["account_id", "id"], name: "idx_lla_calls_tenant_id", unique: true
+    t.index ["account_id", "inbox_id", "provider", "provider_call_id"], name: "idx_lla_calls_provider_identity", unique: true
+    t.index ["account_id", "inbox_id", "status", "updated_at"], name: "idx_lla_calls_inbox_active"
+    t.index ["account_id", "status", "created_at"], name: "idx_lla_calls_account_status_created"
     t.index ["message_id"], name: "index_calls_on_message_id"
-    t.index ["provider", "provider_call_id"], name: "index_calls_on_provider_and_provider_call_id", unique: true
+    t.check_constraint "char_length(provider_call_id::text) >= 1 AND char_length(provider_call_id::text) <= 255", name: "chk_lla_calls_provider_identity"
+    t.check_constraint "direction = ANY (ARRAY[0, 1])", name: "chk_lla_calls_direction"
+    t.check_constraint "duration_seconds IS NULL OR duration_seconds >= 0", name: "chk_lla_calls_duration"
+    t.check_constraint "provider = ANY (ARRAY[0, 1])", name: "chk_lla_calls_provider"
+    t.check_constraint "status::text = ANY (ARRAY['ringing'::character varying, 'in_progress'::character varying, 'completed'::character varying, 'no_answer'::character varying, 'failed'::character varying, 'rejected'::character varying]::text[])", name: "chk_lla_calls_status"
   end
 
   create_table "campaigns", force: :cascade do |t|
@@ -757,6 +767,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
     t.index "lower((email)::text), account_id", name: "index_contacts_on_lower_email_account_id"
     t.index ["account_id", "contact_type"], name: "index_contacts_on_account_id_and_contact_type"
     t.index ["account_id", "email", "phone_number", "identifier"], name: "index_contacts_on_nonempty_fields", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
+    t.index ["account_id", "id"], name: "idx_lla_contacts_tenant_id", unique: true
     t.index ["account_id", "last_activity_at"], name: "index_contacts_on_account_id_and_last_activity_at", order: { last_activity_at: "DESC NULLS LAST" }
     t.index ["account_id"], name: "index_contacts_on_account_id"
     t.index ["account_id"], name: "index_resolved_contact_account_id", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
@@ -1093,6 +1104,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
     t.integer "sender_name_type", default: 0, null: false
     t.string "business_name"
     t.jsonb "csat_config", default: {}, null: false
+    t.index ["account_id", "id"], name: "idx_lla_inboxes_tenant_id", unique: true
     t.index ["account_id"], name: "index_inboxes_on_account_id"
     t.index ["channel_id", "channel_type"], name: "index_inboxes_on_channel_id_and_channel_type"
     t.index ["portal_id"], name: "index_inboxes_on_portal_id"
@@ -1149,6 +1161,50 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
     t.index ["account_id"], name: "index_leaves_on_account_id"
     t.index ["approved_by_id"], name: "index_leaves_on_approved_by_id"
     t.index ["user_id"], name: "index_leaves_on_user_id"
+  end
+
+  create_table "lla_call_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "call_id"
+    t.integer "provider", null: false
+    t.string "event_id_digest", limit: 64, null: false
+    t.string "payload_digest", limit: 64, null: false
+    t.string "event_type", limit: 80, null: false
+    t.string "outcome", limit: 16, default: "pending", null: false
+    t.datetime "occurred_at"
+    t.datetime "verified_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "call_id", "created_at"], name: "idx_lla_call_events_call_timeline"
+    t.index ["account_id", "inbox_id", "provider", "event_id_digest"], name: "idx_lla_call_events_idempotency", unique: true
+    t.check_constraint "char_length(event_id_digest::text) = 64 AND char_length(payload_digest::text) = 64", name: "chk_lla_call_events_digests"
+    t.check_constraint "outcome::text = ANY (ARRAY['pending'::character varying, 'applied'::character varying, 'duplicate'::character varying, 'stale'::character varying, 'rejected'::character varying]::text[])", name: "chk_lla_call_events_outcome"
+    t.check_constraint "provider = ANY (ARRAY[0, 1])", name: "chk_lla_call_events_provider"
+  end
+
+  create_table "lla_call_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "call_id"
+    t.string "action", limit: 32, null: false
+    t.string "state", limit: 16, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "request_digest", limit: 64, null: false
+    t.string "claim_digest", limit: 64
+    t.string "provider_request_id_digest", limit: 64
+    t.string "last_error_code", limit: 80
+    t.integer "attempts", default: 0, null: false
+    t.datetime "available_at", null: false
+    t.datetime "claimed_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "inbox_id", "idempotency_digest"], name: "idx_lla_call_operations_idempotency", unique: true
+    t.index ["state", "available_at"], name: "idx_lla_call_operations_ready"
+    t.check_constraint "attempts >= 0 AND attempts <= 20", name: "chk_lla_call_operations_attempts"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64", name: "chk_lla_call_operations_digests"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'compensating'::character varying, 'compensated'::character varying]::text[])", name: "chk_lla_call_operations_state"
   end
 
   create_table "lla_captain_bulk_operations", force: :cascade do |t|
@@ -1617,6 +1673,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
   add_foreign_key "agent_sessions", "accounts", name: "fk_lla_agent_sessions_account"
   add_foreign_key "agent_sessions", "captain_assistants", column: "assistant_id", name: "fk_lla_agent_sessions_assistant"
   add_foreign_key "agent_sessions", "users", name: "fk_lla_agent_sessions_user"
+  add_foreign_key "calls", "accounts", name: "fk_lla_calls_account", on_delete: :cascade
+  add_foreign_key "calls", "contacts", column: ["account_id", "contact_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_contact_tenant", on_delete: :cascade
+  add_foreign_key "calls", "conversations", column: ["account_id", "conversation_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_conversation_tenant", on_delete: :cascade
+  add_foreign_key "calls", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_inbox_tenant", on_delete: :cascade
+  add_foreign_key "calls", "messages", column: ["account_id", "message_id", "conversation_id"], primary_key: ["account_id", "id", "conversation_id"], name: "fk_lla_calls_message_tenant"
+  add_foreign_key "calls", "users", column: "accepted_by_agent_id", name: "fk_lla_calls_accepted_agent", on_delete: :nullify
   add_foreign_key "captain_message_reports", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_message_reports_membership", on_delete: :cascade
   add_foreign_key "captain_message_reports", "conversations", column: ["account_id", "conversation_id"], primary_key: ["account_id", "id"], name: "fk_lla_message_reports_conversation_tenant", on_delete: :cascade
   add_foreign_key "captain_message_reports", "messages", column: ["account_id", "message_id", "conversation_id"], primary_key: ["account_id", "id", "conversation_id"], name: "fk_lla_message_reports_message_tenant", on_delete: :cascade
@@ -1630,6 +1692,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_100000) do
   add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"
   add_foreign_key "copilot_threads", "users", name: "fk_lla_copilot_threads_user"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "lla_call_events", "accounts", on_delete: :cascade
+  add_foreign_key "lla_call_events", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_events_call_tenant", on_delete: :cascade
+  add_foreign_key "lla_call_events", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_events_inbox_tenant", on_delete: :cascade
+  add_foreign_key "lla_call_operations", "accounts", on_delete: :cascade
+  add_foreign_key "lla_call_operations", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_operations_call_tenant", on_delete: :cascade
+  add_foreign_key "lla_call_operations", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_operations_inbox_tenant", on_delete: :cascade
   add_foreign_key "lla_captain_bulk_operations", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_bulk_operations_membership", on_delete: :cascade
   add_foreign_key "lla_captain_bulk_operations", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade

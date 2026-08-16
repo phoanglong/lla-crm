@@ -20,5 +20,6 @@ module Lla::Account
     has_many :captain_agent_sessions, class_name: 'Captain::AgentSession', dependent: :destroy_async
     has_many :copilot_threads, dependent: :destroy_async
     has_many :lla_captain_quota_ledgers, class_name: 'Lla::Captain::QuotaLedger', dependent: :delete_all
+    has_many :calls, dependent: :destroy_async
   end
 end
