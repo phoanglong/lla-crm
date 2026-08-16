@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
-# V2 remains optional until Wave E4 is LLA-owned. Feature flags cannot make an
-# EE-only constant load in pure-LLA mode; unavailable V2 safely falls back to V1.
+# V2 remains optional until Wave E4 is LLA-owned. A stale feature flag must not
+# silently downgrade an account to V1 or load EE-only constants in pure LLA.
 module Captain::Conversation::V2Runtime
+  class RuntimeUnavailableError < StandardError; end
+
   private
 
   def generate_response_with_v2
@@ -46,8 +48,10 @@ module Captain::Conversation::V2Runtime
     return false unless account.feature_enabled?('captain_integration_v2')
 
     available = v2_runtime_constants.all?(&:safe_constantize)
-    log_missing_v2_runtime unless available
-    available
+    return true if available
+
+    log_missing_v2_runtime
+    raise RuntimeUnavailableError, 'Captain V2 runtime is unavailable'
   end
 
   def v2_runtime_constants
@@ -60,7 +64,7 @@ module Captain::Conversation::V2Runtime
 
   def log_missing_v2_runtime
     Rails.logger.warn(
-      "LLA Captain V2 runtime unavailable; using V1 account_id=#{account.id} conversation_id=#{@conversation.id}"
+      "LLA Captain V2 runtime unavailable; handing off account_id=#{account.id} conversation_id=#{@conversation.id}"
     )
   end
 end
