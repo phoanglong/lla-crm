@@ -63,6 +63,19 @@ RSpec.describe 'Api::V1::Accounts::Captain::Documents', type: :request do
           matching_document = json_response[:payload].find { |item| item[:id] == document.id }
           expect(matching_document[:responses_count]).to eq(2)
         end
+
+        it 'keeps the safe document type and display URL contract' do
+          document
+
+          get "/api/v1/accounts/#{account.id}/captain/documents",
+              headers: agent.create_new_auth_token, as: :json
+
+          matching_document = json_response[:payload].find { |item| item[:id] == document.id }
+          expect(matching_document).to include(
+            pdf_document: false,
+            display_url: document.display_url
+          )
+        end
       end
 
       context 'when filtering by assistant_id' do

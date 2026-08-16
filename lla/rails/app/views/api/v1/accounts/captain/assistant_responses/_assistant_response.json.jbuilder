@@ -3,6 +3,7 @@ json.account_id assistant_response.account_id
 json.question assistant_response.question
 json.answer assistant_response.answer
 json.status assistant_response.status
+json.edited assistant_response.edited
 json.created_at assistant_response.created_at.to_i
 json.updated_at assistant_response.updated_at.to_i
 json.assistant do

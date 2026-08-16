@@ -364,6 +364,8 @@ RSpec.describe 'Api::V1::Accounts::Captain::Assistants', type: :request do
       accessible_inbox = create(:inbox, account: account)
       hidden_inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: accessible_inbox)
+      report_role = create(:custom_role, account: account, permissions: ['report_manage'])
+      account.account_users.find_by!(user_id: agent.id).update!(custom_role: report_role)
       create(:captain_assistant_response, assistant: assistant, account: account, status: :approved)
 
       accessible_suggestion = assistant.faq_suggestions.create!(question: 'Visible question', answer: 'Visible answer')

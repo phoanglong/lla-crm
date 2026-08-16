@@ -2,6 +2,8 @@ json.id document.id
 json.account_id document.account_id
 json.name document.name
 json.external_link document.external_link
+json.display_url document.display_url
+json.pdf_document document.pdf_document?
 json.status document.status
 json.responses_count document.responses.size
 json.content_type document.content_type

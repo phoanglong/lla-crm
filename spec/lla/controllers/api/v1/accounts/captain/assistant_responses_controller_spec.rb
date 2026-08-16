@@ -154,6 +154,17 @@ RSpec.describe 'Api::V1::Accounts::Captain::AssistantResponses', type: :request 
       expect(json_response[:answer]).to eq(response_record.answer)
     end
 
+    it 'keeps the edited-state response contract' do
+      response_record.update!(edited: true)
+
+      get "/api/v1/accounts/#{account.id}/captain/assistant_responses/#{response_record.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(json_response[:edited]).to be(true)
+    end
+
     it 'does not expose a cross-account document from inconsistent legacy data' do
       other_document = create(:captain_document)
       # Simulate an inconsistent legacy row that predates the account validation.
