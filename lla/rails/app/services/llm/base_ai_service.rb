@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# Base service for LLM operations using RubyLLM.
-# New features should inherit from this class.
+# LLA-owned base for RubyLLM services. Model selection is tenant-aware but API
+# credentials remain centralized in Llm::Config/InstallationConfig.
 class Llm::BaseAiService
   DEFAULT_MODEL = Llm::Config::DEFAULT_MODEL
   DEFAULT_TEMPERATURE = 1.0
@@ -24,8 +24,6 @@ class Llm::BaseAiService
 
   private
 
-  # Strips markdown code fences (```json ... ``` or ``` ... ```) that some
-  # LLM providers/gateways wrap around JSON responses despite response_format hints.
   def sanitize_json_response(response)
     return response if response.nil?
 

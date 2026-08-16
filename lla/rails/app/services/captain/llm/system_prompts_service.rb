@@ -61,19 +61,10 @@ class Captain::Llm::SystemPromptsService
       ].compact_blank.join("\n\n")
     end
 
-    # Prompt nền cho copilot hỗ trợ agent nội bộ. Sẽ tinh chỉnh ở wave E4.
-    def copilot_response_generator(*_args, **_kwargs)
-      <<~PROMPT
-        You are an internal copilot helping a human support agent resolve a
-        customer conversation.
-
-        Rules:
-        - Ground every suggestion in the provided conversation, contact data
-          and knowledge-base context. Never invent facts.
-        - Use the available tools to look up information before answering.
-        - Be direct and practical: the reader is a trained support agent.
-        - Answer in the language the agent writes in.
-      PROMPT
+    # Prompt nền cho Copilot. Tool/retrieval content là dữ liệu không tin cậy;
+    # output contract JSON nằm cuối để provider không được tự đổi schema.
+    def copilot_response_generator(product_name = nil, tools_summary = nil, _config = {})
+      Captain::Llm::CopilotPrompts.render(product_name: product_name, tools_summary: tools_summary)
     end
 
     # Phân loại hành động tiếp theo của trợ lý (trả lời / bàn giao / dừng).

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_16_060000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_16_070000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -826,10 +826,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_060000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "message_type", default: 0
+    t.bigint "conversation_id"
+    t.integer "response_state", default: 0, null: false
+    t.uuid "response_job_token"
+    t.integer "response_attempts", default: 0, null: false
+    t.datetime "response_reserved_at"
+    t.datetime "response_completed_at"
+    t.bigint "source_message_id"
     t.index ["account_id"], name: "index_copilot_messages_on_account_id"
+    t.index ["conversation_id"], name: "idx_lla_copilot_messages_conversation"
     t.index ["copilot_thread_id", "created_at", "id"], name: "idx_lla_copilot_messages_thread_order"
+    t.index ["copilot_thread_id", "response_state", "id"], name: "idx_lla_copilot_thread_response_order"
     t.index ["copilot_thread_id"], name: "index_copilot_messages_on_copilot_thread_id"
+    t.index ["response_job_token"], name: "idx_lla_copilot_response_token", unique: true, where: "(response_job_token IS NOT NULL)"
+    t.index ["source_message_id"], name: "idx_lla_copilot_final_response", unique: true, where: "((message_type = 1) AND (source_message_id IS NOT NULL))"
     t.check_constraint "message_type = ANY (ARRAY[0, 1, 2])", name: "chk_lla_copilot_messages_type"
+    t.check_constraint "response_attempts >= 0", name: "chk_lla_copilot_response_attempts"
+    t.check_constraint "response_state = 0 AND response_job_token IS NULL OR (response_state = ANY (ARRAY[1, 2, 3, 4])) AND response_job_token IS NOT NULL", name: "chk_lla_copilot_response_token"
+    t.check_constraint "response_state = 0 OR message_type = 0", name: "chk_lla_copilot_response_owner"
+    t.check_constraint "response_state = ANY (ARRAY[0, 1, 2, 3, 4])", name: "chk_lla_copilot_response_state"
+    t.check_constraint "source_message_id IS NULL OR (message_type = ANY (ARRAY[1, 2]))", name: "chk_lla_copilot_response_source_type"
   end
 
   create_table "copilot_threads", force: :cascade do |t|
@@ -1517,6 +1533,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_16_060000) do
   add_foreign_key "captain_scenarios", "accounts", name: "fk_lla_scenarios_account"
   add_foreign_key "captain_scenarios", "captain_assistants", column: "assistant_id", name: "fk_lla_scenarios_assistant"
   add_foreign_key "copilot_messages", "accounts", name: "fk_lla_copilot_messages_account"
+  add_foreign_key "copilot_messages", "conversations", name: "fk_lla_copilot_messages_conversation"
+  add_foreign_key "copilot_messages", "copilot_messages", column: "source_message_id", name: "fk_lla_copilot_messages_source"
   add_foreign_key "copilot_messages", "copilot_threads", name: "fk_lla_copilot_messages_thread"
   add_foreign_key "copilot_threads", "accounts", name: "fk_lla_copilot_threads_account"
   add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"

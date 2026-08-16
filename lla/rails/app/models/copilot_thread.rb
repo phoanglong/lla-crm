@@ -26,11 +26,12 @@ class CopilotThread < ApplicationRecord
     }
   end
 
-  def previous_history
+  def previous_history(through_message_id: nil)
     remaining_bytes = HISTORY_TOTAL_BYTES
+    scope = copilot_messages.where(message_type: %w[user assistant])
+    scope = scope.where(id: ..through_message_id) if through_message_id.present?
 
-    copilot_messages
-      .where(message_type: %w[user assistant])
+    scope
       .order(created_at: :desc, id: :desc)
       .limit(HISTORY_MESSAGE_LIMIT)
       .reverse_each

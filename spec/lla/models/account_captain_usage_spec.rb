@@ -30,6 +30,18 @@ RSpec.describe Account, type: :model do
       expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
     end
 
+    it 'releases a reserved response exactly once without going negative' do
+      account.update!(custom_attributes: account.custom_attributes.merge('captain_responses_usage' => 1))
+
+      expect(account.decrement_response_usage).to be true
+      expect(account.decrement_response_usage).to be false
+
+      expect(account.reload.custom_attributes).to include(
+        'captain_responses_usage' => 0,
+        'unrelated' => 'preserved'
+      )
+    end
+
     it 'uses unlimited self-hosted defaults only when plan configuration is absent' do
       expect(account.captain_monthly_limit).to eq(
         { documents: 2, responses: 1 }.with_indifferent_access

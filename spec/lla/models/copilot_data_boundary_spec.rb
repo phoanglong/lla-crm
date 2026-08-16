@@ -29,7 +29,7 @@ RSpec.describe 'LLA Copilot data boundary', type: :model do
 
     expect(message).not_to be_valid
     expect(message.errors[:message]).to include('contains invalid attributes: secret')
-    expect(message.errors[:message]).to include('values must be strings')
+    expect(message.errors[:message]).to include('contains invalid value types')
     expect(message.errors[:message]).to include('contains an oversized value')
   end
 

@@ -2,6 +2,7 @@
 
 # LLA-owned Captain quota and usage accounting. It extends the base account
 # limits instead of copying Chatwoot Cloud plan behavior into the LLA domain.
+# rubocop:disable Metrics/ModuleLength
 module Lla::Account::PlanUsageAndLimits
   CAPTAIN_RESPONSES = 'captain_responses'
   CAPTAIN_DOCUMENTS = 'captain_documents'
@@ -20,6 +21,14 @@ module Lla::Account::PlanUsageAndLimits
       COALESCE(custom_attributes, '{}'::jsonb),
       ARRAY['captain_responses_usage']::text[],
       to_jsonb((#{CAPTAIN_RESPONSE_USAGE_VALUE}) + 1),
+      true
+    )
+  SQL
+  CAPTAIN_RESPONSE_USAGE_DECREMENT = <<~SQL.squish.freeze
+    custom_attributes = jsonb_set(
+      COALESCE(custom_attributes, '{}'::jsonb),
+      ARRAY['captain_responses_usage']::text[],
+      to_jsonb(GREATEST((#{CAPTAIN_RESPONSE_USAGE_VALUE}) - 1, 0)),
       true
     )
   SQL
@@ -43,6 +52,17 @@ module Lla::Account::PlanUsageAndLimits
     updated = Account.where(id: id)
                      .where(CAPTAIN_RESPONSE_USAGE_LIMIT_CLAUSE, total)
                      .update_all(CAPTAIN_RESPONSE_USAGE_INCREMENT)
+    sync_captain_usage(CAPTAIN_RESPONSES_USAGE) if updated == 1
+    updated == 1
+  end
+
+  # Releases one previously reserved unit. The guarded SQL transition makes
+  # duplicate job failure/retry paths idempotent and never creates a negative
+  # counter.
+  def decrement_response_usage
+    updated = Account.where(id: id)
+                     .where("#{CAPTAIN_RESPONSE_USAGE_VALUE} > 0")
+                     .update_all(CAPTAIN_RESPONSE_USAGE_DECREMENT)
     sync_captain_usage(CAPTAIN_RESPONSES_USAGE) if updated == 1
     updated == 1
   end
@@ -127,3 +147,4 @@ module Lla::Account::PlanUsageAndLimits
     custom_attributes[key] = persisted[key]
   end
 end
+# rubocop:enable Metrics/ModuleLength
