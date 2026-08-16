@@ -7,6 +7,22 @@ module Lla::Account::PlanUsageAndLimits
   CAPTAIN_DOCUMENTS = 'captain_documents'
   CAPTAIN_RESPONSES_USAGE = 'captain_responses_usage'
   CAPTAIN_DOCUMENTS_USAGE = 'captain_documents_usage'
+  CAPTAIN_RESPONSE_USAGE_VALUE = <<~SQL.squish.freeze
+    CASE
+      WHEN COALESCE(custom_attributes ->> 'captain_responses_usage', '') ~ '^[0-9]+$'
+        THEN (custom_attributes ->> 'captain_responses_usage')::bigint
+      ELSE 0
+    END
+  SQL
+  CAPTAIN_RESPONSE_USAGE_LIMIT_CLAUSE = "#{CAPTAIN_RESPONSE_USAGE_VALUE} < ?".freeze
+  CAPTAIN_RESPONSE_USAGE_INCREMENT = <<~SQL.squish.freeze
+    custom_attributes = jsonb_set(
+      COALESCE(custom_attributes, '{}'::jsonb),
+      ARRAY['captain_responses_usage']::text[],
+      to_jsonb((#{CAPTAIN_RESPONSE_USAGE_VALUE}) + 1),
+      true
+    )
+  SQL
 
   def usage_limits
     super.merge(
@@ -25,8 +41,8 @@ module Lla::Account::PlanUsageAndLimits
     return false unless total.positive?
 
     updated = Account.where(id: id)
-                     .where(["#{captain_usage_expression} < :limit", { key: CAPTAIN_RESPONSES_USAGE, limit: total }])
-                     .update_all([captain_usage_update_expression, { key: CAPTAIN_RESPONSES_USAGE }])
+                     .where(CAPTAIN_RESPONSE_USAGE_LIMIT_CLAUSE, total)
+                     .update_all(CAPTAIN_RESPONSE_USAGE_INCREMENT)
     sync_captain_usage(CAPTAIN_RESPONSES_USAGE) if updated == 1
     updated == 1
   end
@@ -91,27 +107,6 @@ module Lla::Account::PlanUsageAndLimits
 
   def non_negative_limit(value)
     value.to_i.clamp(0, ChatwootApp.max_limit)
-  end
-
-  def captain_usage_expression
-    <<~SQL.squish
-      CASE
-        WHEN COALESCE(custom_attributes ->> :key, '') ~ '^[0-9]+$'
-          THEN (custom_attributes ->> :key)::bigint
-        ELSE 0
-      END
-    SQL
-  end
-
-  def captain_usage_update_expression
-    <<~SQL.squish
-      custom_attributes = jsonb_set(
-        COALESCE(custom_attributes, '{}'::jsonb),
-        ARRAY[:key]::text[],
-        to_jsonb((#{captain_usage_expression}) + 1),
-        true
-      )
-    SQL
   end
 
   # Atomic jsonb_set avoids replacing unrelated custom_attributes keys.

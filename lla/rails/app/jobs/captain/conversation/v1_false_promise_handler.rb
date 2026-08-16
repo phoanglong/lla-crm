@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Captain::Conversation::V1FalsePromiseHandler
   FUTURE_PROMISE_REPAIR_INSTRUCTION = <<~PROMPT.squish.freeze
     Internal instruction for the assistant, not a customer message: your previous draft promised future work after this
@@ -25,8 +27,8 @@ module Captain::Conversation::V1FalsePromiseHandler
     mark_v1_false_promise_handoff_fallback if false_promise_detected
     ChatwootExceptionTracker.new(e, account: account).capture_exception
     Rails.logger.warn(
-      "[CAPTAIN][ResponseBuilderJob] V1 false promise harness failed for account=#{account.id} " \
-      "conversation=#{@conversation.display_id}: #{e.class.name}: #{e.message}"
+      "LLA Captain V1 false-promise harness failed account_id=#{account.id} " \
+      "conversation_id=#{@conversation.id} error=#{e.class.name}"
     )
   end
 
@@ -47,8 +49,8 @@ module Captain::Conversation::V1FalsePromiseHandler
   end
 
   def inspect_v1_response_after_false_promise_repair(message_history)
-    classify_v1_response_action(message_history) if conversation_pending?
-    return unless conversation_pending?
+    classify_v1_response_action(message_history) if response_still_current?
+    return unless response_still_current?
     return if v1_handoff_requested?
 
     verify_v1_false_promise_repair(message_history)
@@ -85,9 +87,8 @@ module Captain::Conversation::V1FalsePromiseHandler
 
   def log_v1_false_promise_detection(detection)
     Rails.logger.info(
-      "[CAPTAIN][ResponseBuilderJob] V1 false promise harness account=#{account.id} " \
-      "conversation=#{@conversation.display_id} decision=#{detection['decision']} " \
-      "reason=#{detection['reason']} model=#{detection['model']}"
+      "LLA Captain V1 false-promise result account_id=#{account.id} conversation_id=#{@conversation.id} " \
+      "decision=#{detection['decision']} reason=#{detection['reason']} model=#{detection['model']}"
     )
   end
 end

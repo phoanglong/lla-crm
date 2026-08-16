@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Captain::Conversation::V1ActionClassifier
   private
 
@@ -18,8 +20,8 @@ module Captain::Conversation::V1ActionClassifier
   rescue StandardError => e
     ChatwootExceptionTracker.new(e, account: account).capture_exception
     Rails.logger.warn(
-      "[CAPTAIN][ResponseBuilderJob] V1 action classifier failed for account=#{account.id} " \
-      "conversation=#{@conversation.display_id}: #{e.class.name}: #{e.message}"
+      "LLA Captain V1 action classifier failed account_id=#{account.id} " \
+      "conversation_id=#{@conversation.id} error=#{e.class.name}"
     )
   end
 
@@ -39,7 +41,7 @@ module Captain::Conversation::V1ActionClassifier
 
   def log_v1_action_classification(action, classification)
     Rails.logger.info(
-      "[CAPTAIN][ResponseBuilderJob] V1 action classifier account=#{account.id} conversation=#{@conversation.display_id} " \
+      "LLA Captain V1 action classified account_id=#{account.id} conversation_id=#{@conversation.id} " \
       "action=#{action} reason=#{classification['action_reason']} model=#{classification['model']}"
     )
   end
@@ -50,8 +52,8 @@ module Captain::Conversation::V1ActionClassifier
 
   def log_invalid_v1_action_classification(classification)
     Rails.logger.warn(
-      '[CAPTAIN][ResponseBuilderJob] V1 action classifier returned invalid action; falling back to assistant response ' \
-      "for account=#{account.id} conversation=#{@conversation.display_id}: #{classification['error'] || classification['raw_response']}"
+      "LLA Captain V1 classifier invalid account_id=#{account.id} conversation_id=#{@conversation.id} " \
+      "error=#{classification['error']} model=#{classification['model']}"
     )
   end
 end

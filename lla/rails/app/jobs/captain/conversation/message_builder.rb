@@ -9,7 +9,11 @@ module Captain::Conversation::MessageBuilder
 
   def collect_previous_messages
     messages = @conversation.messages
-                            .where(message_type: %i[incoming outgoing], private: false)
+                            .where(
+                              account_id: @conversation.account_id,
+                              message_type: %i[incoming outgoing],
+                              private: false
+                            )
                             .reorder(id: :desc)
                             .limit(MAX_HISTORY_MESSAGES)
 
@@ -54,6 +58,7 @@ module Captain::Conversation::MessageBuilder
   def create_outgoing_message(message_content, agent_name: nil, preserve_waiting_since: false)
     additional_attrs = {}
     additional_attrs[:agent_name] = agent_name if agent_name.present?
+    additional_attrs[:captain_source_message_id] = @starting_message_id if @starting_message_id.present?
 
     @conversation.messages.create!(
       message_type: :outgoing,
