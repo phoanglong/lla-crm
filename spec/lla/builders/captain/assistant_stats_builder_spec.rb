@@ -27,9 +27,17 @@ RSpec.describe Captain::AssistantStatsBuilder do
 
       expect(metrics.keys).to contain_exactly(
         :conversations_handled, :auto_resolution_rate, :handoff_rate,
-        :hours_saved, :reopen_rate, :conversation_depth
+        :hours_saved, :reopen_rate, :conversation_depth, :_meta
       )
       expect(metrics[:conversations_handled]).to include(:current, :previous, :trend)
+      expect(metrics[:_meta]).to include(
+        window: hash_including(end_exclusive: true),
+        hours_saved: {
+          estimated: true,
+          seconds_per_reply: 120,
+          assumption_version: 'lla-v1'
+        }
+      )
     end
 
     it 'counts distinct handled conversations per window and the percent trend' do
@@ -107,6 +115,15 @@ RSpec.describe Captain::AssistantStatsBuilder do
 
       expect(depth[:current]).to eq(1.0)
     end
+
+    it 'restricts the metric cohort to the supplied authorized conversations' do
+      authorized_scope = account.conversations.where(id: current_convo_a.id)
+
+      metrics = described_class.new(assistant, '30', nil, conversations_scope: authorized_scope).metrics
+
+      expect(metrics[:conversations_handled][:current]).to eq(1)
+      expect(metrics[:conversation_depth][:current]).to eq(1.0)
+    end
   end
 
   describe 'range handling' do
@@ -120,6 +137,20 @@ RSpec.describe Captain::AssistantStatsBuilder do
       expect(described_class.new(assistant, '365000').range).to eq('30')
       expect(described_class.new(assistant, 'bogus').range).to eq('30')
       expect(described_class.new(assistant, nil).range).to eq('30')
+    end
+
+    it 'assigns a shared boundary timestamp only to the current window' do
+      travel_to(Time.utc(2026, 8, 17, 12)) do
+        conversation = create(:conversation, account: account, inbox: inbox)
+        create(:message, account: account, inbox: inbox, conversation: conversation,
+                         sender: assistant, message_type: :outgoing, private: false,
+                         created_at: 30.days.ago)
+
+        handled = described_class.new(assistant, '30').metrics[:conversations_handled]
+
+        expect(handled[:current]).to eq(1)
+        expect(handled[:previous]).to eq(0)
+      end
     end
   end
 
@@ -227,6 +258,22 @@ RSpec.describe Captain::AssistantStatsBuilder do
         expect(described_class.new(assistant, 'this_month').period[:starts_on]).to eq(Date.new(2026, 7, 1))
       end
     end
+
+    it 'preserves quarter-hour timezone offsets' do
+      travel_to(Time.utc(2026, 6, 30, 18, 30)) do
+        kathmandu = described_class.new(assistant, 'this_month', 5.75)
+
+        expect(kathmandu.period[:starts_on]).to eq(Date.new(2026, 7, 1))
+        expect(kathmandu.period[:ends_on]).to eq(Date.new(2026, 7, 1))
+      end
+    end
+
+    it 'clamps extreme offsets and rejects non-finite values' do
+      expect(Captain::AssistantStatsWindow.new('30', 99).timezone_offset).to eq(14.0)
+      expect(Captain::AssistantStatsWindow.new('30', -99).timezone_offset).to eq(-14.0)
+      expect(Captain::AssistantStatsWindow.new('30', 'NaN').timezone_offset).to eq(0.0)
+      expect(Captain::AssistantStatsWindow.new('30', 5.8).timezone_offset).to eq(5.75)
+    end
   end
 
   describe '#faq_stats' do
@@ -271,5 +318,22 @@ RSpec.describe Captain::AssistantStatsBuilder do
     it 'labels the last_month range' do
       expect(described_class.new(assistant, 'last_month').period[:label]).to eq('last month')
     end
+  end
+
+  describe '#source_watermark' do
+    it 'supports a joined permission scope and returns only a timestamp' do
+      assistant.faq_suggestions.create!(question: 'Private question', answer: 'Private answer')
+      visible_scope = assistant.faq_suggestions.left_joins(observations: :conversation).distinct
+
+      watermark = described_class.new(assistant, '30', nil, suggestions_scope: visible_scope).source_watermark
+
+      expect(Time.iso8601(watermark)).to be_present
+      expect(watermark).not_to include('Private')
+    end
+  end
+
+  it 'loads the metric implementation from the LLA-owned tree' do
+    expect(described_class.instance_method(:metrics).source_location.first).to include('/lla/rails/')
+    expect(Captain::AssistantStatsWindow.instance_method(:current).source_location.first).to include('/lla/rails/')
   end
 end

@@ -10,20 +10,13 @@ class Api::V1::Accounts::Captain::AssistantsController < Api::V1::Accounts::Capt
   before_action :check_authorization
 
   SUMMARY_CACHE_TTL = 12.hours
-  SUMMARY_RANGES = %w[7 30 90].freeze
-  SUMMARY_STATS_SCHEMA = {
-    conversations_handled: [:current],
-    hours_saved: [:current],
-    auto_resolution_rate: [:current, :trend],
-    handoff_rate: [:current, :trend],
-    reopen_rate: [:current, :trend],
-    knowledge: [:coverage, :approved, :documents]
-  }.freeze
+  SUMMARY_CACHE_VERSION = 'lla-v2'
+  SUMMARY_PROMPT_VERSION = '2026-08-17'
+  SUMMARY_RANGES = %w[7 30 90 this_month last_month].freeze
   ASSISTANT_CONFIG_KEYS = %i[
     product_name feature_faq feature_memory feature_citation feature_contact_attributes
     temperature instructions handoff_message resolution_message
   ].freeze
-  MAX_SUMMARY_STAT_ABS = 1_000_000_000
   MAX_PLAYGROUND_MESSAGE_BYTES = 20.kilobytes
   MAX_PLAYGROUND_HISTORY_BYTES = 100.kilobytes
   MAX_PLAYGROUND_HISTORY_ITEMS = 50
@@ -55,35 +48,27 @@ class Api::V1::Accounts::Captain::AssistantsController < Api::V1::Accounts::Capt
   end
 
   def faq_stats
-    approved = @assistant.responses.approved.count
-    suggestions = visible_suggestions_count
-    total = approved + suggestions
-
-    render json: {
-      approved: approved,
-      suggestions: suggestions,
-      documents: @assistant.documents.count,
-      coverage: total.zero? ? 0 : (approved * 100.0 / total).round
-    }
+    render json: stats_builder.faq_stats
   end
 
   # Lời chào tổng quan sinh bằng LLM — cache theo NGƯỜI XEM (lời chào có tên
   # riêng); lỗi tạm thời không cache để lần sau thử lại.
   def summary
-    cached = Rails.cache.read(summary_cache_key)
+    snapshot = summary_snapshot
+    cached = Rails.cache.read(summary_cache_key(snapshot))
     return render json: cached if cached.present?
 
     result = Captain::OverviewSummaryService.new(
       account: Current.account,
       assistant: @assistant,
       first_name: Current.user.name.to_s.split.first,
-      stats: summary_stats_param,
-      period: summary_period
+      stats: snapshot.fetch(:stats),
+      period: snapshot.fetch(:period)
     ).perform
 
     return render json: result, status: :unprocessable_entity if result[:error]
 
-    Rails.cache.write(summary_cache_key, result, expires_in: SUMMARY_CACHE_TTL)
+    Rails.cache.write(summary_cache_key(snapshot), result, expires_in: SUMMARY_CACHE_TTL)
     render json: result
   end
 
@@ -98,10 +83,18 @@ class Api::V1::Accounts::Captain::AssistantsController < Api::V1::Accounts::Capt
     render json: stats_builder.metrics
   end
 
-  # Danh sách hội thoại phía sau một chỉ số — hoàn thiện ở wave E5 cùng lớp
-  # thống kê; trả rỗng để UI không vỡ.
   def drilldown
-    render json: { payload: [], meta: { conversation_count: 0 } }
+    unless Captain::AssistantDrilldownBuilder.supported_metric?(params[:metric])
+      return render json: { error: 'Unsupported metric' }, status: :unprocessable_entity
+    end
+
+    result = Captain::AssistantDrilldownBuilder.new(
+      @assistant,
+      drilldown_params,
+      conversations_scope: authorized_conversations_scope
+    ).build
+    audit_drilldown(result)
+    render json: result
   end
 
   def tools
@@ -128,59 +121,89 @@ class Api::V1::Accounts::Captain::AssistantsController < Api::V1::Accounts::Capt
     permitted
   end
 
-  # Agent chỉ thấy đề xuất FAQ bắt nguồn từ hội thoại trong inbox mình tham gia
-  # (hoặc đề xuất chưa gắn hội thoại nào); administrator thấy tất cả.
-  def visible_suggestions_count
+  def visible_suggestions_scope
     scope = @assistant.faq_suggestions.open
-    return scope.count if Current.account_user.administrator?
+    return scope if Current.account_user.administrator?
 
     inbox_ids = Current.user.assigned_inboxes.where(account_id: Current.account.id).ids
     scope.left_joins(observations: :conversation)
          .where('captain_faq_observations.id IS NULL OR conversations.inbox_id IN (?)', inbox_ids)
          .distinct
-         .count
   end
 
-  def summary_cache_key
-    format('captain_overview_summary/%<account>d/%<assistant>d/%<user>d/%<range>s',
-           account: Current.account.id, assistant: @assistant.id, user: Current.user.id, range: summary_range)
+  def summary_cache_key(snapshot)
+    digest = Digest::SHA256.hexdigest(ActiveSupport::JSON.encode(snapshot))
+    route = snapshot.fetch(:route)
+    [
+      'captain_overview_summary', SUMMARY_CACHE_VERSION, Current.account.id, @assistant.id, Current.user.id,
+      normalized_range, normalized_timezone_offset, route[:provider], route[:model], route[:source], digest
+    ].join('/')
   end
 
-  def summary_stats_param
-    @summary_stats_param ||= normalize_summary_stats
+  def summary_snapshot
+    @summary_snapshot ||= {
+      stats: server_summary_stats,
+      period: stats_builder.period,
+      source_watermark: stats_builder.source_watermark,
+      route: summary_route,
+      prompt_version: SUMMARY_PROMPT_VERSION,
+      range: normalized_range,
+      timezone_offset: normalized_timezone_offset
+    }
   end
 
-  def normalize_summary_stats
-    return {} if params[:stats].blank? || !params[:stats].respond_to?(:permit)
-
-    permitted = params[:stats].permit(SUMMARY_STATS_SCHEMA).to_h.deep_symbolize_keys
-    permitted.each_with_object({}) do |(group, values), normalized|
-      next unless values.is_a?(Hash)
-
-      normalized[group] = normalize_summary_group(values)
-    end
+  def server_summary_stats
+    stats_builder.metrics.except(:_meta).merge(knowledge: stats_builder.faq_stats)
   end
 
-  def normalize_summary_group(values)
-    values.each_with_object({}) do |(key, value), normalized|
-      number = value.is_a?(Numeric) ? value : Float(value, exception: false)
-      normalized[key] = number.clamp(-MAX_SUMMARY_STAT_ABS, MAX_SUMMARY_STAT_ABS) if number&.finite?
-    end
+  def summary_route
+    Llm::FeatureRouter.resolve(feature: 'editor', account: Current.account).slice(:provider, :model, :source)
   end
 
-  def summary_period
-    days = summary_range
-    { label: "the last #{days} days", starts_on: days.to_i.days.ago.to_date, ends_on: Time.zone.today }
-  end
-
-  def summary_range
+  def normalized_range
     requested = params[:range].to_s
-    SUMMARY_RANGES.include?(requested) ? requested : '30'
+    SUMMARY_RANGES.include?(requested) ? requested : Captain::AssistantStatsWindow::DEFAULT_RANGE
+  end
+
+  def normalized_timezone_offset
+    parsed = Float(params[:timezone_offset], exception: false)
+    return 0.0 unless parsed&.finite?
+
+    (parsed.clamp(-14.0, 14.0) * 4).round / 4.0
   end
 
   def stats_builder
-    # Lớp thống kê hiện còn ở EE — chuyển về lla ở wave E5.
-    offset = params[:timezone_offset].to_i.clamp(-840, 840)
-    Captain::AssistantStatsBuilder.new(@assistant, summary_range, offset)
+    @stats_builder ||= Captain::AssistantStatsBuilder.new(
+      @assistant,
+      normalized_range,
+      normalized_timezone_offset,
+      suggestions_scope: visible_suggestions_scope,
+      conversations_scope: authorized_conversations_scope
+    )
+  end
+
+  def authorized_conversations_scope
+    @authorized_conversations_scope ||= Conversations::PermissionFilterService.new(
+      Current.account.conversations,
+      Current.user,
+      Current.account
+    ).perform
+  end
+
+  def drilldown_params
+    params.permit(:metric, :range, :timezone_offset, :page, :per_page)
+  end
+
+  def audit_drilldown(result)
+    metadata = {
+      account_id: Current.account.id,
+      assistant_id: @assistant.id,
+      user_id: Current.user.id,
+      metric: params[:metric].to_s,
+      page: result.dig(:meta, :current_page),
+      returned_count: result.fetch(:payload).size
+    }
+    ActiveSupport::Notifications.instrument('lla.captain.assistant_drilldown', metadata)
+    Rails.logger.info("LLA Captain drilldown viewed #{metadata.map { |key, value| "#{key}=#{value}" }.join(' ')}")
   end
 end

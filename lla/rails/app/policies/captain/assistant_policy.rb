@@ -16,19 +16,19 @@ class Captain::AssistantPolicy < ApplicationPolicy
   end
 
   def faq_stats?
-    true
+    report_viewer?
   end
 
   def summary?
-    true
+    report_viewer?
   end
 
   def metrics?
-    true
+    report_viewer?
   end
 
   def drilldown?
-    @account_user.administrator?
+    report_viewer?
   end
 
   def tools?
@@ -57,5 +57,11 @@ class Captain::AssistantPolicy < ApplicationPolicy
 
   def dismiss?
     update?
+  end
+
+  private
+
+  def report_viewer?
+    @account_user.administrator? || @account_user.custom_role&.permissions&.include?('report_manage')
   end
 end
