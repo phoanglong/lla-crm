@@ -3,49 +3,55 @@
 # Least-privilege knowledge-base authorization owned by LLA (ADR-OMCRM-032).
 # Prepended to the MIT ArticlePolicy via prepend_mod_with; wins over Enterprise::
 # because ChatwootApp.extensions orders 'lla' last.
+#
+# The tenant guard wraps BOTH the custom-role grant and the base `super` result, so a
+# stale/forged context or an administrator from another account can never authorize a
+# record outside their own tenant.
 module Lla::ArticlePolicy
   KB_MANAGE_PERMISSION = 'knowledge_base_manage'
 
   def index?
-    custom_role_can_manage_kb? || super
+    scoped_context? && (custom_role_can_manage_kb? || super)
   end
 
   def create?
-    custom_role_can_manage_kb? || super
+    scoped_context? && (custom_role_can_manage_kb? || super)
   end
 
   def reorder?
-    custom_role_can_manage_kb? || super
+    scoped_context? && (custom_role_can_manage_kb? || super)
   end
 
   def update?
-    (custom_role_can_manage_kb? && record_within_account?) || super
+    record_authorized? && (custom_role_can_manage_kb? || super)
   end
 
   def show?
-    (custom_role_can_manage_kb? && record_within_account?) || super
+    record_authorized? && (custom_role_can_manage_kb? || super)
   end
 
   def edit?
-    (custom_role_can_manage_kb? && record_within_account?) || super
+    record_authorized? && (custom_role_can_manage_kb? || super)
   end
 
   def destroy?
-    (custom_role_can_manage_kb? && record_within_account?) || super
+    record_authorized? && (custom_role_can_manage_kb? || super)
   end
 
   private
 
-  def custom_role_can_manage_kb?
-    context_consistent? && @account_user.custom_role&.permissions&.include?(KB_MANAGE_PERMISSION)
+  def record_authorized?
+    scoped_context? && record_within_account?
   end
 
-  def context_consistent?
-    return false unless @user.present? && @account.present? && @account_user.present?
-    return false unless @account_user.account_id == @account.id && @account_user.user_id == @user.id
+  def scoped_context?
+    @user.present? && @account.present? && @account_user.present? &&
+      @account_user.account_id == @account.id && @account_user.user_id == @user.id
+  end
 
-    custom_role = @account_user.custom_role
-    custom_role.present? && custom_role.account_id == @account.id
+  def custom_role_can_manage_kb?
+    role = @account_user&.custom_role
+    role.present? && role.account_id == @account.id && role.permissions&.include?(KB_MANAGE_PERMISSION)
   end
 
   def record_within_account?

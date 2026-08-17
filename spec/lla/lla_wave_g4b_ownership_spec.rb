@@ -11,7 +11,8 @@ RSpec.describe Lla do
       article_update: ArticlePolicy.instance_method(:update?).source_location.first,
       category_update: CategoryPolicy.instance_method(:update?).source_location.first,
       portal_update: PortalPolicy.instance_method(:update?).source_location.first,
-      widget_geo: WidgetsController.instance_method(:ensure_location_is_supported).source_location.first
+      widget_geo: WidgetsController.instance_method(:ensure_location_is_supported).source_location.first,
+      gatekeeper: Lla::Widget::GeoGatekeeper.instance_method(:call).source_location.first
     }
 
     expect(source_locations.values).to all(include('/lla/rails/'))
