@@ -29,6 +29,10 @@ export function useConfig() {
    */
   const isEnterprise = config.isEnterprise === 'true';
 
+  /** Indicates whether the LLA onboarding workspace capability is enabled. */
+  const knowledgeOnboardingEnabled =
+    config.knowledgeOnboardingEnabled === 'true';
+
   /**
    * The name of the enterprise plan, if applicable.
    * Returns "community" or "enterprise"
@@ -47,6 +51,7 @@ export function useConfig() {
     vapidPublicKey,
     enabledLanguages,
     isEnterprise,
+    knowledgeOnboardingEnabled,
     enterprisePlanName,
     inboxEventsEnabled,
   };

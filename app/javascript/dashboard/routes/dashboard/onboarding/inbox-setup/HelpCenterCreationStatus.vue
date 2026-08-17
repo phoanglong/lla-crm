@@ -45,8 +45,12 @@ const status = computed(
     generation.value.state?.status ||
     (generation.value.generation_id ? 'generating' : 'not_started')
 );
-const isCompleted = computed(() => status.value === 'completed');
-const isSkipped = computed(() => status.value === 'skipped');
+const isCompleted = computed(() =>
+  ['completed', 'completed_with_errors'].includes(status.value)
+);
+const isSkipped = computed(() =>
+  ['skipped', 'failed', 'cancelled'].includes(status.value)
+);
 const isNotStarted = computed(() => status.value === 'not_started');
 const isTerminal = computed(
   () => isCompleted.value || isSkipped.value || isNotStarted.value

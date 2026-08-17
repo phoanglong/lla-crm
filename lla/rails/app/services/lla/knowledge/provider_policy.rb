@@ -14,7 +14,9 @@ class Lla::Knowledge::ProviderPolicy
   end
 
   CAPABILITY_FLAGS = {
+    onboarding_workspace: 'LLA_ONBOARDING_WORKSPACE_ENABLED',
     website_analysis: 'LLA_KNOWLEDGE_WEBSITE_ANALYSIS_ENABLED',
+    widget_tagline: 'LLA_KNOWLEDGE_WIDGET_TAGLINE_ENABLED',
     external_crawl: 'LLA_KNOWLEDGE_EXTERNAL_CRAWL_ENABLED',
     article_generation: 'LLA_KNOWLEDGE_ARTICLE_GENERATION_ENABLED',
     article_translation: 'LLA_KNOWLEDGE_ARTICLE_TRANSLATION_ENABLED',

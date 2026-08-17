@@ -79,6 +79,42 @@ describe('HelpCenterCreationStatus', () => {
     expect(wrapper.find('[data-test="row"]').exists()).toBe(false);
   });
 
+  it.each(['failed', 'cancelled'])('stops and hides on %s', async state => {
+    vi.useFakeTimers();
+    OnboardingAPI.getHelpCenterGeneration.mockResolvedValue({
+      data: { generation_id: 'generation-123', state: { status: state } },
+    });
+
+    const wrapper = mountStatus();
+    await flushPromises();
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="row"]').exists()).toBe(false);
+    expect(OnboardingAPI.getHelpCenterGeneration).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats completed_with_errors as a terminal partial result', async () => {
+    OnboardingAPI.getHelpCenterGeneration.mockResolvedValue({
+      data: {
+        generation_id: 'generation-123',
+        state: { status: 'completed_with_errors' },
+        articles_count: 2,
+        categories_count: 1,
+      },
+    });
+
+    const wrapper = mountStatus();
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="row"]').attributes('data-ready')).toBe(
+      'true'
+    );
+    expect(wrapper.find('[data-test="row"]').text()).toBe(
+      '2 articles across 1 categories'
+    );
+  });
+
   it('polls while generating and stops after completion', async () => {
     vi.useFakeTimers();
     OnboardingAPI.getHelpCenterGeneration

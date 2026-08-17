@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1546,10 +1546,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_140000) do
     t.boolean "archived", default: false
     t.bigint "channel_web_widget_id"
     t.jsonb "ssl_settings", default: {}, null: false
+    t.string "lla_onboarding_key_digest", limit: 64
     t.index ["account_id", "id"], name: "idx_lla_portals_tenant_identity", unique: true
+    t.index ["account_id", "lla_onboarding_key_digest"], name: "idx_lla_portals_onboarding_identity", unique: true, where: "(lla_onboarding_key_digest IS NOT NULL)"
     t.index ["channel_web_widget_id"], name: "index_portals_on_channel_web_widget_id"
     t.index ["custom_domain"], name: "index_portals_on_custom_domain", unique: true
     t.index ["slug"], name: "index_portals_on_slug", unique: true
+    t.check_constraint "lla_onboarding_key_digest IS NULL OR char_length(lla_onboarding_key_digest::text) = 64", name: "chk_lla_portals_onboarding_digest"
   end
 
   create_table "portals_members", id: false, force: :cascade do |t|
