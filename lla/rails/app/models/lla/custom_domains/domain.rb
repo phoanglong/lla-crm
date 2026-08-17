@@ -3,6 +3,18 @@
 # Durable, tenant-bound lifecycle record for one customer supplied Help Center
 # hostname. `portals.custom_domain` stays the user facing column; this row is the
 # canonical state that public/dashboard host lookup and every provider call read.
+#
+# ## Lock order
+#
+# Exactly one order is used anywhere in this wave, without exception:
+#
+#   1. `lla_custom_domain_operations` — the lease row (`OperationService.hold!`),
+#   2. `lla_custom_domains` — the domain row (`Domain.lock`).
+#
+# Nothing takes the domain first and then an operation, so two workers can never
+# hold one and wait for the other. Callers that only need the domain (an
+# administrator releasing it, the reconciler expiring a challenge) take just the
+# second lock, which cannot close a cycle on its own.
 class Lla::CustomDomains::Domain < ApplicationRecord
   self.table_name = 'lla_custom_domains'
 
@@ -34,6 +46,30 @@ class Lla::CustomDomains::Domain < ApplicationRecord
 
   def active?
     state == 'active'
+  end
+
+  # The only way a worker result reaches this table.
+  #
+  # A result is computed from a row that was read at some earlier moment; between
+  # that read and this write the row may have been repointed, released or already
+  # advanced by whoever else was allowed to touch it. So the write carries its own
+  # premise: the row must still be the exact tenant-bound identity the caller
+  # decided from — same tenant, same id, same version, same hostname — and still be
+  # in `expected` state. If it is not, zero rows change and the caller is told,
+  # instead of overwriting a newer state with a stale conclusion.
+  #
+  # Callers that already hold the row lock get the same guarantee twice, which is
+  # deliberate: the predicate is what makes correctness independent of whether the
+  # caller remembered to lock.
+  def fenced_update(attributes, expected: {})
+    changed = self.class
+                  .where(id: id, account_id: account_id, version: version, hostname: hostname)
+                  .where(expected)
+                  .update_all(attributes.merge(updated_at: Time.current)) # rubocop:disable Rails/SkipsModelValidations
+    return false if changed.zero?
+
+    reload
+    true
   end
 
   # Imported from the pre-lifecycle `portals.custom_domain` column: it keeps

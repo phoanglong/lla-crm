@@ -57,10 +57,15 @@ class Lla::CustomDomains::LifecycleService
     return if domain.blank?
     return domain if domain.state == 'removing'
 
-    domain.update!(state: 'removing', removal_requested_at: Time.current, version: domain.version + 1,
-                   last_error_code: nil)
+    # Fenced like every other transition: an administrator releasing a domain races
+    # with whatever worker is mid-flight on it, and the loser must not write.
+    previous = domain.state
+    return domain unless domain.fenced_update({ state: 'removing', removal_requested_at: Time.current,
+                                                version: domain.version + 1, last_error_code: nil },
+                                              expected: { state: previous })
+
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
-    emit_transition(domain, 'active')
+    emit_transition(domain, previous)
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'remove')
     domain
   end
@@ -104,23 +109,33 @@ class Lla::CustomDomains::LifecycleService
     # rather than being left mid-transition by a rejected retry.
     rotate_challenge!(domain, 'lla_custom_domain_retry_exhausted')
     previous = domain.state
-    domain.update!(state: 'requested', version: domain.version + 1, last_error_code: nil,
-                   ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil)
+    transition!(domain, { state: 'requested', version: domain.version + 1, last_error_code: nil,
+                          ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil },
+                state: previous)
     emit_transition(domain, previous)
-    domain.update!(state: 'ownership_pending')
+    transition!(domain, { state: 'ownership_pending' }, state: 'requested')
     emit_transition(domain, 'requested')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
     domain
   end
 
+  # Every transition below is a conditional write (`Domain#fenced_update`), so a
+  # result computed against a row that has since moved writes nothing and returns
+  # false. Callers must treat false as "discard this result", never as "retry the
+  # write" — the row belongs to whoever moved it.
+  #
   # A completed reverification is the only thing that turns a legacy import into a
   # proved domain. It never fabricates the original activation moment.
   def promote_legacy!(domain, now: Time.current)
     return false unless reverifiable?(domain)
+    unless domain.fenced_update({ ownership_source: 'nonce_challenge', reverify_required: false,
+                                  ownership_verified_at: now, activated_at: domain.activated_at || now,
+                                  last_error_code: nil },
+                                expected: { state: 'active', ownership_source: 'legacy_import',
+                                            reverify_required: true })
+      return false
+    end
 
-    domain.update!(ownership_source: 'nonce_challenge', reverify_required: false,
-                   ownership_verified_at: now, activated_at: domain.activated_at || now,
-                   last_error_code: nil)
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
     Lla::CustomDomains::Telemetry.emit('reverify_succeeded', account_id: domain.account_id,
                                                              portal_id: domain.portal_id,
@@ -130,8 +145,10 @@ class Lla::CustomDomains::LifecycleService
 
   def mark_ownership_verified!(domain, now: Time.current)
     return false unless domain.state == 'ownership_pending'
+    return false unless domain.fenced_update({ state: 'provisioning', ownership_verified_at: now,
+                                               last_error_code: nil },
+                                             expected: { state: 'ownership_pending' })
 
-    domain.update!(state: 'provisioning', ownership_verified_at: now, last_error_code: nil)
     emit_transition(domain, 'ownership_pending')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'provision')
     true
@@ -139,19 +156,28 @@ class Lla::CustomDomains::LifecycleService
 
   def activate!(domain, resource_id:, status:, now: Time.current)
     return false unless domain.state == 'provisioning'
+    unless domain.fenced_update({ state: 'active', activated_at: now, provider_synced_at: now,
+                                  provider_resource_id: resource_id.presence,
+                                  provider_status: status.presence,
+                                  ownership_source: 'nonce_challenge', reverify_required: false,
+                                  last_error_code: nil },
+                                expected: { state: 'provisioning' })
+      return false
+    end
 
-    domain.update!(state: 'active', activated_at: now, provider_synced_at: now,
-                   provider_resource_id: resource_id.presence, provider_status: status.presence,
-                   ownership_source: 'nonce_challenge', reverify_required: false,
-                   last_error_code: nil)
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
     emit_transition(domain, 'provisioning')
     true
   end
 
+  # Returns false in both the "moved the domain to failed" and the "row moved on"
+  # case, because no caller acts on the difference: `fail!` is the end of a result,
+  # never the start of another write.
   def fail!(domain, code:)
     previous = domain.state
-    domain.update!(state: 'failed', last_error_code: code.to_s.first(64))
+    return false unless domain.fenced_update({ state: 'failed', last_error_code: code.to_s.first(64) },
+                                             expected: { state: previous })
+
     emit_transition(domain, previous, error_code: code)
     false
   end
@@ -215,14 +241,14 @@ class Lla::CustomDomains::LifecycleService
     # hostname, so the evidence is moved into a tombstone first.
     Lla::CustomDomains::TombstoneRecorder.record_removal!(domain)
 
-    domain.update!(
-      hostname: canonical, state: 'requested', version: domain.version + 1,
-      provider: default_provider,
-      provider_resource_id: nil, provider_status: nil, provider_synced_at: nil,
-      ownership_source: 'nonce_challenge', reverify_required: false,
-      ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil,
-      last_error_code: nil, challenge_rotations: 0
-    )
+    transition!(domain,
+                { hostname: canonical, state: 'requested', version: domain.version + 1,
+                  provider: default_provider,
+                  provider_resource_id: nil, provider_status: nil, provider_synced_at: nil,
+                  ownership_source: 'nonce_challenge', reverify_required: false,
+                  ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil,
+                  last_error_code: nil, challenge_rotations: 0 },
+                state: domain.state)
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
     domain
   end
@@ -234,11 +260,21 @@ class Lla::CustomDomains::LifecycleService
     Lla::CustomDomains::OwnershipChallenge.rotate!(domain)
   rescue Lla::CustomDomains::OwnershipChallenge::RotationExhausted
     raise InvalidRequest, code
+  rescue Lla::CustomDomains::OwnershipChallenge::Stale
+    raise InvalidRequest, 'lla_custom_domain_conflict'
+  end
+
+  # A request-path transition: the caller is answering an administrator, so losing
+  # the row to a concurrent writer is a conflict to report, not a result to discard.
+  def transition!(domain, attributes, expected)
+    return if domain.fenced_update(attributes, expected: expected)
+
+    raise InvalidRequest, 'lla_custom_domain_conflict'
   end
 
   def start_ownership!(domain)
     Lla::CustomDomains::OwnershipChallenge.issue!(domain)
-    domain.update!(state: 'ownership_pending')
+    transition!(domain, { state: 'ownership_pending' }, state: 'requested')
     emit_transition(domain, 'requested')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
     domain

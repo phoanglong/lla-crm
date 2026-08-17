@@ -9,6 +9,9 @@
 # challenge and can be rotated a bounded number of times.
 class Lla::CustomDomains::OwnershipChallenge
   class RotationExhausted < StandardError; end
+  # The domain moved (repointed, released, already advanced) between the read that
+  # decided to write challenge material and the write itself.
+  class Stale < StandardError; end
 
   TTL = 24.hours
   ID_BYTES = 24
@@ -27,9 +30,11 @@ class Lla::CustomDomains::OwnershipChallenge
     write(domain, now: now, rotation: true)
   end
 
+  # Revocation is idempotent and safe to lose: if the row moved, whoever moved it
+  # revoked or replaced the material as part of that transition.
   def self.revoke!(domain)
-    domain.update!(challenge_id_digest: nil, challenge_ciphertext: nil,
-                   challenge_expires_at: nil, challenge_rotated_at: nil)
+    domain.fenced_update({ challenge_id_digest: nil, challenge_ciphertext: nil,
+                           challenge_expires_at: nil, challenge_rotated_at: nil })
   end
 
   # Returns the proof body only for the exact, unexpired challenge of the exact
@@ -75,15 +80,19 @@ class Lla::CustomDomains::OwnershipChallenge
     body = SecureRandom.urlsafe_base64(BODY_BYTES)
     expires_at = now + TTL
 
-    domain.update!(
-      challenge_id_digest: Lla::CustomDomains::ChallengeCipher.digest(id, hostname: domain.hostname),
-      challenge_ciphertext: Lla::CustomDomains::ChallengeCipher.encrypt(
-        { id: id, body: body }.to_json, hostname: domain.hostname, expires_at: expires_at
-      ),
-      challenge_expires_at: expires_at,
-      challenge_rotated_at: (now if rotation),
-      challenge_rotations: domain.challenge_rotations + (rotation ? 1 : 0)
+    # Fenced: challenge material is bound to one hostname, so minting it onto a row
+    # that has been repointed since the read would produce a proof for the wrong
+    # host. The write carries the identity it was computed for.
+    moved = domain.fenced_update(
+      { challenge_id_digest: Lla::CustomDomains::ChallengeCipher.digest(id, hostname: domain.hostname),
+        challenge_ciphertext: Lla::CustomDomains::ChallengeCipher.encrypt(
+          { id: id, body: body }.to_json, hostname: domain.hostname, expires_at: expires_at
+        ),
+        challenge_expires_at: expires_at,
+        challenge_rotated_at: (now if rotation),
+        challenge_rotations: domain.challenge_rotations + (rotation ? 1 : 0) }
     )
+    raise Stale unless moved
 
     Issued.new(id: id, body: body, expires_at: expires_at)
   end

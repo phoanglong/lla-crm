@@ -94,19 +94,27 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
   # documented terminal state an operator can see and re-request from. A teardown
   # cannot be abandoned silently, so it keeps `removing` but carries an explicit
   # manual-intervention code and stops being re-armed.
+  # The reconciler mutates the same shared row the workers do, so it takes the same
+  # domain lock and writes conditionally. It never holds an operation lock while
+  # doing so, which keeps it outside the operation-then-domain order entirely.
   def abandon(domain, operation)
     code = ABANDON_CODES[operation.operation_type] || MANUAL_INTERVENTION_CODE
-    return if domain.last_error_code == code
 
-    if operation.operation_type == 'remove'
-      domain.update!(last_error_code: code)
-      # A known remote resource we can no longer reach needs an operator, and that
-      # fact has to outlive the operation retention window.
-      Lla::CustomDomains::TombstoneRecorder.record_abandoned_teardown!(operation)
-    else
-      Lla::CustomDomains::LifecycleService.new(portal: domain.portal).fail!(domain, code: code)
+    Lla::CustomDomains::Domain.transaction(requires_new: true) do
+      fresh = Lla::CustomDomains::Domain.lock.find_by(id: domain.id, account_id: operation.account_id)
+      next if fresh.blank? || fresh.last_error_code == code || operation.stale_for?(fresh)
+
+      if operation.operation_type == 'remove'
+        next unless fresh.fenced_update({ last_error_code: code }, expected: { state: 'removing' })
+
+        # A known remote resource we can no longer reach needs an operator, and that
+        # fact has to outlive the operation retention window.
+        Lla::CustomDomains::TombstoneRecorder.record_abandoned_teardown!(operation)
+      else
+        Lla::CustomDomains::LifecycleService.new(portal: fresh.portal).fail!(fresh, code: code)
+      end
+      alert(fresh, operation, code)
     end
-    alert(domain, operation, code)
   end
 
   # The alerting hook: one structured event per newly abandoned domain, carrying
@@ -161,7 +169,18 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
                               .where.not(challenge_expires_at: nil)
                               .where(challenge_expires_at: ...now)
                               .limit(BATCH_SIZE)
-                              .find_each do |domain|
+                              .pluck(:id)
+                              .each { |id| expire_challenge(id, now) }
+  end
+
+  # Re-read under the row lock: between the scan and the write an administrator may
+  # have retried, repointed or released the domain, and expiring a challenge that no
+  # longer exists would push a live claim into `failed`.
+  def expire_challenge(id, now)
+    Lla::CustomDomains::Domain.transaction(requires_new: true) do
+      domain = Lla::CustomDomains::Domain.lock.find_by(id: id, state: 'ownership_pending')
+      next if domain.blank? || domain.challenge_expires_at.blank? || domain.challenge_expires_at >= now
+
       Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
       Lla::CustomDomains::LifecycleService.new(portal: domain.portal).fail!(domain, code: CHALLENGE_EXPIRED_CODE)
     end
