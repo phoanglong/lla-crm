@@ -7,9 +7,7 @@ class Whatsapp::IncomingCallBroadcaster
 
   def incoming(call, sdp_offer)
     contact = call.contact
-    token = call.conversation.assignee&.pubsub_token
-    streams = token ? [token] : (online_agent_streams.presence || fallback_agent_streams)
-    emit(call, 'voice_call.incoming', streams: streams,
+    emit(call, 'voice_call.incoming', streams: ringing_streams(call),
                                       direction: call.direction_label, inbox_id: call.inbox_id,
                                       sdp_offer: sdp_offer, ice_servers: Call.default_ice_servers,
                                       caller: caller_payload(contact))
@@ -37,8 +35,24 @@ class Whatsapp::IncomingCallBroadcaster
   end
 
   def call_streams(call)
+    # Once an incoming call is accepted, the conversation is assigned to the
+    # winning agent. Broadcasting lifecycle events to that assignee alone would
+    # leave the ringing UI open for every other eligible agent. Keep the event
+    # scoped to the inbox, but notify the same eligible audience so all clients
+    # can clear the call consistently.
+    return inbox_agent_streams if call.incoming?
+
     token = call.accepted_by_agent&.pubsub_token || call.conversation.assignee&.pubsub_token
-    token ? [token] : (online_agent_streams.presence || fallback_agent_streams)
+    token ? [token] : inbox_agent_streams
+  end
+
+  def ringing_streams(call)
+    token = call.conversation.assignee&.pubsub_token
+    token ? [token] : inbox_agent_streams
+  end
+
+  def inbox_agent_streams
+    online_agent_streams.presence || fallback_agent_streams
   end
 
   def online_agent_streams
@@ -52,6 +66,6 @@ class Whatsapp::IncomingCallBroadcaster
 
   def base_payload(call)
     { account_id: inbox.account_id, id: call.id, call_id: call.provider_call_id,
-      provider: 'whatsapp', conversation_id: call.conversation_id }
+      provider: 'whatsapp', conversation_id: call.conversation_id, inbox_id: call.inbox_id }
   end
 end

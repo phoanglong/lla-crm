@@ -25,6 +25,7 @@ class Call < ApplicationRecord
 
   has_many :lla_call_events, class_name: 'Lla::Voice::CallEvent', dependent: :delete_all, inverse_of: :call
   has_many :lla_call_operations, class_name: 'Lla::Voice::CallOperation', dependent: :delete_all, inverse_of: :call
+  has_one :lla_recording_consent, class_name: 'Lla::Voice::RecordingConsent', dependent: :delete, inverse_of: :call
   has_one_attached :recording
 
   validates :provider_call_id, presence: true, length: { maximum: 255 },

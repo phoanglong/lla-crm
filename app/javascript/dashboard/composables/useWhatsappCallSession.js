@@ -261,7 +261,12 @@ export function useWhatsappCallSession() {
     return pc.localDescription.sdp;
   };
 
-  const acceptIncomingCall = async ({ callId, sdpOffer, iceServers }) => {
+  const acceptIncomingCall = async ({
+    callId,
+    sdpOffer,
+    iceServers,
+    recordingConsent,
+  }) => {
     // The store may not have sdpOffer yet (the cable broadcast can race the
     // click). Fall back to GET /whatsapp_calls/:id which exposes it.
     let offer = sdpOffer;
@@ -290,7 +295,11 @@ export function useWhatsappCallSession() {
     try {
       const sdpAnswer = await prepareInboundAnswer(offer, ice);
       activeCallId = callId;
-      const acceptedCall = await WhatsappCallsAPI.accept(callId, sdpAnswer);
+      const acceptedCall = await WhatsappCallsAPI.accept(
+        callId,
+        sdpAnswer,
+        recordingConsent
+      );
       recordingAuthorized = acceptedCall?.recording_enabled === true;
       if (recordingAuthorized) {
         recorderArmed = true;
@@ -311,7 +320,7 @@ export function useWhatsappCallSession() {
   };
 
   // target: { conversationId } or { contactId, inboxId }
-  const initiateOutboundCall = async target => {
+  const initiateOutboundCall = async (target, recordingConsent = null) => {
     // Module-scoped lock + active-session guard so a second click — from the
     // same composable instance OR a different one (header vs contact panel)
     // OR while a call is already live — can't tear down the in-flight setup
@@ -323,7 +332,11 @@ export function useWhatsappCallSession() {
     isInitiatingOutbound.value = true;
     try {
       const sdpOffer = await prepareOutboundOffer();
-      const response = await WhatsappCallsAPI.initiate(target, sdpOffer);
+      const response = await WhatsappCallsAPI.initiate(
+        target,
+        sdpOffer,
+        recordingConsent
+      );
       if (response?.id) {
         activeCallId = response.id;
         recordingAuthorized = response.recording_enabled === true;

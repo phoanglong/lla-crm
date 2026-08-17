@@ -144,5 +144,37 @@ RSpec.describe Voice::OutboundCallBuilder do
       expect(adapter).to have_received(:terminate_call).with(call_sid)
       expect(Lla::Voice::CallOperation.last.state).to eq('compensated')
     end
+
+    it 'honors the operation backoff after a provider transport failure' do
+      key = 'twilio-provider-backoff-1'
+      allow(channel).to receive(:initiate_call).and_raise(Faraday::TimeoutError)
+
+      expect { perform_call(idempotency_key: key) }.to raise_error(Faraday::TimeoutError)
+      expect { perform_call(idempotency_key: key) }
+        .to raise_error(described_class::OperationInProgress, 'Call request retry is temporarily unavailable')
+
+      expect(channel).to have_received(:initiate_call).once
+      expect(Lla::Voice::CallOperation.last).to have_attributes(state: 'failed', claim_digest: nil)
+    end
+
+    it 'attaches immutable recording evidence only for the current approved policy' do
+      channel.update!(provider_config: channel.provider_config.merge(
+        'voice_recording_enabled' => true,
+        'voice_recording_disclosure_version' => 'lla-voice-v1'
+      ))
+      attestation = {
+        accepted: true,
+        attestation_id: 'twilio-recording-consent-1',
+        attested_at: Time.current.iso8601,
+        disclosure_version: 'lla-voice-v1',
+        method: 'agent_attestation'
+      }
+
+      call = perform_call(recording_consent: attestation)
+
+      consent = call.lla_recording_consent
+      expect(consent).to be_present
+      expect(call.meta['recording_consent_id']).to eq(consent.id)
+    end
   end
 end

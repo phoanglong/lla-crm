@@ -3,11 +3,12 @@
 class Whatsapp::CallActionOperation
   CLAIM_TTL = 2.minutes
 
-  def initialize(call:, agent:, action:, sdp_answer: nil)
+  def initialize(call:, agent:, action:, sdp_answer: nil, recording_consent: nil)
     @call = call
     @agent = agent
     @action = action
     @sdp_answer = sdp_answer
+    @recording_consent = recording_consent
   end
 
   def claim!
@@ -15,11 +16,14 @@ class Whatsapp::CallActionOperation
     operation = find_or_create_operation
     completed = false
     call.with_lock do
+      raise Voice::CallErrors::CallFailed, 'Call action idempotency conflict' if operation.request_digest != request_digest
+
       completed = operation.state == 'succeeded'
       next if completed
 
       raise Voice::CallErrors::CallFailed, 'Call action retry is temporarily unavailable' if retry_delayed?(operation)
       raise Voice::CallErrors::CallFailed, 'Another call action is in progress' if competing_operation?(operation)
+      raise Voice::CallErrors::CallFailed, 'Call action retry budget exhausted' if operation.retry_exhausted?
 
       validate_action_state!
       operation.update!(state: 'claimed', claimed_at: Time.current, completed_at: nil,
@@ -57,7 +61,7 @@ class Whatsapp::CallActionOperation
 
   private
 
-  attr_reader :call, :agent, :action, :sdp_answer
+  attr_reader :call, :agent, :action, :sdp_answer, :recording_consent
 
   def validate_agent!
     allowed = call.account.account_users.find_by(user_id: agent.id)&.administrator? || call.inbox.members.exists?(id: agent.id)
@@ -97,7 +101,8 @@ class Whatsapp::CallActionOperation
 
   def request_digest
     answer_digest = digest(sdp_answer) if action == 'accept'
-    digest([action, call.id, agent.id, answer_digest].compact.join(':'))
+    consent_digest = Lla::Voice::RecordingConsentService.payload_digest(recording_consent) if action == 'accept'
+    digest([action, call.id, agent.id, answer_digest, consent_digest].compact.join(':'))
   end
 
   def digest(value) = Digest::SHA256.hexdigest(value.to_s)

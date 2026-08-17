@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1282,6 +1282,28 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_120000) do
     t.check_constraint "units > 0 AND attempts > 0", name: "lla_quota_reservations_positive_values"
   end
 
+  create_table "lla_voice_recording_consents", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "call_id", null: false
+    t.bigint "user_id"
+    t.string "capture_method", limit: 32, null: false
+    t.string "disclosure_version", limit: 64, null: false
+    t.string "attestation_digest", limit: 64, null: false
+    t.string "evidence_digest", limit: 64, null: false
+    t.string "actor_reference_digest", limit: 64, null: false
+    t.datetime "client_attested_at", null: false
+    t.datetime "captured_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "attestation_digest"], name: "idx_lla_recording_consents_attestation", unique: true
+    t.index ["account_id", "call_id"], name: "idx_lla_recording_consents_call", unique: true
+    t.index ["account_id", "captured_at"], name: "idx_lla_recording_consents_timeline"
+    t.check_constraint "capture_method::text = 'agent_attestation'::text", name: "chk_lla_recording_consents_method"
+    t.check_constraint "char_length(attestation_digest::text) = 64 AND char_length(evidence_digest::text) = 64 AND char_length(actor_reference_digest::text) = 64", name: "chk_lla_recording_consents_digests"
+    t.check_constraint "disclosure_version::text ~ '^[A-Za-z0-9_.:-]{1,64}$'::text", name: "chk_lla_recording_consents_disclosure"
+  end
+
   create_table "macros", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1703,6 +1725,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_120000) do
   add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "accounts", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_call_tenant", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_inbox_tenant", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "users", name: "fk_lla_recording_consents_user", on_delete: :nullify
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Whatsapp::CallService
-  pattr_initialize [:call!, :agent!, :sdp_answer]
+  pattr_initialize [:call!, :agent!, :sdp_answer, { recording_consent: nil }]
 
   def accept
     validate_sdp_answer!
@@ -55,12 +55,14 @@ class Whatsapp::CallService
 
   def claim_action!(action)
     @action_operation = Whatsapp::CallActionOperation.new(call: call, agent: agent, action: action,
-                                                          sdp_answer: sdp_answer)
+                                                          sdp_answer: sdp_answer, recording_consent: recording_consent)
     @action_operation.claim!
   end
 
-  def invoke_provider!(method, *)
-    success = call.inbox.channel.provider_service.public_send(method, call.provider_call_id, *)
+  # Brakeman 5.4 cannot parse Ruby's anonymous forwarding syntax yet.
+  # rubocop:disable Style/ArgumentsForwarding
+  def invoke_provider!(method, *arguments)
+    success = call.inbox.channel.provider_service.public_send(method, call.provider_call_id, *arguments)
     raise Voice::CallErrors::CallFailed, 'WhatsApp call provider request failed' unless success
   rescue Voice::CallErrors::CallFailed
     raise
@@ -71,13 +73,14 @@ class Whatsapp::CallService
     )
     raise Voice::CallErrors::CallFailed, 'WhatsApp call provider request failed'
   end
+  # rubocop:enable Style/ArgumentsForwarding
 
   def finalize_accept!(operation)
     answer_digest = Lla::Voice::SdpStore.write(call: call, kind: 'answer', sdp: sdp_answer)
     ActiveRecord::Base.transaction do
       result = call.transition_to!('in_progress', from_status: 'ringing', accepted_by_agent: agent)
       handle_accept_race! unless result == :applied
-      call.update!(meta: (call.meta || {}).except('sdp_answer', 'sdp_offer').merge('sdp_answer_digest' => answer_digest))
+      update_accepted_call!(answer_digest)
       assign_conversation
       update_message_status('in_progress')
       complete_operation(operation)
@@ -87,6 +90,12 @@ class Whatsapp::CallService
   rescue StandardError
     compensate_provider_call(operation)
     raise
+  end
+
+  def update_accepted_call!(answer_digest)
+    Lla::Voice::RecordingConsentService.capture_and_attach!(call: call, user: agent, attestation: recording_consent)
+    meta = (call.meta || {}).except('sdp_answer', 'sdp_offer').merge('sdp_answer_digest' => answer_digest)
+    call.update!(meta: meta)
   end
 
   def handle_accept_race!
@@ -145,15 +154,7 @@ class Whatsapp::CallService
   end
 
   def broadcast(event, **extra)
-    token = agent.pubsub_token
-    return if token.blank?
-
-    payload = {
-      event: "voice_call.#{event}",
-      data: { id: call.id, call_id: call.provider_call_id, provider: call.provider,
-              conversation_id: call.conversation_id, account_id: call.account_id }.merge(extra)
-    }
-    ActionCable.server.broadcast(token, payload)
+    Whatsapp::IncomingCallBroadcaster.new(inbox: call.inbox).event(call, "voice_call.#{event}", **extra)
   rescue StandardError => e
     Rails.logger.warn(
       "LLA_WHATSAPP_CALL_BROADCAST_FAILED account=#{call.account_id} inbox=#{call.inbox_id} error=#{e.class.name}"

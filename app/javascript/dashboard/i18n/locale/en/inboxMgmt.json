@@ -682,6 +682,14 @@
       "INBOUND": {
         "LABEL": "Allow incoming calls",
         "DESCRIPTION": "Let customers call this number. When turned off, incoming calls are declined automatically — agents aren't notified and no conversation is created. Agents can still place outgoing calls."
+      },
+      "RECORDING": {
+        "LABEL": "Allow call recording after consent",
+        "DESCRIPTION": "Recording stays off unless the current disclosure is accepted for the call. LLA stores the consent evidence with the call audit trail.",
+        "VERSION_LABEL": "Disclosure version",
+        "VERSION_HELP_TEXT": "Immutable identifier for the approved recording disclosure shown to participants.",
+        "SAVE_VERSION": "Save disclosure version",
+        "ATTESTATION_PROMPT": "Confirm that every participant was informed under disclosure {version} and consented to this call being recorded. Cancel continues the call without recording."
       }
     },
     "WHATSAPP_CALLING": {
@@ -690,6 +698,8 @@
         "DESCRIPTION": "Allow agents to receive and place WhatsApp Cloud calls on this inbox. Customers can call this business number directly from WhatsApp."
       },
       "ENABLE_FAILED": "Voice calling couldn't be turned on for this number — it isn't enrolled in the WhatsApp Business Calling API yet. Reach out to Meta or your WhatsApp Business Solution Provider to onboard it, then try again.",
+      "REQUEST_ACCEPTED": "The WhatsApp Calling change was accepted and is being applied safely.",
+      "LIFECYCLE_FAILED": "The provider change did not complete. Calling remains disabled; retry the change or ask an administrator to review the operation.",
       "PHONE_NUMBER": {
         "LABEL": "Business phone number",
         "HELP_TEXT": "WhatsApp number that customers will call."

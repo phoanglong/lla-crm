@@ -18,6 +18,7 @@ import { useCallsStore } from 'dashboard/stores/calls';
 import { VOICE_CALL_PROVIDERS } from 'dashboard/helper/inbox';
 import { formatDuration } from 'shared/helpers/timeHelper';
 import { useAlert } from 'dashboard/composables';
+import { requestVoiceRecordingConsent } from 'dashboard/composables/useVoiceRecordingConsent';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import BaseBubble from 'next/message/bubbles/Base.vue';
@@ -259,13 +260,24 @@ const canCallBack = computed(
     !callsStore.hasIncomingCall
 );
 
+const currentInbox = computed(() =>
+  (store.getters['inboxes/getInboxes'] || []).find(
+    inbox => Number(inbox.id) === Number(inboxId.value)
+  )
+);
+
 const handleCallBack = async () => {
   if (!canCallBack.value || isInitiatingCall.value) return;
   try {
     if (isWhatsapp.value) {
-      const response = await whatsappCallSession.initiateOutboundCall({
-        conversationId: conversationId.value,
+      const recordingConsent = requestVoiceRecordingConsent({
+        inbox: currentInbox.value,
+        t,
       });
+      const response = await whatsappCallSession.initiateOutboundCall(
+        { conversationId: conversationId.value },
+        recordingConsent
+      );
       if (response?.status === VOICE_CALL_OUTBOUND_INIT_STATUS.LOCKED) return;
       // Permission template path returns no call id — show banner, no widget yet.
       if (!response?.id) {
@@ -287,10 +299,15 @@ const handleCallBack = async () => {
       });
       return;
     }
+    const recordingConsent = requestVoiceRecordingConsent({
+      inbox: currentInbox.value,
+      t,
+    });
     const response = await store.dispatch('contacts/initiateCall', {
       contactId: sender.value?.id,
       inboxId: inboxId.value,
       conversationId: conversationId.value,
+      recordingConsent,
     });
     callsStore.addCall({
       callSid: response?.call_sid,

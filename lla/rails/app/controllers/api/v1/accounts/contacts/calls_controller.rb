@@ -15,7 +15,8 @@ class Api::V1::Accounts::Contacts::CallsController < Api::V1::Accounts::BaseCont
       user: Current.user,
       contact: contact,
       conversation: existing_conversation,
-      idempotency_key: request.headers['Idempotency-Key']
+      idempotency_key: request.headers['Idempotency-Key'],
+      recording_consent: params[:recording_consent]
     )
 
     render json: {

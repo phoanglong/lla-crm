@@ -63,4 +63,20 @@ RSpec.describe 'LLA voice call database integrity', type: :model do
       expect(operation_checks).to include('chk_lla_call_operations_digests', 'chk_lla_call_operations_attempts')
     end
   end
+
+  it 'enforces tenant-scoped, replay-safe recording consent evidence' do
+    indexes = connection.indexes(:lla_voice_recording_consents).index_by(&:name)
+    checks = connection.check_constraints(:lla_voice_recording_consents).index_by(&:name)
+    foreign_keys = connection.foreign_keys(:lla_voice_recording_consents).index_by(&:name)
+
+    aggregate_failures do
+      expect(indexes.fetch('idx_lla_recording_consents_call')).to have_attributes(unique: true)
+      expect(indexes.fetch('idx_lla_recording_consents_attestation')).to have_attributes(unique: true)
+      expect(checks).to include('chk_lla_recording_consents_method',
+                                'chk_lla_recording_consents_disclosure',
+                                'chk_lla_recording_consents_digests')
+      expect(foreign_keys).to include('fk_lla_recording_consents_inbox_tenant',
+                                      'fk_lla_recording_consents_call_tenant')
+    end
+  end
 end

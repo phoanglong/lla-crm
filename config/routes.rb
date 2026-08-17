@@ -291,10 +291,12 @@ Rails.application.routes.draw do
                 get :token, on: :member
               end
             end
-            if ChatwootApp.enterprise?
+            if ChatwootApp.voice_calls?
               post :enable_whatsapp_calling, on: :member
               post :disable_whatsapp_calling, on: :member
               post :set_inbound_calls, on: :member
+              post :set_voice_recording, on: :member
+              post :set_whatsapp_calling_message, on: :member
             end
 
             resource :csat_template, only: [:show, :create], controller: 'inbox_csat_templates' do

@@ -34,7 +34,8 @@ RSpec.describe Api::V1::Accounts::Contacts::CallsController, type: :request do
       user: agent,
       contact: contact,
       conversation: conversation,
-      idempotency_key: 'voice-request-123'
+      idempotency_key: 'voice-request-123',
+      recording_consent: nil
     )
     expect(response.parsed_body).to include('conversation_id' => conversation.display_id, 'call_sid' => 'CA12345678')
   end

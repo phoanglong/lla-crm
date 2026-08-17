@@ -4,7 +4,6 @@ class Voice::OutboundCallBuilder
   class IdempotencyConflict < StandardError; end
   class OperationInProgress < StandardError; end
 
-  CLAIM_TTL = 2.minutes
   IDEMPOTENCY_PATTERN = /\A[A-Za-z0-9_.:-]{8,128}\z/
 
   attr_reader :account, :inbox, :user, :contact
@@ -20,6 +19,7 @@ class Voice::OutboundCallBuilder
     @contact = contact
     @existing_conversation = options[:conversation]
     @idempotency_key = options[:idempotency_key]
+    @recording_consent = options[:recording_consent]
   end
 
   def perform!
@@ -27,6 +27,9 @@ class Voice::OutboundCallBuilder
     operation, prior_call = claim_operation!
     return prior_call if prior_call
 
+    Lla::Voice::GuardrailService.new(
+      account: account, inbox: inbox, user: user, destination: contact.phone_number, operation: operation
+    ).enforce!
     provider_call_sid = initiate_call!
     operation.update!(provider_request_id_digest: digest(provider_call_sid))
     finalize_call!(operation, provider_call_sid)
@@ -80,15 +83,23 @@ class Voice::OutboundCallBuilder
     prior_call = nil
 
     operation.with_lock do
-      raise IdempotencyConflict, 'Idempotency-Key was used for another request' if operation.request_digest != request_digest
-
+      validate_request_digest!(operation)
       prior_call = operation.call if operation.state == 'succeeded' && operation.call.present?
-      raise OperationInProgress, 'Call request is already in progress' if active_claim?(operation) && prior_call.nil?
-
+      validate_claimable!(operation) unless prior_call
       claim!(operation) if prior_call.nil?
     end
 
     [operation, prior_call]
+  end
+
+  def validate_request_digest!(operation)
+    raise IdempotencyConflict, 'Idempotency-Key was used for another request' if operation.request_digest != request_digest
+  end
+
+  def validate_claimable!(operation)
+    raise OperationInProgress, 'Call request is already in progress' if operation.active_claim?
+    raise OperationInProgress, 'Call request retry is temporarily unavailable' if operation.retry_delayed?
+    raise OperationInProgress, 'Call request retry budget exhausted' if operation.retry_exhausted?
   end
 
   def create_or_find_operation!
@@ -107,7 +118,7 @@ class Voice::OutboundCallBuilder
   def claim!(operation)
     operation.update!(
       state: 'claimed',
-      claim_digest: digest(SecureRandom.uuid),
+      claim_digest: Lla::Voice::GuardrailService.user_claim_digest(user.id),
       claimed_at: Time.current,
       completed_at: nil,
       last_error_code: nil,
@@ -116,13 +127,10 @@ class Voice::OutboundCallBuilder
     @claimed_operation = true
   end
 
-  def active_claim?(operation)
-    operation.state == 'claimed' && operation.claimed_at.present? && operation.claimed_at > CLAIM_TTL.ago
-  end
-
   def request_digest
     @request_digest ||= digest([
-      account.id, inbox.id, user.id, contact.id, contact.phone_number, @existing_conversation&.id
+      account.id, inbox.id, user.id, contact.id, contact.phone_number, @existing_conversation&.id,
+      Lla::Voice::RecordingConsentService.payload_digest(@recording_consent)
     ].join(':'))
   end
 
@@ -132,6 +140,7 @@ class Voice::OutboundCallBuilder
       conversation = @existing_conversation || create_conversation!(contact_inbox)
       claim_existing_conversation!(conversation) if @existing_conversation
       call = create_call!(conversation, provider_call_sid)
+      Lla::Voice::RecordingConsentService.capture_and_attach!(call: call, user: user, attestation: @recording_consent)
       message = Voice::CallMessageBuilder.new(call).perform!
       call.update!(message_id: message.id)
       operation.update!(state: 'succeeded', call: call, completed_at: Time.current, claim_digest: nil)
@@ -199,15 +208,9 @@ class Voice::OutboundCallBuilder
                       last_error_code: error_code(error), available_at: 30.seconds.from_now)
   end
 
-  def error_code(error)
-    error.class.name.to_s.gsub(/[^A-Za-z0-9_:]/, '').first(80).presence || 'UnknownError'
-  end
+  def error_code(error) = error.class.name.to_s.gsub(/[^A-Za-z0-9_:]/, '').first(80).presence || 'UnknownError'
 
-  def channel
-    @channel ||= inbox.channel
-  end
+  def channel = @channel ||= inbox.channel
 
-  def digest(value)
-    Digest::SHA256.hexdigest(value.to_s)
-  end
+  def digest(value) = Digest::SHA256.hexdigest(value.to_s)
 end

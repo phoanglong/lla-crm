@@ -6,6 +6,7 @@ import SettingsToggleSection from 'dashboard/components-next/Settings/SettingsTo
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import VoiceRecordingPolicySection from './VoiceRecordingPolicySection.vue';
 
 export default {
   components: {
@@ -14,6 +15,7 @@ export default {
     NextInput,
     NextButton,
     Spinner,
+    VoiceRecordingPolicySection,
   },
   props: {
     inbox: {
@@ -185,6 +187,8 @@ export default {
         <woot-code :script="inbox.voice_status_webhook_url" lang="html" />
       </SettingsFieldSection>
     </div>
+
+    <VoiceRecordingPolicySection v-if="inbox.voice_enabled" :inbox="inbox" />
 
     <div>
       <NextButton

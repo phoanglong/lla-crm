@@ -682,8 +682,16 @@
         "DESCRIPTION": "Voice calling requires Twilio API Key credentials. These are used to generate tokens for agent voice connections."
       },
       "INBOUND": {
-        "LABEL": "Allow incoming calls",
-        "DESCRIPTION": "Let customers call this number. When turned off, incoming calls are declined automatically — agents aren't notified and no conversation is created. Agents can still place outgoing calls."
+        "LABEL": "Cho phép cuộc gọi đến",
+        "DESCRIPTION": "Cho phép khách hàng gọi đến số này. Khi tắt, cuộc gọi đến sẽ bị từ chối tự động; nhân viên vẫn có thể gọi đi."
+      },
+      "RECORDING": {
+        "LABEL": "Cho phép ghi âm sau khi có đồng ý",
+        "DESCRIPTION": "Ghi âm chỉ được bật khi thông báo hiện hành đã được chấp thuận cho cuộc gọi. LLA lưu bằng chứng đồng ý trong nhật ký kiểm toán.",
+        "VERSION_LABEL": "Phiên bản thông báo",
+        "VERSION_HELP_TEXT": "Mã bất biến của nội dung thông báo ghi âm đã được phê duyệt và hiển thị cho người tham gia.",
+        "SAVE_VERSION": "Lưu phiên bản thông báo",
+        "ATTESTATION_PROMPT": "Xác nhận mọi người tham gia đã được thông báo theo phiên bản {version} và đồng ý ghi âm cuộc gọi này. Chọn Hủy để tiếp tục gọi nhưng không ghi âm."
       }
     },
     "WHATSAPP_CALLING": {
@@ -692,6 +700,8 @@
         "DESCRIPTION": "Allow agents to receive and place WhatsApp Cloud calls on this inbox. Customers can call this business number directly from WhatsApp."
       },
       "ENABLE_FAILED": "Voice calling couldn't be turned on for this number — it isn't enrolled in the WhatsApp Business Calling API yet. Reach out to Meta or your WhatsApp Business Solution Provider to onboard it, then try again.",
+      "REQUEST_ACCEPTED": "Yêu cầu thay đổi WhatsApp Calling đã được tiếp nhận và đang được áp dụng an toàn.",
+      "LIFECYCLE_FAILED": "Thay đổi phía nhà cung cấp chưa hoàn tất. Chức năng gọi vẫn bị tắt; hãy thử lại hoặc nhờ quản trị viên kiểm tra tác vụ.",
       "PHONE_NUMBER": {
         "LABEL": "Business phone number",
         "HELP_TEXT": "WhatsApp number that customers will call."

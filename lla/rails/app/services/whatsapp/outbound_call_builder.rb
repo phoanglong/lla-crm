@@ -17,6 +17,7 @@ class Whatsapp::OutboundCallBuilder
     @conversation = options[:conversation]
     @sdp_offer = options[:sdp_offer]
     @idempotency_key = options[:idempotency_key]
+    @recording_consent = options[:recording_consent]
   end
 
   def perform!
@@ -24,6 +25,7 @@ class Whatsapp::OutboundCallBuilder
     operation, prior_call = claim_operation!
     return prior_call if prior_call
 
+    enforce_guardrails!(operation)
     provider_call_id = initiate_provider_call!
     operation.update!(provider_request_id_digest: digest(provider_call_id))
     finalize_call!(operation, provider_call_id)
@@ -85,8 +87,9 @@ class Whatsapp::OutboundCallBuilder
   end
 
   def validate_claimable!(operation)
-    raise OperationInProgress, 'Call request is already in progress' if active_claim?(operation)
-    raise OperationInProgress, 'Call request retry is temporarily unavailable' if retry_delayed?(operation)
+    raise OperationInProgress, 'Call request is already in progress' if operation.active_claim?
+    raise OperationInProgress, 'Call request retry is temporarily unavailable' if operation.retry_delayed?
+    raise OperationInProgress, 'Call request retry budget exhausted' if operation.retry_exhausted?
   end
 
   def create_or_find_operation!
@@ -102,21 +105,15 @@ class Whatsapp::OutboundCallBuilder
 
   def claim!(operation)
     operation.update!(state: 'claimed', claimed_at: Time.current, completed_at: nil,
-                      attempts: operation.attempts + 1, last_error_code: nil)
+                      attempts: operation.attempts + 1, last_error_code: nil,
+                      claim_digest: Lla::Voice::GuardrailService.user_claim_digest(user.id))
     @claimed_operation = true
-  end
-
-  def active_claim?(operation)
-    operation.state == 'claimed' && operation.claimed_at.present? && operation.claimed_at > 2.minutes.ago
-  end
-
-  def retry_delayed?(operation)
-    operation.state == 'failed' && operation.available_at.present? && operation.available_at > Time.current
   end
 
   def request_digest
     @request_digest ||= digest([
-      'whatsapp', account.id, inbox.id, user.id, contact.id, @conversation&.id, digest(sdp_offer)
+      'whatsapp', account.id, inbox.id, user.id, contact.id, @conversation&.id, digest(sdp_offer),
+      Lla::Voice::RecordingConsentService.payload_digest(@recording_consent)
     ].join(':'))
   end
 
@@ -129,14 +126,21 @@ class Whatsapp::OutboundCallBuilder
     provider_call_id
   end
 
+  def enforce_guardrails!(operation)
+    Lla::Voice::GuardrailService.new(
+      account: account, inbox: inbox, user: user, destination: contact.phone_number, operation: operation
+    ).enforce!
+  end
+
   def finalize_call!(operation, provider_call_id)
     ActiveRecord::Base.transaction do
       conversation = @conversation || conversation_builder.perform!
       claim_conversation!(conversation)
       call = create_call!(conversation, provider_call_id)
+      Lla::Voice::RecordingConsentService.capture_and_attach!(call: call, user: user, attestation: @recording_consent)
       message = call.message || Voice::CallMessageBuilder.new(call).perform!
       call.update!(message_id: message.id) if call.message_id != message.id
-      operation.update!(state: 'succeeded', call: call, completed_at: Time.current)
+      operation.update!(state: 'succeeded', call: call, completed_at: Time.current, claim_digest: nil)
       call
     end
   end
@@ -174,13 +178,14 @@ class Whatsapp::OutboundCallBuilder
     if provider_call_id.present?
       operation.update!(state: 'compensating', last_error_code: error.class.name.first(80))
       inbox.channel.provider_service.terminate_call(provider_call_id)
-      operation.update!(state: 'compensated', completed_at: Time.current)
+      operation.update!(state: 'compensated', completed_at: Time.current, claim_digest: nil)
     else
       operation.update!(state: 'failed', completed_at: Time.current, last_error_code: error.class.name.first(80),
-                        available_at: 30.seconds.from_now)
+                        available_at: 30.seconds.from_now, claim_digest: nil)
     end
   rescue StandardError => e
-    operation.update!(state: 'failed', completed_at: Time.current, last_error_code: e.class.name.first(80))
+    operation.update!(state: 'failed', completed_at: Time.current, last_error_code: e.class.name.first(80),
+                      claim_digest: nil)
   end
 
   def digest(value)

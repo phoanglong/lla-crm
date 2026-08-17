@@ -76,8 +76,9 @@ class Whatsapp::CallPermissionReplyService
       event: 'voice_call.permission_granted',
       data: {
         account_id: inbox.account_id,
+        inbox_id: inbox.id,
         conversation_id: conversation.id,
-        contact_name: conversation.contact.name
+        contact_id: conversation.contact_id
       }
     }
     permission_streams(conversation).each { |stream| ActionCable.server.broadcast(stream, payload) }

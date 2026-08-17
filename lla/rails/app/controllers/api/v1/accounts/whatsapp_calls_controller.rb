@@ -49,7 +49,8 @@ class Api::V1::Accounts::WhatsappCallsController < Api::V1::Accounts::BaseContro
   private
 
   def call_service
-    @call_service ||= Whatsapp::CallService.new(call: @call, agent: Current.user, sdp_answer: params[:sdp_answer])
+    @call_service ||= Whatsapp::CallService.new(call: @call, agent: Current.user, sdp_answer: params[:sdp_answer],
+                                                recording_consent: params[:recording_consent])
   end
 
   def provider_service
@@ -133,7 +134,8 @@ class Api::V1::Accounts::WhatsappCallsController < Api::V1::Accounts::BaseContro
       conversation: @conversation,
       conversation_builder: conversation_builder,
       sdp_offer: params[:sdp_offer],
-      idempotency_key: request.headers['Idempotency-Key']
+      idempotency_key: request.headers['Idempotency-Key'],
+      recording_consent: params[:recording_consent]
     )
   end
 

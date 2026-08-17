@@ -1,6 +1,10 @@
 /* global axios */
 import CacheEnabledApiClient from './CacheEnabledApiClient';
 
+const lifecycleIdempotencyKey = action =>
+  window.crypto?.randomUUID?.() ||
+  `voice-${action}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 class Inboxes extends CacheEnabledApiClient {
   constructor() {
     super('inboxes', { accountScoped: true });
@@ -53,17 +57,48 @@ class Inboxes extends CacheEnabledApiClient {
     return axios.post(`${this.url}/${inboxId}/reset_secret`);
   }
 
-  enableWhatsappCalling(inboxId) {
-    return axios.post(`${this.url}/${inboxId}/enable_whatsapp_calling`);
+  enableWhatsappCalling(inboxId, idempotencyKey = null) {
+    return axios.post(
+      `${this.url}/${inboxId}/enable_whatsapp_calling`,
+      {},
+      {
+        headers: {
+          'Idempotency-Key':
+            idempotencyKey || lifecycleIdempotencyKey('enable'),
+        },
+      }
+    );
   }
 
-  disableWhatsappCalling(inboxId) {
-    return axios.post(`${this.url}/${inboxId}/disable_whatsapp_calling`);
+  disableWhatsappCalling(inboxId, idempotencyKey = null) {
+    return axios.post(
+      `${this.url}/${inboxId}/disable_whatsapp_calling`,
+      {},
+      {
+        headers: {
+          'Idempotency-Key':
+            idempotencyKey || lifecycleIdempotencyKey('disable'),
+        },
+      }
+    );
   }
 
   setInboundCalls(inboxId, enabled) {
     return axios.post(`${this.url}/${inboxId}/set_inbound_calls`, {
       inbound_calls_enabled: enabled,
+    });
+  }
+
+  setVoiceRecording(inboxId, enabled, disclosureVersion = null) {
+    return axios.post(`${this.url}/${inboxId}/set_voice_recording`, {
+      voice_recording_enabled: enabled,
+      disclosure_version: disclosureVersion,
+    });
+  }
+
+  setWhatsappCallingMessage(inboxId, body) {
+    return axios.post(`${this.url}/${inboxId}/set_whatsapp_calling_message`, {
+      call_permission_request_body: body,
     });
   }
 }

@@ -53,6 +53,40 @@ describe Whatsapp::CallService do
       expect(conversation.reload.assignee_id).to eq(agent.id)
     end
 
+    it 'notifies every eligible inbox agent after one agent wins the incoming call' do
+      other_agent = create(:user, account: account)
+      create(:inbox_member, inbox: inbox, user: other_agent)
+
+      described_class.new(call: call, agent: agent, sdp_answer: sdp_answer).accept
+
+      expect(ActionCable.server).to have_received(:broadcast).with(
+        other_agent.pubsub_token, hash_including(event: 'voice_call.accepted')
+      )
+      expect(ActionCable.server).not_to have_received(:broadcast).with(
+        "account_#{account.id}", hash_including(event: 'voice_call.accepted')
+      )
+    end
+
+    it 'captures approved recording evidence before authorizing the browser recorder' do
+      channel.update!(provider_config: channel.provider_config.merge(
+        'voice_recording_enabled' => true,
+        'voice_recording_disclosure_version' => 'lla-voice-v1'
+      ))
+      attestation = {
+        accepted: true,
+        attestation_id: 'incoming-recording-consent-1',
+        attested_at: Time.current.iso8601,
+        disclosure_version: 'lla-voice-v1',
+        method: 'agent_attestation'
+      }
+
+      described_class.new(call: call, agent: agent, sdp_answer: sdp_answer,
+                          recording_consent: attestation).accept
+
+      expect(call.reload.lla_recording_consent).to be_present
+      expect(call.meta['recording_consent_id']).to eq(call.lla_recording_consent.id)
+    end
+
     it 'raises AlreadyAccepted when another agent has already accepted the call' do
       call.update!(status: 'in_progress')
 

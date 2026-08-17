@@ -95,4 +95,23 @@ RSpec.describe Whatsapp::OutboundCallBuilder do
     expect(provider_service).to have_received(:initiate_call).once
     expect(Lla::Voice::CallOperation.last.state).to eq('failed')
   end
+
+  it 'returns recording authorization only after immutable consent is attached' do
+    channel.update!(provider_config: channel.provider_config.merge(
+      'voice_recording_enabled' => true,
+      'voice_recording_disclosure_version' => 'lla-voice-v1'
+    ))
+    attestation = {
+      accepted: true,
+      attestation_id: 'whatsapp-recording-consent-1',
+      attested_at: Time.current.iso8601,
+      disclosure_version: 'lla-voice-v1',
+      method: 'agent_attestation'
+    }
+
+    call = perform_call(recording_consent: attestation)
+
+    expect(call.lla_recording_consent).to be_present
+    expect(call.meta['recording_consent_id']).to eq(call.lla_recording_consent.id)
+  end
 end
