@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -216,6 +216,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
     t.string "locale", default: "en", null: false
     t.string "draft_title"
     t.text "draft_content"
+    t.index ["account_id", "portal_id", "id"], name: "idx_lla_articles_tenant_identity", unique: true
     t.index ["account_id"], name: "index_articles_on_account_id"
     t.index ["associated_article_id"], name: "index_articles_on_associated_article_id"
     t.index ["author_id"], name: "index_articles_on_author_id"
@@ -532,6 +533,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
     t.bigint "associated_category_id"
     t.string "icon", default: ""
     t.string "icon_color", default: ""
+    t.index ["account_id", "portal_id", "id"], name: "idx_lla_categories_tenant_identity", unique: true
     t.index ["associated_category_id"], name: "index_categories_on_associated_category_id"
     t.index ["locale", "account_id"], name: "index_categories_on_locale_and_account_id"
     t.index ["locale"], name: "index_categories_on_locale"
@@ -1282,6 +1284,90 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
     t.check_constraint "units > 0 AND attempts > 0", name: "lla_quota_reservations_positive_values"
   end
 
+  create_table "lla_knowledge_generation_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.bigint "generation_operation_id", null: false
+    t.bigint "category_id"
+    t.bigint "article_id"
+    t.integer "ordinal", null: false
+    t.string "state", limit: 24, default: "pending", null: false
+    t.string "item_key_digest", limit: 64, null: false
+    t.string "source_digest", limit: 64, null: false
+    t.string "claim_digest", limit: 64
+    t.string "last_error_code", limit: 80
+    t.integer "attempts", default: 0, null: false
+    t.datetime "claimed_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["generation_operation_id", "item_key_digest"], name: "idx_lla_knowledge_items_idempotency", unique: true
+    t.index ["generation_operation_id", "ordinal"], name: "idx_lla_knowledge_items_ordinal", unique: true
+    t.index ["state", "updated_at"], name: "idx_lla_knowledge_items_state"
+    t.check_constraint "char_length(item_key_digest::text) = 64 AND char_length(source_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_items_digests"
+    t.check_constraint "ordinal >= 0 AND attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_items_bounds"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_items_state"
+  end
+
+  create_table "lla_knowledge_generation_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.bigint "user_id", null: false
+    t.string "operation_type", limit: 32, default: "onboarding", null: false
+    t.string "state", limit: 32, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "request_digest", limit: 64, null: false
+    t.string "consent_digest", limit: 64
+    t.string "claim_digest", limit: 64
+    t.integer "version", default: 1, null: false
+    t.integer "expected_items", default: 0, null: false
+    t.integer "finished_items", default: 0, null: false
+    t.integer "failed_items", default: 0, null: false
+    t.integer "max_items", default: 25, null: false
+    t.integer "max_source_urls", default: 75, null: false
+    t.integer "max_attempts", default: 3, null: false
+    t.string "last_error_code", limit: 80
+    t.datetime "claimed_at"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "cancelled_at"
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "portal_id", "id"], name: "idx_lla_knowledge_operations_tenant_identity", unique: true
+    t.index ["account_id", "portal_id", "idempotency_digest"], name: "idx_lla_knowledge_operations_idempotency", unique: true
+    t.index ["expires_at"], name: "idx_lla_knowledge_operations_expiry"
+    t.index ["state", "created_at"], name: "idx_lla_knowledge_operations_state"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (consent_digest IS NULL OR char_length(consent_digest::text) = 64) AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_operations_digests"
+    t.check_constraint "operation_type::text = ANY (ARRAY['onboarding'::character varying, 'translation'::character varying, 'reindex'::character varying]::text[])", name: "chk_lla_knowledge_operations_type"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'planning'::character varying, 'dispatching'::character varying, 'running'::character varying, 'completed'::character varying, 'completed_with_errors'::character varying, 'skipped'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_operations_state"
+    t.check_constraint "version > 0 AND expected_items >= 0 AND expected_items <= max_items AND finished_items >= 0 AND finished_items <= expected_items AND failed_items >= 0 AND failed_items <= finished_items AND max_items >= 1 AND max_items <= 25 AND max_source_urls >= 1 AND max_source_urls <= 75 AND max_attempts >= 1 AND max_attempts <= 5", name: "chk_lla_knowledge_operations_bounds"
+  end
+
+  create_table "lla_knowledge_generation_outboxes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.bigint "generation_operation_id", null: false
+    t.string "event_type", limit: 48, null: false
+    t.string "state", limit: 16, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "payload_digest", limit: 64, null: false
+    t.text "payload_ciphertext"
+    t.string "claim_digest", limit: 64
+    t.string "last_error_code", limit: 80
+    t.integer "attempts", default: 0, null: false
+    t.datetime "available_at", null: false
+    t.datetime "claimed_at"
+    t.datetime "delivered_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["generation_operation_id", "idempotency_digest"], name: "idx_lla_knowledge_outboxes_idempotency", unique: true
+    t.index ["state", "available_at"], name: "idx_lla_knowledge_outboxes_ready"
+    t.check_constraint "attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_outboxes_attempts"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(payload_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_outboxes_digests"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'delivered'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_outboxes_state"
+  end
+
   create_table "lla_voice_recording_consents", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "inbox_id", null: false
@@ -1460,6 +1546,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
     t.boolean "archived", default: false
     t.bigint "channel_web_widget_id"
     t.jsonb "ssl_settings", default: {}, null: false
+    t.index ["account_id", "id"], name: "idx_lla_portals_tenant_identity", unique: true
     t.index ["channel_web_widget_id"], name: "index_portals_on_channel_web_widget_id"
     t.index ["custom_domain"], name: "index_portals_on_custom_domain", unique: true
     t.index ["slug"], name: "index_portals_on_slug", unique: true
@@ -1725,6 +1812,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_130000) do
   add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_items", "articles", name: "fk_lla_knowledge_items_article", on_delete: :nullify
+  add_foreign_key "lla_knowledge_generation_items", "categories", name: "fk_lla_knowledge_items_category", on_delete: :nullify
+  add_foreign_key "lla_knowledge_generation_items", "lla_knowledge_generation_operations", column: ["account_id", "portal_id", "generation_operation_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_knowledge_items_operation_tenant", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_operations", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_knowledge_operations_membership", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_operations", "accounts", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_operations", "portals", column: ["account_id", "portal_id"], primary_key: ["account_id", "id"], name: "fk_lla_knowledge_operations_portal_tenant", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_outboxes", "lla_knowledge_generation_operations", column: ["account_id", "portal_id", "generation_operation_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_knowledge_outboxes_operation_tenant", on_delete: :cascade
   add_foreign_key "lla_voice_recording_consents", "accounts", on_delete: :cascade
   add_foreign_key "lla_voice_recording_consents", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_call_tenant", on_delete: :cascade
   add_foreign_key "lla_voice_recording_consents", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_inbox_tenant", on_delete: :cascade

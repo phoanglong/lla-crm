@@ -8,8 +8,9 @@ class Captain::Tools::SimplePageCrawlService
   MAX_REDIRECTS = 3
   MAX_RESPONSE_BYTES = 2.megabytes
   MAX_DISCOVERED_LINKS = 100
+  ALLOWED_CONTENT_TYPES = %w[text/html application/xhtml+xml application/xml text/xml].freeze
 
-  Response = Struct.new(:code, :body, :final_uri, :location, keyword_init: true)
+  Response = Struct.new(:code, :body, :final_uri, :location, :content_type, keyword_init: true)
 
   def initialize(url)
     @url = url
@@ -79,7 +80,11 @@ class Captain::Tools::SimplePageCrawlService
   def request_once(validated)
     result = nil
     build_http(validated).start do |client|
-      request = Net::HTTP::Get.new(validated.uri, 'User-Agent' => 'LLA-CaptainCrawler/1.0')
+      request = Net::HTTP::Get.new(
+        validated.uri,
+        'User-Agent' => 'LLA-CaptainCrawler/1.0',
+        'Accept' => ALLOWED_CONTENT_TYPES.join(', ')
+      )
       client.request(request) { |net_response| result = buffered_response(net_response, validated.uri) }
     end
     result
@@ -96,12 +101,22 @@ class Captain::Tools::SimplePageCrawlService
   end
 
   def buffered_response(net_response, uri)
+    content_type = net_response['content-type'].to_s.split(';').first.to_s.downcase
+    validate_content_type!(content_type) if net_response.is_a?(Net::HTTPSuccess)
+
     body = +''
     net_response.read_body do |chunk|
       body << chunk
       raise 'Response body is too large' if body.bytesize > MAX_RESPONSE_BYTES
     end
-    Response.new(code: net_response.code, body: body, final_uri: uri, location: net_response['location'])
+    Response.new(code: net_response.code, body: body, final_uri: uri,
+                 location: net_response['location'], content_type: content_type)
+  end
+
+  def validate_content_type!(content_type)
+    return if content_type.in?(ALLOWED_CONTENT_TYPES)
+
+    raise SafeFetch::UnsupportedContentTypeError, 'website response content type is not allowed'
   end
 
   def redirect_response?(result)
@@ -109,7 +124,11 @@ class Captain::Tools::SimplePageCrawlService
   end
 
   def html_document
-    @html_document ||= Nokogiri::HTML(response.body)
+    @html_document ||= if response.content_type.in?(%w[application/xml text/xml]) || sitemap?
+                         Nokogiri::XML(response.body) { |config| config.strict.nonet }
+                       else
+                         Nokogiri::HTML(response.body, &:nonet)
+                       end
   end
 
   def sitemap?
@@ -117,7 +136,7 @@ class Captain::Tools::SimplePageCrawlService
   end
 
   def sitemap_links
-    Nokogiri::XML(response.body).remove_namespaces!.xpath('//loc').filter_map { |node| absolutize(node.text.strip) }
+    html_document.remove_namespaces!.xpath('//loc').filter_map { |node| absolutize(node.text.strip) }
   end
 
   def absolutize(href)
