@@ -34,6 +34,12 @@ class PortalPolicy < ApplicationPolicy
   def ssl_status?
     @account.users.include?(@user)
   end
+
+  # Custom-domain lifecycle actions change DNS/TLS-facing tenant state, so they stay
+  # administrator-only even where a content permission grants `update?`.
+  def custom_domain_reverify?
+    @account_user.administrator?
+  end
 end
 
 PortalPolicy.prepend_mod_with('PortalPolicy')

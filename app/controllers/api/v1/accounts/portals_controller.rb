@@ -20,13 +20,16 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
     process_attached_logo if params[:blob_id].present?
   end
 
+  # The rescue is deliberately outside the transaction block: rescuing inside it
+  # swallows the exception before Rails can roll back, so a rejected update would be
+  # rendered as a 422 and still be committed.
   def update
     ActiveRecord::Base.transaction do
       @portal.update!(portal_params.merge(live_chat_widget_params)) if params[:portal].present?
       process_attached_logo if params[:blob_id].present?
-    rescue ActiveRecord::RecordInvalid => e
-      render_record_invalid(e)
     end
+  rescue ActiveRecord::RecordInvalid => e
+    render_record_invalid(e)
   end
 
   def destroy

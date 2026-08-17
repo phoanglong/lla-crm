@@ -422,6 +422,7 @@ Rails.application.routes.draw do
               delete :logo
               post :send_instructions
               get :ssl_status
+              post :custom_domain_reverify
             end
             resources :categories do
               post :reorder, on: :collection
