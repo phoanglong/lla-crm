@@ -75,15 +75,13 @@ RSpec.describe 'Enterprise Portal API', type: :request do
     end
 
     context 'when it is an authenticated user' do
-      it 'returns success for agents with knowledge_base_manage permission' do
+      it 'rejects portal updates for agents with knowledge_base_manage permission' do
         put "/api/v1/accounts/#{account.id}/portals/#{portal.slug}",
             params: portal_params,
             headers: agent_with_role.create_new_auth_token,
             as: :json
 
-        expect(response).to have_http_status(:success)
-        json_response = response.parsed_body
-        expect(json_response['name']).to eq('updated_portal')
+        expect(response).to have_http_status(:unauthorized)
       end
     end
   end
