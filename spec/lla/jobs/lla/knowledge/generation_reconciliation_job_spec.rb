@@ -53,6 +53,22 @@ RSpec.describe Lla::Knowledge::GenerationReconciliationJob do
     expect(operation.reload).to have_attributes(state: 'completed_with_errors', finished_items: 1, failed_items: 1)
   end
 
+  it 'recovers a translation claim using its own outbox and redacted error family' do
+    item = operation.items.sole
+    outbox = operation.outboxes.sole
+    operation.update!(operation_type: 'translation')
+    item.update!(item_type: 'translation')
+    outbox.update!(event_type: 'translate_article', payload: { generation_item_id: item.id })
+    Lla::Knowledge::GenerationStateService.new(operation).claim_item!(item.id, token: 'abandoned-translation')
+    item.update_columns(claimed_at: 1.hour.ago) # rubocop:disable Rails/SkipsModelValidations
+    outbox.update_columns(state: 'delivered', attempts: 1, delivered_at: 1.hour.ago) # rubocop:disable Rails/SkipsModelValidations
+
+    described_class.perform_now
+
+    expect(item.reload).to have_attributes(state: 'pending', claim_digest: nil, last_error_code: 'stale_translation_claim')
+    expect(outbox.reload).to have_attributes(state: 'pending', claim_digest: nil)
+  end
+
   it 'repairs a stale dispatcher claim without leaking or replacing its payload' do
     outbox = operation.outboxes.sole
     original_digest = outbox.payload_digest
@@ -86,7 +102,7 @@ RSpec.describe Lla::Knowledge::GenerationReconciliationJob do
 
     expect(operation.reload).to have_attributes(
       state: 'failed', expected_items: 1, finished_items: 0,
-      failed_items: 0, last_error_code: 'writer_item_count_mismatch'
+      failed_items: 0, last_error_code: 'knowledge_item_count_mismatch'
     )
   end
 end

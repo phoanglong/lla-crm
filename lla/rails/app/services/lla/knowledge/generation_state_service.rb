@@ -3,6 +3,8 @@
 class Lla::Knowledge::GenerationStateService # rubocop:disable Metrics/ClassLength
   class InvalidPlan < StandardError; end
   class InvalidClaim < StandardError; end
+  class TranslationConflict < StandardError; end
+  class StaleSource < StandardError; end
 
   TERMINAL_ITEM_STATES = %w[succeeded failed cancelled].freeze
   TERMINAL_OPERATION_STATES = Lla::Knowledge::GenerationOperation::TERMINAL_STATES
@@ -68,6 +70,51 @@ class Lla::Knowledge::GenerationStateService # rubocop:disable Metrics/ClassLeng
     end
   end
 
+  def complete_reindex_item!(item_id, token:)
+    operation.transaction do
+      operation.lock!
+      item = operation.items.lock.find(item_id)
+      next if item.state == 'succeeded'
+
+      verify_claim!(item, token)
+      raise InvalidClaim, 'item is not a reindex item' unless item.item_type == 'reindex'
+
+      item.update!(state: 'succeeded', article: nil, output_article: nil,
+                   claim_digest: nil, completed_at: Time.current)
+      advance_operation!(failed: false)
+    end
+  end
+
+  # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
+  def complete_translation_item!(item_id, token:, source_article_id:, target_locale:, target_category_id:,
+                                 force:, article_attributes:)
+    operation.transaction do
+      operation.lock!
+      item = operation.items.lock.find(item_id)
+      next item.output_article if item.state == 'succeeded'
+
+      verify_claim!(item, token)
+      raise InvalidClaim, 'item is not a translation item' unless item.item_type == 'translation'
+
+      source = operation.portal.articles.lock.find(source_article_id)
+      raise StaleSource unless Lla::Knowledge::ArticleSearchDocument.digest(source) == item.source_digest
+
+      root_id = Article.find_root_article_id(source)
+      operation.portal.articles.lock.find(root_id)
+      category = translation_category(target_category_id, target_locale)
+      translation = persist_translation!(
+        source,
+        root_id: root_id, locale: target_locale, category: category,
+        force: ActiveModel::Type::Boolean.new.cast(force), attributes: article_attributes
+      )
+      item.update!(state: 'succeeded', output_article: translation, article: nil,
+                   claim_digest: nil, completed_at: Time.current)
+      advance_operation!(failed: false)
+      translation
+    end
+  end
+  # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
+
   def release_item!(item_id, token:, error_code:)
     operation.transaction do
       item = operation.items.lock.find(item_id)
@@ -122,6 +169,40 @@ class Lla::Knowledge::GenerationStateService # rubocop:disable Metrics/ClassLeng
   private
 
   attr_reader :operation
+
+  def translation_category(category_id, locale)
+    return if category_id.blank?
+
+    operation.portal.categories.find_by!(id: category_id, locale: locale)
+  end
+
+  def persist_translation!(source, params) # rubocop:disable Metrics/AbcSize
+    existing = operation.portal.articles.lock.find_by(
+      associated_article_id: params.fetch(:root_id), locale: params.fetch(:locale)
+    )
+    raise TranslationConflict, 'translation already exists' if existing && !params.fetch(:force)
+
+    values = params.fetch(:attributes).merge(
+      category_id: params[:category]&.id,
+      locale: params.fetch(:locale),
+      author_id: operation.user_id,
+      status: :draft,
+      associated_article_id: params.fetch(:root_id),
+      meta: translation_metadata(existing&.meta, source)
+    )
+    existing ? existing.tap { |article| article.update!(values) } : operation.portal.articles.create!(values)
+  end # rubocop:enable Metrics/AbcSize
+
+  def translation_metadata(existing_meta, source)
+    (existing_meta || {}).merge(
+      'lla_translation' => {
+        'operation_id' => operation.id,
+        'source_article_id' => source.id,
+        'source_digest' => Lla::Knowledge::ArticleSearchDocument.digest(source),
+        'translated_at' => Time.current.utc.iso8601
+      }
+    )
+  end
 
   def normalize_plan(plan)
     data = plan.is_a?(Hash) ? plan.deep_symbolize_keys : {}
@@ -216,7 +297,7 @@ class Lla::Knowledge::GenerationStateService # rubocop:disable Metrics/ClassLeng
   end
 
   def finish_failed_item!(item, error_code)
-    item.update!(state: 'failed', article: nil, claim_digest: nil, completed_at: Time.current,
+    item.update!(state: 'failed', article: nil, output_article: nil, claim_digest: nil, completed_at: Time.current,
                  last_error_code: normalized_error_code(error_code))
     advance_operation!(failed: true)
   end

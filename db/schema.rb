@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -193,7 +193,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
     t.vector "embedding", limit: 1536
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["embedding"], name: "index_article_embeddings_on_embedding", using: :ivfflat
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.string "model", limit: 100, null: false
+    t.integer "dimensions", null: false
+    t.string "content_digest", limit: 64, null: false
+    t.string "term_digest", limit: 64, null: false
+    t.integer "index_version", null: false
+    t.boolean "active", default: false, null: false
+    t.index ["account_id", "portal_id", "active", "model"], name: "idx_lla_article_embeddings_active_scope"
+    t.index ["article_id", "active", "index_version"], name: "idx_lla_article_embeddings_article_active"
+    t.index ["article_id", "model", "index_version", "term_digest"], name: "idx_lla_article_embeddings_version_term", unique: true
+    t.index ["embedding"], name: "idx_lla_article_embeddings_cosine", opclass: :vector_cosine_ops, using: :ivfflat
+    t.check_constraint "char_length(content_digest::text) = 64 AND char_length(term_digest::text) = 64", name: "chk_lla_article_embeddings_digests"
+    t.check_constraint "dimensions = 1536 AND index_version >= 1 AND embedding IS NOT NULL AND vector_dims(embedding) = dimensions", name: "chk_lla_article_embeddings_profile"
   end
 
   create_table "articles", force: :cascade do |t|
@@ -216,14 +229,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
     t.string "locale", default: "en", null: false
     t.string "draft_title"
     t.text "draft_content"
+    t.string "lla_search_content_digest", limit: 64, null: false
+    t.integer "lla_search_version", default: 1, null: false
+    t.integer "lla_search_active_version", default: 0, null: false
+    t.string "lla_search_embedding_model", limit: 100
+    t.integer "lla_search_embedding_dimensions"
     t.index ["account_id", "portal_id", "id"], name: "idx_lla_articles_tenant_identity", unique: true
     t.index ["account_id"], name: "index_articles_on_account_id"
     t.index ["associated_article_id"], name: "index_articles_on_associated_article_id"
     t.index ["author_id"], name: "index_articles_on_author_id"
+    t.index ["portal_id", "associated_article_id", "locale"], name: "idx_lla_articles_unique_translation", unique: true, where: "(associated_article_id IS NOT NULL)"
     t.index ["portal_id"], name: "index_articles_on_portal_id"
     t.index ["slug"], name: "index_articles_on_slug", unique: true
     t.index ["status"], name: "index_articles_on_status"
     t.index ["views"], name: "index_articles_on_views"
+    t.check_constraint "char_length(lla_search_content_digest::text) = 64", name: "chk_lla_articles_search_digest"
+    t.check_constraint "lla_search_embedding_dimensions IS NULL AND lla_search_embedding_model IS NULL OR lla_search_embedding_dimensions = 1536 AND char_length(lla_search_embedding_model::text) >= 3 AND char_length(lla_search_embedding_model::text) <= 100", name: "chk_lla_articles_search_profile"
+    t.check_constraint "lla_search_version >= 1 AND lla_search_active_version >= 0 AND lla_search_active_version <= lla_search_version", name: "chk_lla_articles_search_versions"
   end
 
   create_table "assignment_policies", force: :cascade do |t|
@@ -1301,15 +1323,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "item_type", limit: 32, default: "article_generation", null: false
+    t.bigint "output_article_id"
     t.index ["article_id"], name: "idx_lla_knowledge_items_article_result", unique: true, where: "(article_id IS NOT NULL)"
     t.index ["generation_operation_id", "item_key_digest"], name: "idx_lla_knowledge_items_idempotency", unique: true
     t.index ["generation_operation_id", "ordinal"], name: "idx_lla_knowledge_items_ordinal", unique: true
     t.index ["generation_operation_id", "state"], name: "idx_lla_knowledge_items_operation_state"
+    t.index ["output_article_id"], name: "idx_lla_knowledge_items_output_article"
     t.index ["state", "claimed_at"], name: "idx_lla_knowledge_items_stale_claims"
     t.index ["state", "updated_at"], name: "idx_lla_knowledge_items_state"
     t.check_constraint "char_length(item_key_digest::text) = 64 AND char_length(source_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_items_digests"
+    t.check_constraint "item_type::text = ANY (ARRAY['article_generation'::character varying, 'translation'::character varying, 'reindex'::character varying]::text[])", name: "chk_lla_knowledge_items_type"
     t.check_constraint "ordinal >= 0 AND attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_items_bounds"
-    t.check_constraint "state::text = 'succeeded'::text AND article_id IS NOT NULL OR state::text <> 'succeeded'::text AND article_id IS NULL", name: "chk_lla_knowledge_items_result_state"
+    t.check_constraint "state::text = 'succeeded'::text AND (item_type::text = 'article_generation'::text AND article_id IS NOT NULL AND output_article_id IS NULL OR item_type::text = 'translation'::text AND article_id IS NULL AND output_article_id IS NOT NULL OR item_type::text = 'reindex'::text AND article_id IS NULL AND output_article_id IS NULL) OR state::text <> 'succeeded'::text AND article_id IS NULL AND output_article_id IS NULL", name: "chk_lla_knowledge_items_result_state"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_items_state"
   end
 
@@ -1795,6 +1821,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
   add_foreign_key "agent_sessions", "accounts", name: "fk_lla_agent_sessions_account"
   add_foreign_key "agent_sessions", "captain_assistants", column: "assistant_id", name: "fk_lla_agent_sessions_assistant"
   add_foreign_key "agent_sessions", "users", name: "fk_lla_agent_sessions_user"
+  add_foreign_key "article_embeddings", "articles", column: ["account_id", "portal_id", "article_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_article_embeddings_article_tenant", on_delete: :cascade
   add_foreign_key "calls", "accounts", name: "fk_lla_calls_account", on_delete: :cascade
   add_foreign_key "calls", "contacts", column: ["account_id", "contact_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_contact_tenant", on_delete: :cascade
   add_foreign_key "calls", "conversations", column: ["account_id", "conversation_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_conversation_tenant", on_delete: :cascade
@@ -1825,6 +1852,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
   add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_items", "articles", column: "output_article_id", name: "fk_lla_knowledge_items_output_article", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "articles", name: "fk_lla_knowledge_items_article", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "categories", name: "fk_lla_knowledge_items_category", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "lla_knowledge_generation_operations", column: ["account_id", "portal_id", "generation_operation_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_knowledge_items_operation_tenant", on_delete: :cascade

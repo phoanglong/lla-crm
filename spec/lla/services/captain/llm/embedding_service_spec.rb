@@ -11,9 +11,9 @@ RSpec.describe Captain::Llm::EmbeddingService, type: :service do
 
   describe '.embedding_model' do
     it 'uses the installation embedding model when configured' do
-      configure_embedding_model('custom-embedding-model')
+      configure_embedding_model('text-embedding-ada-002')
 
-      expect(described_class.embedding_model).to eq('custom-embedding-model')
+      expect(described_class.embedding_model).to eq('text-embedding-ada-002')
     end
 
     it 'falls back to the default embedding model when the installation value is blank' do
@@ -25,14 +25,40 @@ RSpec.describe Captain::Llm::EmbeddingService, type: :service do
 
   describe '#get_embedding' do
     let(:account) { create(:account) }
-    let(:embedding_response) { double('embedding_response', vectors: [0.1, 0.2]) } # rubocop:disable RSpec/VerifiedDoubles
+    let(:vector) { Array.new(1536, 0.1) }
+    let(:embedding_response) { double('embedding_response', vectors: vector) } # rubocop:disable RSpec/VerifiedDoubles
 
-    it 'sends the installation embedding model to RubyLLM' do
+    it 'sends a registered installation embedding model to RubyLLM' do
+      configure_embedding_model('text-embedding-ada-002')
+
+      expect(RubyLLM).to receive(:embed).with('search text', model: 'text-embedding-ada-002').and_return(embedding_response)
+
+      expect(described_class.new(account_id: account.id).get_embedding('search text')).to eq(vector)
+    end
+
+    it 'rejects an unregistered model before calling the provider' do
       configure_embedding_model('custom-embedding-model')
 
-      expect(RubyLLM).to receive(:embed).with('search text', model: 'custom-embedding-model').and_return(embedding_response)
+      expect(RubyLLM).not_to receive(:embed)
+      expect { described_class.new(account_id: account.id).get_embedding('search text') }
+        .to raise_error(described_class::UnsupportedModel, 'embedding model is not registered')
+    end
 
-      expect(described_class.new(account_id: account.id).get_embedding('search text')).to eq([0.1, 0.2])
+    it 'rejects a provider vector with the wrong dimensions' do
+      allow(RubyLLM).to receive(:embed).and_return(Struct.new(:vectors).new([0.1, 0.2]))
+
+      expect { described_class.new(account_id: account.id).get_embedding('search text') }
+        .to raise_error(described_class::InvalidEmbedding, 'embedding dimension does not match profile')
+    end
+
+    it 'rejects non-finite values and oversized input' do
+      invalid_vector = vector.tap { |values| values[4] = Float::INFINITY }
+      allow(RubyLLM).to receive(:embed).and_return(Struct.new(:vectors).new(invalid_vector))
+
+      expect { described_class.new(account_id: account.id).get_embedding('search text') }
+        .to raise_error(described_class::InvalidEmbedding, 'embedding contains a non-finite value')
+      expect { described_class.new(account_id: account.id).get_embedding('x' * 32_001) }
+        .to raise_error(described_class::InvalidEmbedding, 'embedding input is invalid')
     end
   end
 end

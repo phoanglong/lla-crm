@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob
+class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob # rubocop:disable Metrics/ClassLength
   queue_as :low
 
   BATCH_SIZE = 100
@@ -64,7 +64,9 @@ class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob
 
   def recover_items
     ids = Lla::Knowledge::GenerationItem.joins(:operation)
-                                        .where(lla_knowledge_generation_operations: { operation_type: 'onboarding' })
+                                        .where(lla_knowledge_generation_operations: {
+                                                 operation_type: %w[onboarding translation reindex]
+                                               })
                                         .where(state: %w[pending claimed])
                                         .where(
                                           'lla_knowledge_generation_items.claimed_at IS NULL OR ' \
@@ -87,32 +89,48 @@ class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob
       if item.state == 'claimed' && item.claimed_at&.before?(CLAIM_TIMEOUT.ago)
         if item.attempts >= item.operation.max_attempts
           Lla::Knowledge::GenerationStateService.new(item.operation).fail_item!(
-            item.id, error_code: 'writer_retry_exhausted'
+            item.id, error_code: "#{item_error_prefix(item)}_retry_exhausted"
           )
           next
         end
         item.update!(state: 'pending', claim_digest: nil, claimed_at: nil,
-                     last_error_code: 'stale_writer_claim')
+                     last_error_code: "stale_#{item_error_prefix(item)}_claim")
       end
       recover_item_outbox(item)
     end
   end # rubocop:enable Metrics/CyclomaticComplexity
 
   def recover_item_outbox(item)
-    outbox = writer_outbox(item)
-    return fail_unrecoverable_item(item, 'writer_outbox_missing') if outbox.blank?
-    return fail_unrecoverable_item(item, 'writer_dispatch_exhausted') if outbox.attempts >= item.operation.max_attempts
+    outbox = item_outbox(item)
+    return fail_unrecoverable_item(item, "#{item_error_prefix(item)}_outbox_missing") if outbox.blank?
+    return fail_unrecoverable_item(item, "#{item_error_prefix(item)}_dispatch_exhausted") if outbox.attempts >= item.operation.max_attempts
     return unless delivery_lost?(outbox)
 
     requeue_outbox(outbox)
   end
 
-  def writer_outbox(item)
-    item.operation.outboxes.where(event_type: 'write_article').find do |outbox|
+  def item_outbox(item)
+    item.operation.outboxes.where(event_type: item_event_type(item)).find do |outbox|
       outbox.payload[:generation_item_id].to_i == item.id
     rescue Lla::Knowledge::PayloadCipher::InvalidPayload
       false
     end
+  end
+
+  def item_event_type(item)
+    {
+      'article_generation' => 'write_article',
+      'translation' => 'translate_article',
+      'reindex' => 'rebuild_index'
+    }.fetch(item.item_type)
+  end
+
+  def item_error_prefix(item)
+    {
+      'article_generation' => 'writer',
+      'translation' => 'translation',
+      'reindex' => 'embedding'
+    }.fetch(item.item_type)
   end
 
   def requeue_outbox(outbox)
@@ -136,7 +154,7 @@ class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob
 
   def settle_operations
     ids = Lla::Knowledge::GenerationOperation.where(
-      operation_type: 'onboarding', state: %w[dispatching running]
+      operation_type: %w[onboarding translation reindex], state: %w[dispatching running]
     )
                                              .order(:updated_at, :id).limit(BATCH_SIZE).pluck(:id)
     ids.each { |id| settle_operation(id) }
@@ -169,7 +187,7 @@ class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob
   def mark_item_count_mismatch(operation, counts)
     operation.update!(
       state: 'failed', finished_items: finished_item_count(counts), failed_items: counts.fetch('failed', 0),
-      last_error_code: 'writer_item_count_mismatch', claim_digest: nil,
+      last_error_code: 'knowledge_item_count_mismatch', claim_digest: nil,
       claimed_at: nil, completed_at: Time.current
     )
   end
@@ -202,4 +220,4 @@ class Lla::Knowledge::GenerationReconciliationJob < ApplicationJob
 
     Lla::Knowledge::GenerationOutboxDispatchJob.perform_later
   end
-end
+end # rubocop:enable Metrics/ClassLength

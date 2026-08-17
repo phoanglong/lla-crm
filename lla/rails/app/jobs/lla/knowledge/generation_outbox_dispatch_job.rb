@@ -5,7 +5,7 @@ class Lla::Knowledge::GenerationOutboxDispatchJob < ApplicationJob
 
   BATCH_SIZE = 50
   MAX_ATTEMPTS = 5
-  EVENT_TYPES = %w[plan_generation write_article].freeze
+  EVENT_TYPES = %w[plan_generation write_article translate_article rebuild_index].freeze
 
   def perform(operation_id = nil)
     scope(operation_id).limit(BATCH_SIZE).pluck(:id).each { |outbox_id| dispatch_one(outbox_id) }
@@ -49,6 +49,10 @@ class Lla::Knowledge::GenerationOutboxDispatchJob < ApplicationJob
       Onboarding::HelpCenterArticleGenerationJob.perform_later(outbox.generation_operation_id)
     when 'write_article'
       Onboarding::HelpCenterArticleWriterJob.perform_later(outbox.id)
+    when 'translate_article'
+      Captain::Articles::TranslateJob.perform_later(outbox.id)
+    when 'rebuild_index'
+      Portal::ArticleIndexingJob.perform_later(outbox.id)
     else
       raise ArgumentError, 'unsupported knowledge outbox event'
     end

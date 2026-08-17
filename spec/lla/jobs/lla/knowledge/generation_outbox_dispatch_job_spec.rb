@@ -42,6 +42,20 @@ RSpec.describe Lla::Knowledge::GenerationOutboxDispatchJob do
       .not_to have_enqueued_job(Onboarding::HelpCenterArticleGenerationJob)
   end
 
+  it 'dispatches translation intents to the durable translation worker' do
+    outbox.update!(event_type: 'translate_article', payload: { generation_item_id: 123 })
+
+    expect { described_class.perform_now(operation.id) }
+      .to have_enqueued_job(Captain::Articles::TranslateJob).with(outbox.id).on_queue('low')
+  end
+
+  it 'dispatches reindex intents to the versioned indexing worker' do
+    outbox.update!(event_type: 'rebuild_index', payload: { generation_item_id: 123 })
+
+    expect { described_class.perform_now(operation.id) }
+      .to have_enqueued_job(Portal::ArticleIndexingJob).with(outbox.id).on_queue('low')
+  end
+
   it 'releases a failed enqueue with a stable redacted code and bounded backoff' do
     allow(Onboarding::HelpCenterArticleGenerationJob).to receive(:perform_later).and_raise('queue unavailable')
 

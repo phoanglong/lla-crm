@@ -56,4 +56,21 @@ RSpec.describe Lla::Knowledge::GenerationItem do
     expect(item).not_to be_valid
     expect(item.errors[:operation]).to include('must share the item tenant and portal')
   end
+
+  it 'requires the result column that belongs to the item type' do
+    generated = build_item(state: 'succeeded', item_type: 'article_generation')
+    translation = build_item(state: 'succeeded', item_type: 'translation')
+    reindex = build_item(state: 'succeeded', item_type: 'reindex')
+
+    expect(generated).not_to be_valid
+    expect(translation).not_to be_valid
+    expect(reindex).to be_valid
+  end
+
+  it 'accepts a translated result only through output_article' do
+    translated_article = create(:article, account: account, portal: portal)
+    item = build_item(state: 'succeeded', item_type: 'translation', output_article: translated_article)
+
+    expect(item).to be_valid
+  end
 end
