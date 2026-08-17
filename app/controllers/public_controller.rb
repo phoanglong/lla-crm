@@ -6,16 +6,18 @@ class PublicController < ActionController::Base
 
   private
 
+  # Host lookup goes through the LLA custom-domain resolver: only a canonical host
+  # with an active, tenant-bound lifecycle row resolves. The error never reflects
+  # the submitted Host back to the caller and carries LLA product copy.
   def ensure_custom_domain_request
-    domain = request.host
-    return if DomainHelper.chatwoot_domain?(domain)
+    return if DomainHelper.chatwoot_domain?(request.host)
 
-    @portal = ::Portal.find_by(custom_domain: domain)
+    @portal = Lla::CustomDomains::HostResolver.portal_for(request.host)
     return if @portal.present?
 
     render json: {
-      error: "Domain: #{domain} is not registered with us. \
-      Please send us an email at support@chatwoot.com with the custom domain name and account API key"
+      error: I18n.t('portals.custom_domain.not_registered'),
+      error_code: 'lla_custom_domain_not_registered'
     }, status: :unauthorized and return
   end
 

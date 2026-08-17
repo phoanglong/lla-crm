@@ -608,6 +608,8 @@ en:
       subject: 'Finish setting up %{custom_domain}'
     ssl_status:
       custom_domain_not_configured: 'Custom domain is not configured'
+    custom_domain:
+      not_registered: 'This domain is not connected to an active Help Center on this LLA CRM installation. Please contact your workspace administrator.'
   super_admin:
     account_suspension:
       categories:

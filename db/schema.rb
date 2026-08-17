@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -348,7 +348,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.check_constraint "direction = ANY (ARRAY[0, 1])", name: "chk_lla_calls_direction"
     t.check_constraint "duration_seconds IS NULL OR duration_seconds >= 0", name: "chk_lla_calls_duration"
     t.check_constraint "provider = ANY (ARRAY[0, 1])", name: "chk_lla_calls_provider"
-    t.check_constraint "status::text = ANY (ARRAY['ringing'::character varying, 'in_progress'::character varying, 'completed'::character varying, 'no_answer'::character varying, 'failed'::character varying, 'rejected'::character varying]::text[])", name: "chk_lla_calls_status"
+    t.check_constraint "status::text = ANY (ARRAY['ringing'::character varying::text, 'in_progress'::character varying::text, 'completed'::character varying::text, 'no_answer'::character varying::text, 'failed'::character varying::text, 'rejected'::character varying::text])", name: "chk_lla_calls_status"
   end
 
   create_table "campaigns", force: :cascade do |t|
@@ -522,7 +522,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.index ["message_id"], name: "index_captain_message_reports_on_message_id"
     t.index ["user_id"], name: "index_captain_message_reports_on_user_id"
     t.check_constraint "description IS NULL OR char_length(description) <= 500", name: "chk_lla_message_reports_description"
-    t.check_constraint "report_reason::text = ANY (ARRAY['incorrect_information'::character varying, 'inappropriate_response'::character varying, 'incomplete_response'::character varying, 'outdated_information'::character varying, 'other'::character varying]::text[])", name: "chk_lla_message_reports_reason"
+    t.check_constraint "report_reason::text = ANY (ARRAY['incorrect_information'::character varying::text, 'inappropriate_response'::character varying::text, 'incomplete_response'::character varying::text, 'outdated_information'::character varying::text, 'other'::character varying::text])", name: "chk_lla_message_reports_reason"
   end
 
   create_table "captain_scenarios", force: :cascade do |t|
@@ -1203,7 +1203,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.index ["account_id", "call_id", "created_at"], name: "idx_lla_call_events_call_timeline"
     t.index ["account_id", "inbox_id", "provider", "event_id_digest"], name: "idx_lla_call_events_idempotency", unique: true
     t.check_constraint "char_length(event_id_digest::text) = 64 AND char_length(payload_digest::text) = 64", name: "chk_lla_call_events_digests"
-    t.check_constraint "outcome::text = ANY (ARRAY['pending'::character varying, 'applied'::character varying, 'duplicate'::character varying, 'stale'::character varying, 'rejected'::character varying]::text[])", name: "chk_lla_call_events_outcome"
+    t.check_constraint "outcome::text = ANY (ARRAY['pending'::character varying::text, 'applied'::character varying::text, 'duplicate'::character varying::text, 'stale'::character varying::text, 'rejected'::character varying::text])", name: "chk_lla_call_events_outcome"
     t.check_constraint "provider = ANY (ARRAY[0, 1])", name: "chk_lla_call_events_provider"
   end
 
@@ -1228,7 +1228,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.index ["state", "available_at"], name: "idx_lla_call_operations_ready"
     t.check_constraint "attempts >= 0 AND attempts <= 20", name: "chk_lla_call_operations_attempts"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64", name: "chk_lla_call_operations_digests"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'compensating'::character varying, 'compensated'::character varying]::text[])", name: "chk_lla_call_operations_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'claimed'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text, 'compensating'::character varying::text, 'compensated'::character varying::text])", name: "chk_lla_call_operations_state"
   end
 
   create_table "lla_captain_bulk_operations", force: :cascade do |t|
@@ -1254,7 +1254,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.index ["user_id"], name: "index_lla_captain_bulk_operations_on_user_id"
     t.check_constraint "char_length(key_digest::text) = 64 AND char_length(request_digest::text) = 64", name: "chk_lla_bulk_operations_digests"
     t.check_constraint "requested_count >= 1 AND requested_count <= 100 AND processed_count >= 0 AND processed_count <= requested_count AND error_count >= 0 AND error_count <= requested_count AND (processed_count + error_count) <= requested_count", name: "chk_lla_bulk_operations_counts"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying]::text[])", name: "chk_lla_bulk_operations_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'processing'::character varying::text, 'completed'::character varying::text, 'failed'::character varying::text])", name: "chk_lla_bulk_operations_state"
   end
 
   create_table "lla_captain_quota_ledgers", force: :cascade do |t|
@@ -1306,6 +1306,73 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.check_constraint "units > 0 AND attempts > 0", name: "lla_quota_reservations_positive_values"
   end
 
+  create_table "lla_custom_domain_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "custom_domain_id"
+    t.string "operation_type", limit: 32, null: false
+    t.string "state", limit: 32, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "request_digest", limit: 64, null: false
+    t.string "claim_digest", limit: 64
+    t.string "hostname", limit: 253, null: false
+    t.string "provider", limit: 32, default: "none", null: false
+    t.string "provider_resource_id", limit: 128
+    t.integer "domain_version", default: 1, null: false
+    t.integer "attempts", default: 0, null: false
+    t.integer "max_attempts", default: 5, null: false
+    t.datetime "available_at", null: false
+    t.datetime "claimed_at"
+    t.datetime "completed_at"
+    t.datetime "expires_at", null: false
+    t.string "last_error_code", limit: 64
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "idx_lla_custom_domain_ops_account"
+    t.index ["custom_domain_id"], name: "idx_lla_custom_domain_ops_domain"
+    t.index ["idempotency_digest"], name: "idx_lla_custom_domain_ops_idempotency", unique: true
+    t.index ["state", "available_at"], name: "idx_lla_custom_domain_ops_dispatch"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_custom_domain_ops_digests"
+    t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domain_ops_hostname"
+    t.check_constraint "max_attempts >= 1 AND max_attempts <= 5 AND attempts >= 0 AND attempts <= max_attempts AND domain_version >= 1", name: "chk_lla_custom_domain_ops_attempts"
+    t.check_constraint "operation_type::text = ANY (ARRAY['provision'::character varying, 'verify'::character varying, 'remove'::character varying, 'reconcile'::character varying]::text[])", name: "chk_lla_custom_domain_ops_type"
+    t.check_constraint "provider::text = ANY (ARRAY['none'::character varying, 'cloudflare'::character varying]::text[])", name: "chk_lla_custom_domain_ops_provider"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'dead_lettered'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_custom_domain_ops_state"
+  end
+
+  create_table "lla_custom_domains", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.string "hostname", limit: 253, null: false
+    t.string "state", limit: 32, default: "requested", null: false
+    t.integer "version", default: 1, null: false
+    t.string "provider", limit: 32, default: "none", null: false
+    t.string "provider_resource_id", limit: 128
+    t.string "provider_status", limit: 64
+    t.datetime "provider_synced_at"
+    t.string "challenge_id_digest", limit: 64
+    t.text "challenge_ciphertext"
+    t.datetime "challenge_expires_at"
+    t.datetime "challenge_rotated_at"
+    t.integer "challenge_rotations", default: 0, null: false
+    t.datetime "ownership_verified_at"
+    t.datetime "activated_at"
+    t.datetime "removal_requested_at"
+    t.string "last_error_code", limit: 64
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "idx_lla_custom_domains_account"
+    t.index ["hostname"], name: "idx_lla_custom_domains_hostname", unique: true
+    t.index ["portal_id"], name: "idx_lla_custom_domains_portal", unique: true
+    t.index ["state", "updated_at"], name: "idx_lla_custom_domains_state"
+    t.check_constraint "challenge_id_digest IS NULL AND challenge_ciphertext IS NULL AND challenge_expires_at IS NULL OR char_length(challenge_id_digest::text) = 64 AND challenge_ciphertext IS NOT NULL AND challenge_expires_at IS NOT NULL", name: "chk_lla_custom_domains_challenge"
+    t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domains_hostname"
+    t.check_constraint "provider::text = ANY (ARRAY['none'::character varying, 'cloudflare'::character varying]::text[])", name: "chk_lla_custom_domains_provider"
+    t.check_constraint "provider_resource_id IS NULL OR provider::text <> 'none'::text AND provider_resource_id::text ~ '^[A-Za-z0-9_-]{1,128}$'::text", name: "chk_lla_custom_domains_provider_resource"
+    t.check_constraint "state::text <> 'active'::text OR ownership_verified_at IS NOT NULL AND activated_at IS NOT NULL", name: "chk_lla_custom_domains_active"
+    t.check_constraint "state::text = ANY (ARRAY['requested'::character varying, 'ownership_pending'::character varying, 'provisioning'::character varying, 'active'::character varying, 'failed'::character varying, 'removing'::character varying]::text[])", name: "chk_lla_custom_domains_state"
+    t.check_constraint "version >= 1 AND challenge_rotations >= 0 AND challenge_rotations <= 10", name: "chk_lla_custom_domains_version"
+  end
+
   create_table "lla_knowledge_generation_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "portal_id", null: false
@@ -1333,10 +1400,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.index ["state", "claimed_at"], name: "idx_lla_knowledge_items_stale_claims"
     t.index ["state", "updated_at"], name: "idx_lla_knowledge_items_state"
     t.check_constraint "char_length(item_key_digest::text) = 64 AND char_length(source_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_items_digests"
-    t.check_constraint "item_type::text = ANY (ARRAY['article_generation'::character varying, 'translation'::character varying, 'reindex'::character varying]::text[])", name: "chk_lla_knowledge_items_type"
+    t.check_constraint "item_type::text = ANY (ARRAY['article_generation'::character varying::text, 'translation'::character varying::text, 'reindex'::character varying::text])", name: "chk_lla_knowledge_items_type"
     t.check_constraint "ordinal >= 0 AND attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_items_bounds"
     t.check_constraint "state::text = 'succeeded'::text AND (item_type::text = 'article_generation'::text AND article_id IS NOT NULL AND output_article_id IS NULL OR item_type::text = 'translation'::text AND article_id IS NULL AND output_article_id IS NOT NULL OR item_type::text = 'reindex'::text AND article_id IS NULL AND output_article_id IS NULL) OR state::text <> 'succeeded'::text AND article_id IS NULL AND output_article_id IS NULL", name: "chk_lla_knowledge_items_result_state"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_items_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'claimed'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text, 'cancelled'::character varying::text])", name: "chk_lla_knowledge_items_state"
   end
 
   create_table "lla_knowledge_generation_operations", force: :cascade do |t|
@@ -1372,8 +1439,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.index ["state", "created_at"], name: "idx_lla_knowledge_operations_state"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (consent_digest IS NULL OR char_length(consent_digest::text) = 64) AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_operations_digests"
     t.check_constraint "jsonb_typeof(provider_consent_digests) = 'object'::text", name: "chk_lla_knowledge_operations_provider_consents"
-    t.check_constraint "operation_type::text = ANY (ARRAY['onboarding'::character varying, 'translation'::character varying, 'reindex'::character varying]::text[])", name: "chk_lla_knowledge_operations_type"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'planning'::character varying, 'dispatching'::character varying, 'running'::character varying, 'completed'::character varying, 'completed_with_errors'::character varying, 'skipped'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_operations_state"
+    t.check_constraint "operation_type::text = ANY (ARRAY['onboarding'::character varying::text, 'translation'::character varying::text, 'reindex'::character varying::text])", name: "chk_lla_knowledge_operations_type"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'planning'::character varying::text, 'dispatching'::character varying::text, 'running'::character varying::text, 'completed'::character varying::text, 'completed_with_errors'::character varying::text, 'skipped'::character varying::text, 'failed'::character varying::text, 'cancelled'::character varying::text])", name: "chk_lla_knowledge_operations_state"
     t.check_constraint "version > 0 AND expected_items >= 0 AND expected_items <= max_items AND finished_items >= 0 AND finished_items <= expected_items AND failed_items >= 0 AND failed_items <= finished_items AND max_items >= 1 AND max_items <= 25 AND max_source_urls >= 1 AND max_source_urls <= 75 AND max_attempts >= 1 AND max_attempts <= 5", name: "chk_lla_knowledge_operations_bounds"
   end
 
@@ -1401,7 +1468,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
     t.check_constraint "attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_outboxes_attempts"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(payload_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_outboxes_digests"
     t.check_constraint "char_length(payload_ciphertext) >= 40 AND char_length(payload_ciphertext) <= 131072", name: "chk_lla_knowledge_outboxes_payload"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'delivered'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_outboxes_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying::text, 'claimed'::character varying::text, 'delivered'::character varying::text, 'failed'::character varying::text, 'cancelled'::character varying::text])", name: "chk_lla_knowledge_outboxes_state"
   end
 
   create_table "lla_voice_recording_consents", force: :cascade do |t|
@@ -1852,6 +1919,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_170000) do
   add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_operations", "accounts", name: "fk_lla_custom_domain_ops_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_operations", "lla_custom_domains", column: "custom_domain_id", name: "fk_lla_custom_domain_ops_domain", on_delete: :nullify
+  add_foreign_key "lla_custom_domains", "accounts", name: "fk_lla_custom_domains_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domains", "portals", name: "fk_lla_custom_domains_portal", on_delete: :cascade
   add_foreign_key "lla_knowledge_generation_items", "articles", column: "output_article_id", name: "fk_lla_knowledge_items_output_article", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "articles", name: "fk_lla_knowledge_items_article", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "categories", name: "fk_lla_knowledge_items_category", on_delete: :nullify

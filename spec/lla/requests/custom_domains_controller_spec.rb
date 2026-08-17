@@ -1,33 +1,62 @@
+# frozen_string_literal: true
+
 require 'rails_helper'
 
 RSpec.describe 'LLA custom-domain challenge', type: :request do
-  let!(:portal) do
-    create(
-      :portal,
-      custom_domain: 'docs.example.com',
-      ssl_settings: {
-        'cf_verification_id' => 'challenge-123',
-        'cf_verification_body' => 'proof-body',
-        'cf_verification_expires_at' => 10.minutes.from_now.iso8601
-      }
-    )
-  end
+  let(:account) { create(:account) }
+  let(:portal) { create(:portal, account: account) }
+  let(:domain) { Lla::CustomDomains::LifecycleService.new(portal: portal).request!('docs.example.com') }
+  let(:challenge) { Lla::CustomDomains::OwnershipChallenge.issue!(domain) }
 
-  before { host! portal.custom_domain }
+  def get_challenge(id, host: 'docs.example.com')
+    host!(host)
+    get "/.well-known/cf-custom-hostname-challenge/#{id}"
+  end
 
   it 'fails closed while the LLA capability is disabled' do
-    get '/.well-known/cf-custom-hostname-challenge/challenge-123'
+    get_challenge(challenge.id)
 
     expect(response).to have_http_status(:not_found)
-    expect(response.body).not_to include('proof-body')
+    expect(response.body).not_to include(challenge.body)
   end
 
-  it 'serves an exact non-expired challenge when explicitly enabled' do
-    with_modified_env('LLA_CUSTOM_DOMAINS_ENABLED' => 'true') do
-      get '/.well-known/cf-custom-hostname-challenge/challenge-123'
+  context 'when the capability is explicitly enabled' do
+    around { |example| with_modified_env('LLA_CUSTOM_DOMAINS_ENABLED' => 'true') { example.run } }
+
+    it 'serves the exact live challenge' do
+      get_challenge(challenge.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to eq(challenge.body)
     end
 
-    expect(response).to have_http_status(:ok)
-    expect(response.body).to eq('proof-body')
+    it 'returns an indistinguishable 404 for a wrong, expired or revoked challenge' do
+      get_challenge("#{challenge.id}x")
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).to be_blank
+
+      Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+      get_challenge(challenge.id)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'does not serve one tenant challenge on another tenant host' do
+      other = Lla::CustomDomains::LifecycleService.new(portal: create(:portal, account: create(:account)))
+                                                  .request!('help.example.com')
+      Lla::CustomDomains::OwnershipChallenge.issue!(other)
+
+      get_challenge(challenge.id, host: 'help.example.com')
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).not_to include(challenge.body)
+    end
+
+    it 'does not serve a challenge for a domain that already left ownership_pending' do
+      domain.update!(state: 'provisioning', ownership_verified_at: Time.current)
+
+      get_challenge(challenge.id)
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 end
