@@ -9,7 +9,11 @@
 class Lla::CustomDomains::Operation < ApplicationRecord
   self.table_name = 'lla_custom_domain_operations'
 
-  TYPES = %w[provision verify remove reconcile].freeze
+  TYPES = %w[provision verify reverify remove reconcile].freeze
+  # The domain state each operation type is allowed to act on. A result that comes
+  # back when the domain has left that state is late, not authoritative.
+  IN_FLIGHT_STATES = { 'verify' => 'ownership_pending', 'provision' => 'provisioning',
+                       'remove' => 'removing' }.freeze
   STATES = %w[pending deferred claimed succeeded failed dead_lettered cancelled].freeze
   WAITING_STATES = %w[pending deferred].freeze
   TERMINAL_STATES = %w[succeeded failed dead_lettered cancelled].freeze

@@ -33,19 +33,49 @@ class Lla::CustomDomains::OperationService
     end
   end
 
+  # How many times one logical request (same domain, type, hostname and version) may
+  # be re-submitted after its previous attempt ended without doing its job. This is
+  # what keeps an administrator-triggered retry from being swallowed by the
+  # idempotency key, while still bounding the rows one domain can create.
+  ENQUEUE_GENERATIONS = 32
+
   def self.enqueue!(domain:, operation_type:, available_at: nil)
     raise ArgumentError, "unknown operation type: #{operation_type}" unless Lla::CustomDomains::Operation::TYPES.include?(operation_type.to_s)
 
-    digest = idempotency_digest(domain, operation_type)
-    Lla::CustomDomains::Operation.create_or_find_by!(idempotency_digest: digest) do |record|
-      record.assign_attributes(
-        account_id: domain.account_id, custom_domain_id: domain.id, operation_type: operation_type.to_s,
-        request_digest: request_digest(domain, operation_type), hostname: domain.hostname,
-        provider: domain.provider, provider_resource_id: domain.provider_resource_id,
-        domain_version: domain.version, available_at: available_at || Time.current
-      )
-    end
+    base = idempotency_digest(domain, operation_type)
+    attributes = {
+      account_id: domain.account_id, custom_domain_id: domain.id, operation_type: operation_type.to_s,
+      request_digest: request_digest(domain, operation_type), hostname: domain.hostname,
+      provider: domain.provider, provider_resource_id: domain.provider_resource_id,
+      domain_version: domain.version, available_at: available_at || Time.current
+    }
+    find_or_create_live!(base, attributes)
   end
+
+  # Returns the operation that currently represents this request.
+  #
+  # A row that is still runnable, or that already `succeeded`, *is* the answer —
+  # returning it is exactly what makes a double click or a retried job harmless. A
+  # row that ended `cancelled`/`failed`/`dead_lettered` did **not** do the job, so it
+  # must not become a permanent tombstone for its own key: the next generation of the
+  # digest is used instead, and the caller gets a runnable row.
+  def self.find_or_create_live!(base_digest, attributes)
+    last = nil
+    ENQUEUE_GENERATIONS.times do |generation|
+      digest = generation.zero? ? base_digest : generation_digest(base_digest, generation)
+      last = Lla::CustomDomains::Operation.create_or_find_by!(idempotency_digest: digest) do |record|
+        record.assign_attributes(attributes)
+      end
+      return last unless last.terminal? && last.state != 'succeeded'
+    end
+    last
+  end
+  private_class_method :find_or_create_live!
+
+  def self.generation_digest(base_digest, generation)
+    Digest::SHA256.hexdigest([base_digest, 'generation', generation].join("\0"))
+  end
+  private_class_method :generation_digest
 
   # Successor for a terminal operation that still has work to do. The digest folds
   # in the recovery generation, so the row is distinct from its predecessor but two
@@ -55,7 +85,7 @@ class Lla::CustomDomains::OperationService
     return if generation > Lla::CustomDomains::Operation::RECOVERY_LIMIT
 
     digest = Digest::SHA256.hexdigest([operation.idempotency_digest, 'recovery', generation].join("\0"))
-    Lla::CustomDomains::Operation.create_or_find_by!(idempotency_digest: digest) do |record|
+    successor = Lla::CustomDomains::Operation.create_or_find_by!(idempotency_digest: digest) do |record|
       record.assign_attributes(
         account_id: operation.account_id, custom_domain_id: operation.custom_domain_id,
         operation_type: operation.operation_type, request_digest: operation.request_digest,
@@ -64,6 +94,8 @@ class Lla::CustomDomains::OperationService
         predecessor_id: operation.id, recovery_attempt: generation, available_at: now
       )
     end
+    emit(successor, 'operation_recovery_enqueued') if successor.previously_new_record?
+    successor
   end
 
   # Snapshot enqueue used when the domain row itself is about to disappear
@@ -72,14 +104,13 @@ class Lla::CustomDomains::OperationService
     return if provider.to_s == 'none' || provider_resource_id.blank?
 
     digest = Digest::SHA256.hexdigest([account_id, hostname, 'remove', provider, provider_resource_id].join("\0"))
-    Lla::CustomDomains::Operation.create_or_find_by!(idempotency_digest: digest) do |record|
-      record.assign_attributes(
-        account_id: account_id, custom_domain_id: nil, operation_type: 'remove',
+    find_or_create_live!(
+      digest,
+      { account_id: account_id, custom_domain_id: nil, operation_type: 'remove',
         request_digest: digest, hostname: hostname, provider: provider,
         provider_resource_id: provider_resource_id, domain_version: domain_version,
-        available_at: Time.current
-      )
-    end
+        available_at: Time.current }
+    )
   end
 
   # Atomically move a dispatchable (or abandoned) operation to `claimed` and return
@@ -95,7 +126,9 @@ class Lla::CustomDomains::OperationService
     # rubocop:enable Rails/SkipsModelValidations
     return if claimed.zero?
 
-    Lease.new(operation: operation.reload, token: token)
+    fresh = operation.reload
+    emit(fresh, 'operation_claimed')
+    Lease.new(operation: fresh, token: token)
   end
 
   # Row-locked ownership check. Anything mutating the domain runs inside the
@@ -156,7 +189,9 @@ class Lla::CustomDomains::OperationService
     # rubocop:enable Rails/SkipsModelValidations
     raise LeaseLost if changed.zero?
 
-    lease.operation.reload
+    # Emitted only by the writer that actually won the compare-and-set, so a retry
+    # or a reclaimed worker cannot double count.
+    lease.operation.reload.tap { |fresh| emit(fresh, "operation_#{fresh.state}") }
   end
 
   # Reconciler-owned transition. Its predicate is the expiry itself, so it can
@@ -169,8 +204,22 @@ class Lla::CustomDomains::OperationService
               .update_all(state: 'cancelled', completed_at: now, last_error_code: code,
                           claim_digest: nil, claimed_at: nil, updated_at: now)
     # rubocop:enable Rails/SkipsModelValidations
-    changed.positive?
+    return false if changed.zero?
+
+    emit(operation.reload, 'operation_expired')
+    true
   end
+
+  def self.emit(operation, event)
+    Lla::CustomDomains::Telemetry.emit(
+      event, account_id: operation.account_id, domain_id: operation.custom_domain_id,
+             operation_id: operation.id, operation_type: operation.operation_type,
+             provider: operation.provider, state: operation.state,
+             error_code: operation.last_error_code, attempts: operation.attempts,
+             deferrals: operation.deferrals, recovery_attempt: operation.recovery_attempt
+    )
+  end
+  private_class_method :emit
 
   def self.claimable_scope(operation, now)
     fresh_claim_cutoff = now - Lla::CustomDomains::Operation::CLAIM_TIMEOUT

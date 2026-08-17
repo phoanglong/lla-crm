@@ -46,12 +46,17 @@ module Lla::Concerns::Portal
 
   # `dependent: :destroy` removes the row; the remote resource still has to go.
   def enqueue_lla_custom_domain_teardown
-    domain = lla_custom_domain
+    # Read straight from the table: the association may be cached from before the
+    # lifecycle row existed, and losing it here would lose the teardown evidence.
+    domain = Lla::CustomDomains::Domain.find_by(portal_id: id)
     return if domain.blank?
 
     Lla::CustomDomains::OperationService.enqueue_teardown!(
       account_id: domain.account_id, hostname: domain.hostname, provider: domain.provider,
       provider_resource_id: domain.provider_resource_id, domain_version: domain.version
     )
+    # A legacy import may still own a remote object whose ID LLA never learned; the
+    # portal going away must not erase that fact.
+    Lla::CustomDomains::TombstoneRecorder.record_removal!(domain)
   end
 end

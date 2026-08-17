@@ -16,21 +16,24 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
   # Terminal rows are kept for a while past retention so the cancellation that
   # ended them stays auditable instead of vanishing in the same tick.
   PURGE_GRACE = 7.days
-  IN_FLIGHT_STATES = { 'verify' => 'ownership_pending', 'provision' => 'provisioning', 'remove' => 'removing' }.freeze
+  IN_FLIGHT_STATES = Lla::CustomDomains::Operation::IN_FLIGHT_STATES
   ABANDON_CODES = {
     'verify' => 'lla_custom_domain_ownership_abandoned',
     'provision' => 'lla_custom_domain_provisioning_abandoned'
   }.freeze
   MANUAL_INTERVENTION_CODE = 'lla_custom_domain_teardown_manual_intervention'
+  CHALLENGE_EXPIRED_CODE = 'lla_custom_domain_challenge_expired'
 
   def perform(now: Time.current)
     expire_operations(now)
     redispatch_waiting(now)
     reclaim_stale_claims(now)
     recover_terminal_operations(now)
+    recover_orphan_teardowns(now)
     expire_challenges(now)
     rearm_stuck_removals(now)
     purge_expired_operations(now)
+    report_health(now)
   end
 
   private
@@ -97,17 +100,71 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
 
     if operation.operation_type == 'remove'
       domain.update!(last_error_code: code)
+      # A known remote resource we can no longer reach needs an operator, and that
+      # fact has to outlive the operation retention window.
+      Lla::CustomDomains::TombstoneRecorder.record_abandoned_teardown!(operation)
     else
       Lla::CustomDomains::LifecycleService.new(portal: domain.portal).fail!(domain, code: code)
     end
+    alert(domain, operation, code)
   end
 
+  # The alerting hook: one structured event per newly abandoned domain, carrying
+  # only internal IDs and stable codes.
+  def alert(domain, operation, code)
+    Lla::CustomDomains::Telemetry.emit('manual_intervention_required',
+                                       account_id: domain.account_id, portal_id: domain.portal_id,
+                                       domain_id: domain.id, operation_id: operation.id,
+                                       operation_type: operation.operation_type,
+                                       provider: domain.provider, state: domain.state, error_code: code)
+  end
+
+  # A teardown snapshot has no domain row left to reason about, so it is excluded
+  # from `recover_terminal_operations`. It still names a *known* remote resource,
+  # which means giving up on it silently would leak that resource with no evidence.
+  def recover_orphan_teardowns(now)
+    operations.where(state: %w[cancelled dead_lettered], custom_domain_id: nil, operation_type: 'remove')
+              .where.not(provider_resource_id: nil)
+              .order(id: :desc)
+              .limit(BATCH_SIZE)
+              .find_each do |operation|
+      next if orphan_teardown_runnable?(operation)
+
+      successor = Lla::CustomDomains::OperationService.enqueue_recovery!(operation, now: now)
+      record_orphan_abandonment(operation) if successor.blank?
+    end
+  end
+
+  def orphan_teardown_runnable?(operation)
+    operations.runnable.exists?(custom_domain_id: nil, operation_type: 'remove',
+                                hostname: operation.hostname,
+                                provider_resource_id: operation.provider_resource_id)
+  end
+
+  def record_orphan_abandonment(operation)
+    tombstone = Lla::CustomDomains::TombstoneRecorder.record_abandoned_teardown!(operation)
+    return unless tombstone&.previously_new_record?
+
+    Lla::CustomDomains::Telemetry.emit('manual_intervention_required',
+                                       account_id: operation.account_id, operation_id: operation.id,
+                                       operation_type: operation.operation_type,
+                                       provider: operation.provider, state: operation.state,
+                                       error_code: MANUAL_INTERVENTION_CODE)
+  end
+
+  # A challenge nobody answered inside its TTL is not a transient condition: the
+  # domain is moved to the explicit, operator-visible `failed` state (from which an
+  # administrator can retry) instead of waiting in `ownership_pending` with no proof
+  # left to serve.
   def expire_challenges(now)
     Lla::CustomDomains::Domain.where(state: 'ownership_pending')
                               .where.not(challenge_expires_at: nil)
                               .where(challenge_expires_at: ...now)
                               .limit(BATCH_SIZE)
-                              .find_each { |domain| Lla::CustomDomains::OwnershipChallenge.revoke!(domain) }
+                              .find_each do |domain|
+      Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+      Lla::CustomDomains::LifecycleService.new(portal: domain.portal).fail!(domain, code: CHALLENGE_EXPIRED_CODE)
+    end
   end
 
   # A domain that has been `removing` for an hour with nothing runnable behind it.
@@ -133,6 +190,18 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
 
     successor = Lla::CustomDomains::OperationService.enqueue_recovery!(latest, now: now)
     abandon(domain, latest) if successor.blank?
+  end
+
+  # Cheap, bounded gauges so an operator can alert on stuck lifecycle state without
+  # querying the tables by hand.
+  def report_health(_now)
+    {
+      'health_failed_domains' => Lla::CustomDomains::Domain.where(state: 'failed').limit(BATCH_SIZE).count,
+      'health_manual_intervention_domains' =>
+        Lla::CustomDomains::Domain.where(last_error_code: MANUAL_INTERVENTION_CODE).limit(BATCH_SIZE).count,
+      'health_outstanding_tombstones' => Lla::CustomDomains::Tombstone.outstanding.limit(BATCH_SIZE).count,
+      'health_dead_lettered_operations' => operations.where(state: 'dead_lettered').limit(BATCH_SIZE).count
+    }.each { |event, count| Lla::CustomDomains::Telemetry.emit(event, count: count) }
   end
 
   def purge_expired_operations(now)

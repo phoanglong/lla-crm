@@ -42,6 +42,7 @@ class Lla::CustomDomains::LifecycleService
 
   def request!(hostname)
     canonical = Lla::CustomDomains::HostCanonicalizer.call(hostname)
+    guard_installation_host!(canonical)
     guard_cross_tenant_claim!(canonical)
 
     domain = Lla::CustomDomains::Domain.find_by(portal_id: portal.id)
@@ -59,14 +60,79 @@ class Lla::CustomDomains::LifecycleService
     domain.update!(state: 'removing', removal_requested_at: Time.current, version: domain.version + 1,
                    last_error_code: nil)
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+    emit_transition(domain, 'active')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'remove')
     domain
+  end
+
+  # Administrator-triggered reverification of a legacy import. Routing is left alone
+  # on purpose: the domain keeps serving while the proof is collected, and only a
+  # real, completed proof clears the flag. Idempotent — an in-flight reverification
+  # returns the same operation.
+  def request_reverify!(domain, now: Time.current)
+    raise InvalidRequest, 'lla_custom_domain_reverify_not_applicable' unless reverifiable?(domain)
+
+    # A repeat attempt mints fresh challenge material, and that is exactly what the
+    # rotation budget bounds — otherwise an administrator could issue new nonces for
+    # a domain forever, one per expiry window.
+    rotate_challenge!(domain, 'lla_custom_domain_reverify_exhausted') unless domain.challenge_active?(now)
+    Lla::CustomDomains::Telemetry.emit('reverify_requested', account_id: domain.account_id,
+                                                             portal_id: domain.portal_id,
+                                                             domain_id: domain.id, state: domain.state)
+    Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'reverify')
+  end
+
+  def reverifiable?(domain)
+    domain.present? && domain.active? && domain.legacy_import? && domain.reverify_required?
+  end
+
+  # `failed` is the documented terminal state for a claim whose proof never arrived.
+  # Without this it would also be a dead end: the portal still stores the hostname,
+  # so re-submitting the same value changes nothing, and the globally unique row
+  # would block the hostname forever. A retry is a genuinely new attempt — the
+  # version bump makes every operation still in flight for the old attempt stale, and
+  # gives the ownership challenge a fresh, bounded rotation.
+  def retryable?(domain)
+    domain.present? && domain.state == 'failed'
+  end
+
+  def retry_verification!(domain)
+    raise InvalidRequest, 'lla_custom_domain_retry_not_applicable' unless retryable?(domain)
+
+    guard_installation_host!(domain.hostname)
+    # Rotate first: if the budget is spent the domain must stay exactly where it was,
+    # rather than being left mid-transition by a rejected retry.
+    rotate_challenge!(domain, 'lla_custom_domain_retry_exhausted')
+    previous = domain.state
+    domain.update!(state: 'requested', version: domain.version + 1, last_error_code: nil,
+                   ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil)
+    emit_transition(domain, previous)
+    domain.update!(state: 'ownership_pending')
+    emit_transition(domain, 'requested')
+    Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
+    domain
+  end
+
+  # A completed reverification is the only thing that turns a legacy import into a
+  # proved domain. It never fabricates the original activation moment.
+  def promote_legacy!(domain, now: Time.current)
+    return false unless reverifiable?(domain)
+
+    domain.update!(ownership_source: 'nonce_challenge', reverify_required: false,
+                   ownership_verified_at: now, activated_at: domain.activated_at || now,
+                   last_error_code: nil)
+    Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+    Lla::CustomDomains::Telemetry.emit('reverify_succeeded', account_id: domain.account_id,
+                                                             portal_id: domain.portal_id,
+                                                             domain_id: domain.id, state: 'active')
+    true
   end
 
   def mark_ownership_verified!(domain, now: Time.current)
     return false unless domain.state == 'ownership_pending'
 
     domain.update!(state: 'provisioning', ownership_verified_at: now, last_error_code: nil)
+    emit_transition(domain, 'ownership_pending')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'provision')
     true
   end
@@ -79,17 +145,40 @@ class Lla::CustomDomains::LifecycleService
                    ownership_source: 'nonce_challenge', reverify_required: false,
                    last_error_code: nil)
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+    emit_transition(domain, 'provisioning')
     true
   end
 
   def fail!(domain, code:)
+    previous = domain.state
     domain.update!(state: 'failed', last_error_code: code.to_s.first(64))
+    emit_transition(domain, previous, error_code: code)
     false
   end
 
   private
 
   attr_reader :portal
+
+  def emit_transition(domain, previous_state, error_code: nil)
+    Lla::CustomDomains::Telemetry.emit('lifecycle_transition', account_id: domain.account_id,
+                                                               portal_id: domain.portal_id,
+                                                               domain_id: domain.id,
+                                                               provider: domain.provider,
+                                                               previous_state: previous_state,
+                                                               state: domain.state,
+                                                               error_code: error_code)
+  end
+
+  # The installation's own hostnames already resolve to this application, so a proof
+  # fetched over them would be served by this very app: a tenant could "prove"
+  # ownership of the vendor's domain and then hold the globally unique hostname row
+  # for it. They are not claimable at all.
+  def guard_installation_host!(canonical)
+    return unless Lla::CustomDomains::HostResolver.installation_host?(canonical)
+
+    raise InvalidRequest, 'lla_custom_domain_installation_host'
+  end
 
   def guard_cross_tenant_claim!(canonical)
     holder = Lla::CustomDomains::Domain.find_by(hostname: canonical)
@@ -120,6 +209,11 @@ class Lla::CustomDomains::LifecycleService
       account_id: domain.account_id, hostname: domain.hostname, provider: domain.provider,
       provider_resource_id: domain.provider_resource_id, domain_version: domain.version
     )
+    # A legacy import carries provider evidence but no resource ID, so there is
+    # nothing to tear down remotely and nothing to snapshot. Overwriting the row
+    # would erase the only record that a remote object may still exist for the old
+    # hostname, so the evidence is moved into a tombstone first.
+    Lla::CustomDomains::TombstoneRecorder.record_removal!(domain)
 
     domain.update!(
       hostname: canonical, state: 'requested', version: domain.version + 1,
@@ -133,9 +227,19 @@ class Lla::CustomDomains::LifecycleService
     domain
   end
 
+  # Every *repeat* attempt on the same hostname rotates instead of re-issuing, so the
+  # bounded rotation budget is what stops an administrator from minting fresh
+  # challenge material indefinitely.
+  def rotate_challenge!(domain, code)
+    Lla::CustomDomains::OwnershipChallenge.rotate!(domain)
+  rescue Lla::CustomDomains::OwnershipChallenge::RotationExhausted
+    raise InvalidRequest, code
+  end
+
   def start_ownership!(domain)
     Lla::CustomDomains::OwnershipChallenge.issue!(domain)
     domain.update!(state: 'ownership_pending')
+    emit_transition(domain, 'requested')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
     domain
   end
