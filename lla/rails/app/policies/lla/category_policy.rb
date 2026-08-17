@@ -1,7 +1,20 @@
-module Enterprise::ArticlePolicy
-  KB_MANAGE_PERMISSION = 'knowledge_base_manage'.freeze
+# frozen_string_literal: true
+
+# Least-privilege knowledge-base authorization owned by LLA (ADR-OMCRM-032).
+# Prepended to the MIT CategoryPolicy via prepend_mod_with; wins over Enterprise::
+# because ChatwootApp.extensions orders 'lla' last.
+module Lla::CategoryPolicy
+  KB_MANAGE_PERMISSION = 'knowledge_base_manage'
 
   def index?
+    custom_role_can_manage_kb? || super
+  end
+
+  def create?
+    custom_role_can_manage_kb? || super
+  end
+
+  def reorder?
     custom_role_can_manage_kb? || super
   end
 
@@ -17,16 +30,8 @@ module Enterprise::ArticlePolicy
     (custom_role_can_manage_kb? && record_within_account?) || super
   end
 
-  def create?
-    custom_role_can_manage_kb? || super
-  end
-
   def destroy?
     (custom_role_can_manage_kb? && record_within_account?) || super
-  end
-
-  def reorder?
-    custom_role_can_manage_kb? || super
   end
 
   private
@@ -37,8 +42,7 @@ module Enterprise::ArticlePolicy
 
   def context_consistent?
     return false unless @user.present? && @account.present? && @account_user.present?
-    return false unless @account_user.account_id == @account.id
-    return false unless @account_user.user_id == @user.id
+    return false unless @account_user.account_id == @account.id && @account_user.user_id == @user.id
 
     custom_role = @account_user.custom_role
     custom_role.present? && custom_role.account_id == @account.id

@@ -1,4 +1,11 @@
-module Enterprise::PortalPolicy
+# frozen_string_literal: true
+
+# Portal write authorization owned by LLA (ADR-OMCRM-032). Prepended to the MIT
+# PortalPolicy via prepend_mod_with. Deliberately does NOT grant knowledge_base_manage
+# custom roles portal write access: content editors must not change portal settings or
+# custom-domain/DNS lifecycle. Only the administrator path in super is honoured, and
+# only after re-applying account/tenant boundary defensively.
+module Lla::PortalPolicy
   def update?
     context_consistent? && record_within_account? && super
   end

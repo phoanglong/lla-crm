@@ -75,6 +75,7 @@ RSpec.describe 'Enterprise Portal API', type: :request do
     end
 
     context 'when it is an authenticated user' do
+      # knowledge_base_manage is content-only; portal settings write stays administrator-only.
       it 'rejects portal updates for agents with knowledge_base_manage permission' do
         put "/api/v1/accounts/#{account.id}/portals/#{portal.slug}",
             params: portal_params,
