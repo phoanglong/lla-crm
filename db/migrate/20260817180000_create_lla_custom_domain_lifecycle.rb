@@ -3,6 +3,10 @@
 class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:disable Metrics/ClassLength
   HOSTNAME_SQL = 'hostname = lower(hostname) AND char_length(hostname) BETWEEN 4 AND 253 AND ' \
                  "hostname ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'"
+  # A tombstone is evidence, not a routing key: it has to be able to record exactly
+  # the legacy value that could *not* be canonicalised, so it only rejects empty,
+  # over-long and whitespace/control-character values.
+  TOMBSTONE_HOSTNAME_SQL = "char_length(hostname) BETWEEN 1 AND 253 AND hostname !~ '[[:space:][:cntrl:]]'"
 
   # `portals.custom_domain` used to route on its own. The backfill materialises an
   # explicit lifecycle row so routing keeps working, but it never invents an
@@ -11,24 +15,19 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   # Scrubbing the legacy challenge material is a separate, owner-approved and
   # non-reversible cleanup that is deliberately not part of this migration.
   def up
-    add_portal_tenant_key
     create_custom_domains
     create_custom_domain_operations
+    create_custom_domain_tombstones
     backfill_custom_domains
   end
 
   def down
+    drop_table :lla_custom_domain_tombstones, if_exists: true
     drop_table :lla_custom_domain_operations, if_exists: true
     drop_table :lla_custom_domains, if_exists: true
-    remove_index :portals, column: %i[id account_id], name: 'idx_portals_tenant_key', if_exists: true
   end
 
   private
-
-  # Referenced side of the composite tenant foreign key.
-  def add_portal_tenant_key
-    add_index :portals, %i[id account_id], unique: true, name: 'idx_portals_tenant_key'
-  end
 
   def create_custom_domains # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
     create_table :lla_custom_domains do |t|
@@ -63,6 +62,9 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     add_index :lla_custom_domains, %i[id account_id], unique: true, name: 'idx_lla_custom_domains_tenant_key'
 
     add_foreign_key :lla_custom_domains, :accounts, on_delete: :cascade, name: 'fk_lla_custom_domains_account'
+    # The referenced side is the UNIQUE index `idx_lla_portals_tenant_identity` on
+    # portals (account_id, id): PostgreSQL matches a composite foreign key against a
+    # unique index by column *set*, so no second index has to be built on `portals`.
     execute <<~SQL.squish
       ALTER TABLE lla_custom_domains
         ADD CONSTRAINT fk_lla_custom_domains_portal_tenant
@@ -85,7 +87,8 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
                          name: 'chk_lla_custom_domains_version'
     add_check_constraint :lla_custom_domains,
                          '(challenge_id_digest IS NULL AND challenge_ciphertext IS NULL AND challenge_expires_at IS NULL) OR ' \
-                         '(char_length(challenge_id_digest) = 64 AND challenge_ciphertext IS NOT NULL AND challenge_expires_at IS NOT NULL)',
+                         '(challenge_id_digest IS NOT NULL AND char_length(challenge_id_digest) = 64 ' \
+                         'AND challenge_ciphertext IS NOT NULL AND challenge_expires_at IS NOT NULL)',
                          name: 'chk_lla_custom_domains_challenge'
     # An `active` row is either backed by a completed nonce proof, or it is an
     # honestly labelled legacy import that still owes a reverification.
@@ -156,7 +159,7 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
 
   def add_operation_constraints # rubocop:disable Metrics/MethodLength
     add_check_constraint :lla_custom_domain_operations,
-                         "operation_type IN ('provision','verify','remove','reconcile')",
+                         "operation_type IN ('provision','verify','reverify','remove','reconcile')",
                          name: 'chk_lla_custom_domain_ops_type'
     add_check_constraint :lla_custom_domain_operations,
                          "state IN ('pending','deferred','claimed','succeeded','failed','dead_lettered','cancelled')",
@@ -190,20 +193,82 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
                          name: 'chk_lla_custom_domain_ops_claim_state'
   end
 
+  # Durable, operator-visible evidence for a hostname whose remote provider resource
+  # may still exist while LLA never learned its ID (pre-lifecycle imports). It must
+  # outlive both the domain row and the operation retention window, so it is a table
+  # of its own rather than a flag on either.
+  def create_custom_domain_tombstones # rubocop:disable Metrics/MethodLength
+    create_table :lla_custom_domain_tombstones do |t|
+      t.integer :account_id, null: false
+      t.bigint :portal_id
+      t.string :hostname, null: false, limit: 253
+      t.string :reason, null: false, limit: 64
+      t.string :provider, null: false, default: 'none', limit: 32
+      t.string :provider_status_hint, limit: 64
+      t.string :state, null: false, default: 'manual_adoption_required', limit: 32
+      t.datetime :resolved_at
+      t.string :resolved_by_reference, limit: 64
+      t.timestamps
+    end
+
+    add_index :lla_custom_domain_tombstones, %i[account_id hostname], unique: true,
+                                                                      name: 'idx_lla_custom_domain_tombstones_host'
+    add_index :lla_custom_domain_tombstones, %i[state created_at], name: 'idx_lla_custom_domain_tombstones_state'
+    add_foreign_key :lla_custom_domain_tombstones, :accounts, on_delete: :cascade,
+                                                              name: 'fk_lla_custom_domain_tombstones_account'
+
+    add_check_constraint :lla_custom_domain_tombstones,
+                         "state IN ('manual_adoption_required','resolved')",
+                         name: 'chk_lla_custom_domain_tombstones_state'
+    add_check_constraint :lla_custom_domain_tombstones,
+                         "reason IN ('legacy_provider_resource_unknown','provider_teardown_abandoned'," \
+                         "'legacy_hostname_unsupported','legacy_hostname_duplicate')",
+                         name: 'chk_lla_custom_domain_tombstones_reason'
+    add_check_constraint :lla_custom_domain_tombstones,
+                         "state <> 'resolved' OR resolved_at IS NOT NULL",
+                         name: 'chk_lla_custom_domain_tombstones_resolved'
+    add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_HOSTNAME_SQL,
+                         name: 'chk_lla_custom_domain_tombstones_hostname'
+  end
+
   # Backfill goes through the real canonicalizer, so a hostname the runtime would
   # reject never becomes a lifecycle row (and therefore stops resolving) instead of
   # being smuggled in by a looser SQL regexp.
+  #
+  # A legacy value the canonicalizer refuses — or a second portal that collapses onto
+  # a hostname another portal already took — stops routing at this migration. That is
+  # a deliberate, but never a *silent*, outcome: every dropped value leaves a
+  # tombstone naming the portal, so the change is an operator work list rather than
+  # an invisible outage. `portals.custom_domain` itself is left untouched, so nothing
+  # is lost and the operator can re-enter a supported hostname.
   def backfill_custom_domains
     seen = Set.new
     now = Time.current
 
     legacy_portals.each do |row|
       hostname = Lla::CustomDomains::HostCanonicalizer.canonicalize(row['custom_domain'])
-      next if hostname.blank? || seen.include?(hostname)
+      next record_dropped_legacy(row, 'legacy_hostname_unsupported', now) if hostname.blank?
+      next record_dropped_legacy(row, 'legacy_hostname_duplicate', now) if seen.include?(hostname)
 
       seen << hostname
       insert_legacy_domain(row, hostname, now)
     end
+  end
+
+  # Evidence for a portal whose custom domain no longer resolves after this
+  # migration. Stored verbatim (bounded) because the whole point is to name the
+  # value the canonicalizer could not represent.
+  def record_dropped_legacy(row, reason, now)
+    raw = row['custom_domain'].to_s.strip[0, 253].to_s
+    return if raw.blank? || raw.match?(/[[:space:][:cntrl:]]/)
+
+    execute(<<~SQL.squish)
+      INSERT INTO lla_custom_domain_tombstones
+        (account_id, portal_id, hostname, reason, provider, state, created_at, updated_at)
+      VALUES (#{quote(row['account_id'])}, #{quote(row['id'])}, #{quote(raw)}, #{quote(reason)}, 'none',
+              'manual_adoption_required', #{quote(now)}, #{quote(now)})
+      ON CONFLICT DO NOTHING
+    SQL
   end
 
   def legacy_portals
@@ -216,7 +281,7 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   # provider status for audit and never converted into an ownership proof.
   def insert_legacy_domain(row, hostname, now)
     settings = parse_settings(row['ssl_settings'])
-    status = settings['cf_status'].presence&.first(64)
+    status = settings['cf_status'].to_s.presence&.first(64)
 
     execute(<<~SQL.squish)
       INSERT INTO lla_custom_domains

@@ -11,6 +11,7 @@ RSpec.describe CreateLlaCustomDomainLifecycle do
 
   def backfill!
     Lla::CustomDomains::Domain.delete_all
+    Lla::CustomDomains::Tombstone.delete_all
     migration.send(:backfill_custom_domains)
   end
 
@@ -63,6 +64,42 @@ RSpec.describe CreateLlaCustomDomainLifecycle do
     [long_label, reserved, ip_literal].each do |value|
       expect(Lla::CustomDomains::HostCanonicalizer.canonicalize(value)).to be_nil
     end
+  end
+
+  # Refusing is correct; refusing *silently* is not. A legacy hostname that stops
+  # routing at this migration has to leave an operator work list behind, naming the
+  # portal and the exact value that could not be represented.
+  it 'records durable evidence for every legacy hostname it drops' do
+    unsupported = create(:portal, account: account)
+    set_raw_domain(unsupported, 'help.acme.local')
+
+    backfill!
+
+    expect(Lla::CustomDomains::Tombstone.outstanding.find_by(portal_id: unsupported.id))
+      .to have_attributes(hostname: 'help.acme.local', reason: 'legacy_hostname_unsupported',
+                          account_id: account.id, provider: 'none')
+    expect(unsupported.reload.custom_domain).to eq('help.acme.local')
+  end
+
+  it 'records evidence for the portal that loses a canonicalisation collision' do
+    first = create(:portal, account: account)
+    second = create(:portal, account: account)
+    set_raw_domain(first, 'docs.example.com')
+    set_raw_domain(second, 'DOCS.example.com')
+
+    backfill!
+
+    expect(Lla::CustomDomains::Domain.pluck(:portal_id)).to eq([first.id])
+    expect(Lla::CustomDomains::Tombstone.outstanding.find_by(portal_id: second.id))
+      .to have_attributes(reason: 'legacy_hostname_duplicate', hostname: 'DOCS.example.com')
+  end
+
+  it 'survives a legacy cf_status that is not a string' do
+    portal = create(:portal, account: account, custom_domain: 'docs.example.com')
+    set_ssl_settings(portal, 'cf_status' => 404)
+
+    expect { backfill! }.not_to raise_error
+    expect(Lla::CustomDomains::Domain.find_by(portal_id: portal.id).provider_status).to eq('404')
   end
 
   it 'carries the only legacy evidence that exists across as provider status' do
