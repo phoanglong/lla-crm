@@ -1,10 +1,10 @@
 <script setup>
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store.js';
-import { useAccount } from 'dashboard/composables/useAccount';
 import PortalSettings from 'dashboard/components-next/HelpCenter/Pages/PortalSettingsPage/PortalSettings.vue';
 
 const SSL_STATUS_FETCH_INTERVAL = 5000;
@@ -13,13 +13,15 @@ const { t } = useI18n();
 const store = useStore();
 const route = useRoute();
 const router = useRouter();
-const { isOnChatwootCloud } = useAccount();
-
 const { updateUISettings } = useUISettings();
 
 const portals = useMapGetter('portals/allPortals');
 const isFetching = useMapGetter('portals/isFetchingPortals');
 const getPortalBySlug = useMapGetter('portals/portalBySlug');
+
+// Non-empty only while the server has actually accepted a domain change; the DNS
+// instructions dialog is keyed off it.
+const domainInstructionsFor = ref('');
 
 const getNextAvailablePortal = deletedPortalSlug =>
   portals.value?.find(portal => portal.slug !== deletedPortalSlug) ?? null;
@@ -28,13 +30,35 @@ const getDefaultLocale = slug => {
   return getPortalBySlug.value(slug)?.meta?.default_locale;
 };
 
+// The custom-domain lifecycle is an LLA capability, not a hosting plan: the status
+// endpoint itself reports capability, provider readiness and the caller's
+// permission, and performs no external request when the capability is off.
 const fetchSSLStatus = () => {
-  if (!isOnChatwootCloud.value) return;
-
   const { portalSlug } = route.params;
   store.dispatch('portals/sslStatus', {
     portalSlug,
   });
+};
+
+// A rejected reverification (not applicable, rotation budget spent, forbidden) must
+// be visible: without this the button would silently do nothing.
+const reverifyCustomDomain = async () => {
+  const { portalSlug } = route.params;
+  try {
+    await store.dispatch('portals/customDomainReverify', { portalSlug });
+    useAlert(
+      t(
+        'HELP_CENTER.PORTAL_SETTINGS.CONFIGURATION_FORM.CUSTOM_DOMAIN.LIFECYCLE.REVERIFY_STARTED'
+      )
+    );
+  } catch (error) {
+    useAlert(
+      error?.message ||
+        t(
+          'HELP_CENTER.PORTAL_SETTINGS.CONFIGURATION_FORM.CUSTOM_DOMAIN.LIFECYCLE.ERROR'
+        )
+    );
+  }
 };
 
 const fetchPortalAndItsCategories = async (slug, locale) => {
@@ -79,6 +103,8 @@ const refreshPortalRoute = async (newSlug, defaultLocale) => {
   });
 };
 
+// Returns whether the server accepted the change, so callers can gate success-only
+// affordances (DNS instructions, status polling) on it.
 const updatePortalSettings = async portalObj => {
   const { portalSlug } = route.params;
   try {
@@ -95,11 +121,13 @@ const updatePortalSettings = async portalObj => {
     useAlert(
       t('HELP_CENTER.PORTAL_SETTINGS.API.UPDATE_PORTAL.SUCCESS_MESSAGE')
     );
+    return true;
   } catch (error) {
     useAlert(
       error?.message ||
         t('HELP_CENTER.PORTAL_SETTINGS.API.UPDATE_PORTAL.ERROR_MESSAGE')
     );
+    return false;
   }
 };
 
@@ -138,15 +166,22 @@ const handleSendCnameInstructions = async payload => {
 };
 
 const handleUpdatePortal = updatePortalSettings;
-const handleUpdatePortalConfiguration = portalObj => {
-  updatePortalSettings(portalObj);
+const handleUpdatePortalConfiguration = async portalObj => {
+  const saved = await updatePortalSettings(portalObj);
+  if (!saved || !portalObj?.custom_domain) return;
 
-  // If custom domain is added or updated, fetch SSL status after a delay of 5 seconds (only on Chatwoot cloud)
-  if (portalObj?.custom_domain && isOnChatwootCloud.value) {
-    setTimeout(() => {
-      fetchSSLStatus();
-    }, SSL_STATUS_FETCH_INTERVAL);
-  }
+  // Only after the server accepted the hostname: DNS instructions for a rejected
+  // domain would be actively misleading.
+  domainInstructionsFor.value = portalObj.custom_domain;
+
+  // Refresh the lifecycle shortly after a domain change so the new state shows up.
+  setTimeout(() => {
+    fetchSSLStatus();
+  }, SSL_STATUS_FETCH_INTERVAL);
+};
+
+const handleCloseInstructions = () => {
+  domainInstructionsFor.value = '';
 };
 const handleDeletePortal = deletePortal;
 </script>
@@ -155,10 +190,13 @@ const handleDeletePortal = deletePortal;
   <PortalSettings
     :portals="portals"
     :is-fetching="isFetching"
+    :domain-instructions-for="domainInstructionsFor"
     @update-portal="handleUpdatePortal"
     @update-portal-configuration="handleUpdatePortalConfiguration"
     @delete-portal="handleDeletePortal"
     @refresh-status="fetchSSLStatus"
+    @reverify-domain="reverifyCustomDomain"
+    @close-instructions="handleCloseInstructions"
     @send-cname-instructions="handleSendCnameInstructions"
   />
 </template>

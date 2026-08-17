@@ -136,4 +136,17 @@ export const actions = {
       commit(types.SET_UI_FLAG, { isFetchingSSLStatus: false });
     }
   },
+
+  customDomainReverify: async ({ commit }, { portalSlug }) => {
+    try {
+      commit(types.SET_UI_FLAG, { isFetchingSSLStatus: true });
+      const { data } = await portalAPIs.customDomainReverify(portalSlug);
+      commit(types.SET_SSL_SETTINGS, { portalSlug, sslSettings: data });
+      return data;
+    } catch (error) {
+      return throwErrorMessage(error);
+    } finally {
+      commit(types.SET_UI_FLAG, { isFetchingSSLStatus: false });
+    }
+  },
 };
