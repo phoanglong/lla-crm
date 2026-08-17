@@ -3,10 +3,26 @@
 class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:disable Metrics/ClassLength
   HOSTNAME_SQL = 'hostname = lower(hostname) AND char_length(hostname) BETWEEN 4 AND 253 AND ' \
                  "hostname ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'"
-  # A tombstone is evidence, not a routing key: it has to be able to record exactly
-  # the legacy value that could *not* be canonicalised, so it only rejects empty,
-  # over-long and whitespace/control-character values.
-  TOMBSTONE_HOSTNAME_SQL = "char_length(hostname) BETWEEN 1 AND 253 AND hostname !~ '[[:space:][:cntrl:]]'"
+  # A tombstone is evidence, not a routing key. The hostname column therefore only
+  # ever holds a value that *is* representable as a host, and is NULL for evidence
+  # about a value that is not — the unsafe original is preserved as a bounded,
+  # printable preview plus the digest of its exact bytes.
+  TOMBSTONE_HOSTNAME_SQL = 'hostname IS NULL OR (' \
+                           "char_length(hostname) BETWEEN 1 AND 253 AND hostname !~ '[[:space:][:cntrl:]]')"
+  TOMBSTONE_EVIDENCE_SQL = 'char_length(evidence_key) BETWEEN 1 AND 128 AND ' \
+                           "evidence_key ~ '^[a-z0-9_.:-]+$' AND " \
+                           "(source_value_digest IS NULL OR source_value_digest ~ '^[0-9a-f]{64}$') AND " \
+                           '(source_value_preview IS NULL OR (' \
+                           'char_length(source_value_preview) BETWEEN 1 AND 253 AND ' \
+                           "source_value_preview !~ '[[:cntrl:]]'))"
+  # What each kind of evidence must be able to answer. A dropped legacy value must
+  # name the portal an operator has to fix and carry a reference to the exact
+  # original bytes; evidence about a live remote resource must name the hostname.
+  TOMBSTONE_REASON_SHAPE_SQL = "reason NOT IN ('legacy_hostname_unsupported','legacy_hostname_duplicate') OR " \
+                               '(portal_id IS NOT NULL AND source_value_digest IS NOT NULL ' \
+                               'AND source_value_preview IS NOT NULL)'
+  TOMBSTONE_RESOURCE_SHAPE_SQL = "reason NOT IN ('legacy_provider_resource_unknown','provider_teardown_abandoned') " \
+                                 'OR hostname IS NOT NULL'
 
   # `portals.custom_domain` used to route on its own. The backfill materialises an
   # explicit lifecycle row so routing keeps working, but it never invents an
@@ -201,8 +217,14 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     create_table :lla_custom_domain_tombstones do |t|
       t.integer :account_id, null: false
       t.bigint :portal_id
-      t.string :hostname, null: false, limit: 253
+      t.string :hostname, limit: 253
       t.string :reason, null: false, limit: 64
+      # Identity of one piece of evidence. It is deliberately *not* the hostname:
+      # several portals in one account can lose the same hostname, and each of them
+      # is a separate thing an operator has to fix.
+      t.string :evidence_key, null: false, limit: 128
+      t.string :source_value_digest, limit: 64
+      t.string :source_value_preview, limit: 253
       t.string :provider, null: false, default: 'none', limit: 32
       t.string :provider_status_hint, limit: 64
       t.string :state, null: false, default: 'manual_adoption_required', limit: 32
@@ -211,12 +233,18 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
       t.timestamps
     end
 
-    add_index :lla_custom_domain_tombstones, %i[account_id hostname], unique: true,
-                                                                      name: 'idx_lla_custom_domain_tombstones_host'
+    add_index :lla_custom_domain_tombstones, %i[account_id evidence_key], unique: true,
+                                                                          name: 'idx_lla_custom_domain_tombstones_key'
+    add_index :lla_custom_domain_tombstones, %i[account_id hostname], name: 'idx_lla_custom_domain_tombstones_host'
+    add_index :lla_custom_domain_tombstones, :portal_id, name: 'idx_lla_custom_domain_tombstones_portal'
     add_index :lla_custom_domain_tombstones, %i[state created_at], name: 'idx_lla_custom_domain_tombstones_state'
     add_foreign_key :lla_custom_domain_tombstones, :accounts, on_delete: :cascade,
                                                               name: 'fk_lla_custom_domain_tombstones_account'
 
+    add_tombstone_constraints
+  end
+
+  def add_tombstone_constraints
     add_check_constraint :lla_custom_domain_tombstones,
                          "state IN ('manual_adoption_required','resolved')",
                          name: 'chk_lla_custom_domain_tombstones_state'
@@ -229,6 +257,12 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
                          name: 'chk_lla_custom_domain_tombstones_resolved'
     add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_HOSTNAME_SQL,
                          name: 'chk_lla_custom_domain_tombstones_hostname'
+    add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_EVIDENCE_SQL,
+                         name: 'chk_lla_custom_domain_tombstones_evidence'
+    add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_REASON_SHAPE_SQL,
+                         name: 'chk_lla_custom_domain_tombstones_shape'
+    add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_RESOURCE_SHAPE_SQL,
+                         name: 'chk_lla_custom_domain_tombstones_resource'
   end
 
   # Backfill goes through the real canonicalizer, so a hostname the runtime would
@@ -237,38 +271,69 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   #
   # A legacy value the canonicalizer refuses — or a second portal that collapses onto
   # a hostname another portal already took — stops routing at this migration. That is
-  # a deliberate, but never a *silent*, outcome: every dropped value leaves a
-  # tombstone naming the portal, so the change is an operator work list rather than
-  # an invisible outage. `portals.custom_domain` itself is left untouched, so nothing
-  # is lost and the operator can re-enter a supported hostname.
+  # a deliberate, but never a *silent*, outcome: **every** dropped non-empty value
+  # leaves one evidence row naming the portal an operator has to fix, whatever the
+  # value contains. `portals.custom_domain` itself is left untouched, so nothing is
+  # lost and the operator can re-enter a supported hostname.
   def backfill_custom_domains
     seen = Set.new
     now = Time.current
 
     legacy_portals.each do |row|
       hostname = Lla::CustomDomains::HostCanonicalizer.canonicalize(row['custom_domain'])
-      next record_dropped_legacy(row, 'legacy_hostname_unsupported', now) if hostname.blank?
-      next record_dropped_legacy(row, 'legacy_hostname_duplicate', now) if seen.include?(hostname)
+      next record_dropped_legacy(row, 'legacy_hostname_unsupported', nil, now) if hostname.blank?
+      next record_dropped_legacy(row, 'legacy_hostname_duplicate', hostname, now) if seen.include?(hostname)
 
       seen << hostname
       insert_legacy_domain(row, hostname, now)
     end
   end
 
-  # Evidence for a portal whose custom domain no longer resolves after this
-  # migration. Stored verbatim (bounded) because the whole point is to name the
-  # value the canonicalizer could not represent.
-  def record_dropped_legacy(row, reason, now)
-    raw = row['custom_domain'].to_s.strip[0, 253].to_s
-    return if raw.blank? || raw.match?(/[[:space:][:cntrl:]]/)
+  # Evidence for one portal whose custom domain no longer resolves after this
+  # migration.
+  #
+  # The original value is *not* forced into the hostname column: it may contain
+  # whitespace, control characters or be far longer than a host, and a routing-key
+  # column must not carry it. What survives instead identifies it exactly and safely
+  # — the SHA-256 of the original bytes, a bounded printable preview, and the portal
+  # id — while `hostname` holds the canonical host only when there is one (the
+  # duplicate case, where knowing which host was lost is what an operator needs).
+  #
+  # The evidence key is per portal, so two, three or more portals in one account
+  # losing the same hostname each keep their own row; re-running the migration
+  # recomputes the same keys and inserts nothing new.
+  def record_dropped_legacy(row, reason, hostname, now)
+    raw = row['custom_domain'].to_s
+    return if raw.empty?
 
+    digest = Digest::SHA256.hexdigest(raw)
     execute(<<~SQL.squish)
       INSERT INTO lla_custom_domain_tombstones
-        (account_id, portal_id, hostname, reason, provider, state, created_at, updated_at)
-      VALUES (#{quote(row['account_id'])}, #{quote(row['id'])}, #{quote(raw)}, #{quote(reason)}, 'none',
+        (account_id, portal_id, hostname, reason, evidence_key, source_value_digest,
+         source_value_preview, provider, state, created_at, updated_at)
+      VALUES (#{quote(row['account_id'])}, #{quote(row['id'])}, #{quote(hostname)}, #{quote(reason)},
+              #{quote(evidence_key(reason, row['id'], digest))}, #{quote(digest)},
+              #{quote(safe_preview(raw))}, 'none',
               'manual_adoption_required', #{quote(now)}, #{quote(now)})
       ON CONFLICT DO NOTHING
     SQL
+  end
+
+  def evidence_key(reason, portal_id, digest)
+    "#{reason}:#{portal_id}:#{digest[0, 32]}"
+  end
+
+  # Printable, bounded, and never blank: every byte outside printable ASCII becomes
+  # `?` and every whitespace byte becomes `_`, so the preview can be read in a
+  # terminal, stored in a plain column and still shows the shape of what was there.
+  def safe_preview(raw)
+    printable = raw.dup.force_encoding(Encoding::BINARY)
+                   .gsub(/[[:space:]]/n, '_')
+                   .gsub(/[^\x20-\x7E]/n, '?')
+    truncated = printable[0, 200].to_s
+    suffix = printable.bytesize > 200 ? "...+#{printable.bytesize - 200}" : ''
+    value = "#{truncated}#{suffix}"
+    value.empty? ? '(empty)' : value.force_encoding(Encoding::UTF_8)
   end
 
   def legacy_portals

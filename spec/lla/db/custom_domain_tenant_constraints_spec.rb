@@ -143,4 +143,73 @@ RSpec.describe 'LLA custom-domain database invariants' do # rubocop:disable RSpe
         .to raise_error(ActiveRecord::RecordNotUnique)
     end
   end
+
+  # The evidence table is what an operator works from after the migration drops a
+  # legacy value, so the schema itself refuses evidence nobody could act on.
+  describe 'tombstone evidence' do
+    # Materialised before the savepoints below: a record created inside a savepoint
+    # that rolls back has its id restored to nil, which would make the next insert
+    # fail for the wrong reason.
+    before do
+      account
+      portal
+    end
+
+    def insert_tombstone(columns)
+      defaults = { account_id: account.id, reason: 'legacy_hostname_unsupported',
+                   evidence_key: "legacy_hostname_unsupported:#{portal.id}:#{'a' * 32}",
+                   portal_id: portal.id, source_value_digest: 'b' * 64,
+                   source_value_preview: 'bad_host.example.com', provider: 'none',
+                   state: 'manual_adoption_required' }
+      values = defaults.merge(columns)
+      keys = values.keys.join(', ')
+      literals = values.values.map { |value| ActiveRecord::Base.connection.quote(value) }.join(', ')
+      execute("INSERT INTO lla_custom_domain_tombstones (#{keys}, created_at, updated_at) " \
+              "VALUES (#{literals}, now(), now())")
+    end
+
+    def expect_refusal(columns, constraint)
+      expect do
+        ActiveRecord::Base.transaction(requires_new: true) { insert_tombstone(columns) }
+      end.to raise_error(ActiveRecord::StatementInvalid, /#{constraint}/)
+    end
+
+    it 'accepts one item per portal for the same lost hostname' do
+      second_portal = create(:portal, account: account)
+
+      expect do
+        insert_tombstone(reason: 'legacy_hostname_duplicate', hostname: 'docs.example.com',
+                         evidence_key: "legacy_hostname_duplicate:#{portal.id}:#{'a' * 32}")
+        insert_tombstone(reason: 'legacy_hostname_duplicate', hostname: 'docs.example.com',
+                         portal_id: second_portal.id,
+                         evidence_key: "legacy_hostname_duplicate:#{second_portal.id}:#{'c' * 32}")
+      end.to change(Lla::CustomDomains::Tombstone, :count).by(2)
+    end
+
+    it 'refuses a second copy of the same evidence item' do
+      insert_tombstone({})
+
+      expect { insert_tombstone(source_value_digest: 'c' * 64) }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
+    it 'refuses a dropped legacy value that names no portal or no original' do
+      expect_refusal({ portal_id: nil }, 'chk_lla_custom_domain_tombstones_shape')
+      expect_refusal({ source_value_digest: nil }, 'chk_lla_custom_domain_tombstones_shape')
+      expect_refusal({ source_value_preview: nil }, 'chk_lla_custom_domain_tombstones_shape')
+    end
+
+    it 'refuses remote-resource evidence with no hostname to act on' do
+      expect_refusal({ reason: 'provider_teardown_abandoned', hostname: nil, portal_id: nil,
+                       source_value_digest: nil, source_value_preview: nil,
+                       evidence_key: "provider_teardown_abandoned:0:#{'a' * 32}" },
+                     'chk_lla_custom_domain_tombstones_resource')
+    end
+
+    it 'refuses an unsafe value in the hostname column and in the preview' do
+      expect_refusal({ hostname: 'bad host.example.com' }, 'chk_lla_custom_domain_tombstones_hostname')
+      expect_refusal({ source_value_preview: "ctrl\u0001host" }, 'chk_lla_custom_domain_tombstones_evidence')
+      expect_refusal({ source_value_digest: 'not-a-digest' }, 'chk_lla_custom_domain_tombstones_evidence')
+      expect_refusal({ evidence_key: 'Has Spaces And Caps' }, 'chk_lla_custom_domain_tombstones_evidence')
+    end
+  end
 end

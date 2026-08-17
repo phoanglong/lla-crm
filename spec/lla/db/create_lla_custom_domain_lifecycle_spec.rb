@@ -76,22 +76,86 @@ RSpec.describe CreateLlaCustomDomainLifecycle do
     backfill!
 
     expect(Lla::CustomDomains::Tombstone.outstanding.find_by(portal_id: unsupported.id))
-      .to have_attributes(hostname: 'help.acme.local', reason: 'legacy_hostname_unsupported',
-                          account_id: account.id, provider: 'none')
+      .to have_attributes(hostname: nil, reason: 'legacy_hostname_unsupported',
+                          account_id: account.id, provider: 'none',
+                          source_value_preview: 'help.acme.local',
+                          source_value_digest: Digest::SHA256.hexdigest('help.acme.local'))
     expect(unsupported.reload.custom_domain).to eq('help.acme.local')
   end
 
-  it 'records evidence for the portal that loses a canonicalisation collision' do
+  # The value cannot go into a routing-key column, and that is exactly why the
+  # evidence carries a printable preview and the digest of the original bytes: an
+  # operator can still tell which portal to fix and recognise what was there.
+  it 'records evidence for values a hostname column could never hold' do
+    cases = {
+      'bad host.example.com' => 'bad_host.example.com',
+      "ctrl\u0001host.example.com" => 'ctrl?host.example.com',
+      "#{'a' * 300}.example.com" => "#{'a' * 200}...+112",
+      '-malformed-.example.com' => '-malformed-.example.com'
+    }
+    portals = cases.keys.index_with { |raw| create(:portal, account: account).tap { |p| set_raw_domain(p, raw) } }
+
+    backfill!
+
+    expect(Lla::CustomDomains::Domain.count).to eq(0)
+    cases.each do |raw, preview|
+      evidence = Lla::CustomDomains::Tombstone.find_by!(portal_id: portals[raw].id)
+      expect(evidence).to have_attributes(reason: 'legacy_hostname_unsupported', hostname: nil,
+                                          source_value_preview: preview,
+                                          source_value_digest: Digest::SHA256.hexdigest(raw))
+      expect(portals[raw].reload.custom_domain).to eq(raw)
+    end
+  end
+
+  # Every portal that loses a hostname is its own item on the work list: collapsing
+  # them into one row by hostname would hide all but the first.
+  it 'keeps one evidence item per portal when several collapse onto one hostname' do
+    keeper = create(:portal, account: account)
+    losers = Array.new(3) { create(:portal, account: account) }
+    set_raw_domain(keeper, 'docs.example.com')
+    ['DOCS.example.com', 'docs.example.com.', 'Docs.Example.COM'].each_with_index do |raw, index|
+      set_raw_domain(losers[index], raw)
+    end
+
+    backfill!
+
+    expect(Lla::CustomDomains::Domain.pluck(:portal_id)).to eq([keeper.id])
+    evidence = Lla::CustomDomains::Tombstone.outstanding.where(portal_id: losers.map(&:id))
+    expect(evidence.count).to eq(3)
+    expect(evidence.pluck(:reason).uniq).to eq(['legacy_hostname_duplicate'])
+    expect(evidence.pluck(:hostname).uniq).to eq(['docs.example.com'])
+    expect(evidence.pluck(:evidence_key).uniq.size).to eq(3)
+  end
+
+  it 'keeps the accounts apart and still records the one that loses the global hostname' do
+    other_account = create(:account)
     first = create(:portal, account: account)
-    second = create(:portal, account: account)
+    second = create(:portal, account: other_account)
     set_raw_domain(first, 'docs.example.com')
     set_raw_domain(second, 'DOCS.example.com')
 
     backfill!
 
-    expect(Lla::CustomDomains::Domain.pluck(:portal_id)).to eq([first.id])
+    expect(Lla::CustomDomains::Domain.pluck(:account_id, :portal_id)).to eq([[account.id, first.id]])
     expect(Lla::CustomDomains::Tombstone.outstanding.find_by(portal_id: second.id))
-      .to have_attributes(reason: 'legacy_hostname_duplicate', hostname: 'DOCS.example.com')
+      .to have_attributes(account_id: other_account.id, reason: 'legacy_hostname_duplicate',
+                          hostname: 'docs.example.com')
+  end
+
+  it 'is idempotent: re-running the backfill adds no second copy of any evidence' do
+    keeper = create(:portal, account: account)
+    loser = create(:portal, account: account)
+    unsupported = create(:portal, account: account)
+    set_raw_domain(keeper, 'docs.example.com')
+    set_raw_domain(loser, 'DOCS.example.com')
+    set_raw_domain(unsupported, 'bad host.example.com')
+
+    backfill!
+    before = Lla::CustomDomains::Tombstone.order(:id).pluck(:evidence_key)
+    migration.send(:backfill_custom_domains)
+
+    expect(Lla::CustomDomains::Tombstone.order(:id).pluck(:evidence_key)).to eq(before)
+    expect(before.size).to eq(2)
   end
 
   it 'survives a legacy cf_status that is not a string' do

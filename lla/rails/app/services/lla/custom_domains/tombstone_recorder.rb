@@ -35,10 +35,15 @@ class Lla::CustomDomains::TombstoneRecorder
             reason: ABANDONED_REASON, provider: operation.provider, now: now)
   end
 
+  # Identity is the evidence key, not the hostname: two portals that lost the same
+  # hostname are two separate things to fix, and re-recording the same one is a
+  # no-op rather than a second row.
   def self.record!(account_id:, hostname:, reason:, portal_id: nil, provider: 'none', # rubocop:disable Metrics/ParameterLists
                    provider_status_hint: nil, now: Time.current)
-    tombstone = Lla::CustomDomains::Tombstone.create_or_find_by!(account_id: account_id, hostname: hostname) do |record|
-      record.assign_attributes(portal_id: portal_id, reason: reason, provider: provider,
+    key = Lla::CustomDomains::Tombstone.evidence_key_for(reason: reason, portal_id: portal_id,
+                                                         hostname: hostname)
+    tombstone = Lla::CustomDomains::Tombstone.create_or_find_by!(account_id: account_id, evidence_key: key) do |record|
+      record.assign_attributes(portal_id: portal_id, hostname: hostname, reason: reason, provider: provider,
                                provider_status_hint: provider_status_hint.presence&.first(64),
                                state: 'manual_adoption_required', created_at: now, updated_at: now)
     end
