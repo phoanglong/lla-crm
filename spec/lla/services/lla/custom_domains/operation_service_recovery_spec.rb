@@ -42,7 +42,7 @@ RSpec.describe Lla::CustomDomains::OperationService do
       expect(described_class.claim!(Lla::CustomDomains::Operation.find(operation.id))).to be_nil
     end
 
-    it 'reclaims a claim abandoned by a dead worker' do
+    it 'reclaims a claim abandoned by a dead worker and mints a new lease token' do
       first = described_class.claim!(operation)
       expect(first).to be_present
 
@@ -50,7 +50,9 @@ RSpec.describe Lla::CustomDomains::OperationService do
         reclaimed = described_class.claim!(Lla::CustomDomains::Operation.find(operation.id))
 
         expect(reclaimed).to be_present
-        expect(reclaimed.claim_digest).not_to eq(first.claim_digest)
+        expect(reclaimed.token).not_to eq(first.token)
+        expect(reclaimed.operation.claimed_with?(first.token)).to be(false)
+        expect(reclaimed.operation.claimed_with?(reclaimed.token)).to be(true)
       end
     end
 
@@ -81,7 +83,7 @@ RSpec.describe Lla::CustomDomains::OperationService do
     end
 
     it 'purges a terminal operation only once it is past the audit grace period' do
-      described_class.succeed!(operation)
+      described_class.succeed!(described_class.claim!(operation))
       operation.update_columns(expires_at: 1.day.ago) # rubocop:disable Rails/SkipsModelValidations
       Lla::CustomDomains::ReconciliationJob.perform_now
       expect(Lla::CustomDomains::Operation.where(id: operation.id)).to exist

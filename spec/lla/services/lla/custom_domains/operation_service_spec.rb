@@ -70,11 +70,14 @@ RSpec.describe Lla::CustomDomains::OperationService do
     it 'backs off then dead letters once the budget is spent' do
       operation = described_class.enqueue!(domain: domain, operation_type: 'provision')
 
-      described_class.fail!(operation, code: 'lla_custom_domain_provider_timeout')
+      described_class.fail!(described_class.claim!(operation), code: 'lla_custom_domain_provider_timeout')
       expect(operation.reload).to have_attributes(state: 'pending', attempts: 1)
       expect(operation.available_at).to be > Time.current
 
-      (operation.max_attempts - 1).times { described_class.fail!(operation, code: 'lla_custom_domain_provider_timeout') }
+      (operation.max_attempts - 1).times do
+        operation.update!(available_at: 1.minute.ago)
+        described_class.fail!(described_class.claim!(operation), code: 'lla_custom_domain_provider_timeout')
+      end
 
       expect(operation.reload).to have_attributes(state: 'dead_lettered',
                                                   attempts: operation.max_attempts,

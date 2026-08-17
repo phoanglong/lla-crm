@@ -108,6 +108,8 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     create_table :lla_custom_domain_operations do |t|
       t.integer :account_id, null: false
       t.bigint :custom_domain_id
+      t.bigint :predecessor_id
+      t.integer :recovery_attempt, null: false, default: 0
       t.string :operation_type, null: false, limit: 32
       t.string :state, null: false, default: 'pending', limit: 32
       t.string :idempotency_digest, null: false, limit: 64
@@ -134,6 +136,9 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     add_index :lla_custom_domain_operations, %i[state claimed_at], name: 'idx_lla_custom_domain_ops_claims'
     add_index :lla_custom_domain_operations, :custom_domain_id, name: 'idx_lla_custom_domain_ops_domain'
     add_index :lla_custom_domain_operations, :account_id, name: 'idx_lla_custom_domain_ops_account'
+    add_index :lla_custom_domain_operations, :predecessor_id, name: 'idx_lla_custom_domain_ops_predecessor'
+    add_foreign_key :lla_custom_domain_operations, :lla_custom_domain_operations, column: :predecessor_id,
+                                                                                  on_delete: :nullify, name: 'fk_lla_custom_domain_ops_predecessor'
 
     add_foreign_key :lla_custom_domain_operations, :accounts, on_delete: :cascade,
                                                               name: 'fk_lla_custom_domain_ops_account'
@@ -162,8 +167,15 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
                          name: 'chk_lla_custom_domain_ops_digests'
     add_check_constraint :lla_custom_domain_operations,
                          'max_attempts BETWEEN 1 AND 5 AND attempts BETWEEN 0 AND max_attempts AND ' \
-                         'domain_version >= 1 AND deferrals BETWEEN 0 AND 1000',
+                         'domain_version >= 1 AND deferrals BETWEEN 0 AND 1000 AND ' \
+                         'recovery_attempt BETWEEN 0 AND 3',
                          name: 'chk_lla_custom_domain_ops_attempts'
+    # A recovery successor always names the terminal row it replaces, and a first
+    # generation operation never claims to be one.
+    add_check_constraint :lla_custom_domain_operations,
+                         '(recovery_attempt = 0 AND predecessor_id IS NULL) OR ' \
+                         '(recovery_attempt > 0 AND predecessor_id IS NOT NULL)',
+                         name: 'chk_lla_custom_domain_ops_recovery'
     add_check_constraint :lla_custom_domain_operations, "provider IN ('none','cloudflare')",
                          name: 'chk_lla_custom_domain_ops_provider'
     add_check_constraint :lla_custom_domain_operations, HOSTNAME_SQL,

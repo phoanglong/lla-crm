@@ -51,8 +51,13 @@ class Lla::CustomDomains::Providers::CloudflareProvider
   # gets a typed `NotConfigured` and defers; the remote resource is not forgotten,
   # it is simply not touched until the tenant is allowed to talk to the provider.
   def self.teardown(hostname, resource_id, account:)
-    authorize!(account)
+    # No remote object means teardown is pure local cleanup: there is nothing to
+    # call, so it must not be blocked by a closed gate. Short-circuiting *before*
+    # authorization is what keeps a revoked tenant able to delete its own domain
+    # with provably zero egress.
     return true if resource_id.blank?
+
+    authorize!(account)
 
     begin
       Lla::CustomDomains::Providers::CloudflareClient.delete_custom_hostname(resource_id)

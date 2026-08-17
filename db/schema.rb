@@ -1309,6 +1309,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   create_table "lla_custom_domain_operations", force: :cascade do |t|
     t.integer "account_id", null: false
     t.bigint "custom_domain_id"
+    t.bigint "predecessor_id"
+    t.integer "recovery_attempt", default: 0, null: false
     t.string "operation_type", limit: 32, null: false
     t.string "state", limit: 32, default: "pending", null: false
     t.string "idempotency_digest", limit: 64, null: false
@@ -1331,13 +1333,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.index ["account_id"], name: "idx_lla_custom_domain_ops_account"
     t.index ["custom_domain_id"], name: "idx_lla_custom_domain_ops_domain"
     t.index ["idempotency_digest"], name: "idx_lla_custom_domain_ops_idempotency", unique: true
+    t.index ["predecessor_id"], name: "idx_lla_custom_domain_ops_predecessor"
     t.index ["state", "available_at"], name: "idx_lla_custom_domain_ops_dispatch"
     t.index ["state", "claimed_at"], name: "idx_lla_custom_domain_ops_claims"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_custom_domain_ops_digests"
     t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domain_ops_hostname"
-    t.check_constraint "max_attempts >= 1 AND max_attempts <= 5 AND attempts >= 0 AND attempts <= max_attempts AND domain_version >= 1 AND deferrals >= 0 AND deferrals <= 1000", name: "chk_lla_custom_domain_ops_attempts"
+    t.check_constraint "max_attempts >= 1 AND max_attempts <= 5 AND attempts >= 0 AND attempts <= max_attempts AND domain_version >= 1 AND deferrals >= 0 AND deferrals <= 1000 AND recovery_attempt >= 0 AND recovery_attempt <= 3", name: "chk_lla_custom_domain_ops_attempts"
     t.check_constraint "operation_type::text = ANY (ARRAY['provision'::character varying, 'verify'::character varying, 'remove'::character varying, 'reconcile'::character varying]::text[])", name: "chk_lla_custom_domain_ops_type"
     t.check_constraint "provider::text = ANY (ARRAY['none'::character varying, 'cloudflare'::character varying]::text[])", name: "chk_lla_custom_domain_ops_provider"
+    t.check_constraint "recovery_attempt = 0 AND predecessor_id IS NULL OR recovery_attempt > 0 AND predecessor_id IS NOT NULL", name: "chk_lla_custom_domain_ops_recovery"
     t.check_constraint "state::text = 'claimed'::text AND claim_digest IS NOT NULL AND claimed_at IS NOT NULL AND completed_at IS NULL OR (state::text = ANY (ARRAY['pending'::character varying, 'deferred'::character varying]::text[])) AND claim_digest IS NULL AND completed_at IS NULL OR (state::text = ANY (ARRAY['succeeded'::character varying, 'failed'::character varying, 'dead_lettered'::character varying, 'cancelled'::character varying]::text[])) AND claim_digest IS NULL AND completed_at IS NOT NULL", name: "chk_lla_custom_domain_ops_claim_state"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'deferred'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'dead_lettered'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_custom_domain_ops_state"
   end
@@ -1929,6 +1933,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
   add_foreign_key "lla_custom_domain_operations", "accounts", name: "fk_lla_custom_domain_ops_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_operations", "lla_custom_domain_operations", column: "predecessor_id", name: "fk_lla_custom_domain_ops_predecessor", on_delete: :nullify
   add_foreign_key "lla_custom_domain_operations", "lla_custom_domains", column: ["custom_domain_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domain_ops_domain_tenant", on_delete: :cascade
   add_foreign_key "lla_custom_domains", "accounts", name: "fk_lla_custom_domains_account", on_delete: :cascade
   add_foreign_key "lla_custom_domains", "portals", column: ["portal_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domains_portal_tenant", on_delete: :cascade

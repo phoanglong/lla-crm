@@ -16,6 +16,9 @@ class Lla::CustomDomains::Operation < ApplicationRecord
   RETENTION_PERIOD = 30.days
   MAX_ATTEMPTS = 5
   MAX_DEFERRALS = 1000
+  # How many recovery successors a terminal operation may spawn before the domain
+  # is handed to an operator instead of being retried forever.
+  RECOVERY_LIMIT = 3
   BACKOFF_BASE = 30.seconds
   DEFERRAL_BACKOFF = 15.minutes
   # A claim older than this is assumed to belong to a worker that died.
@@ -24,11 +27,15 @@ class Lla::CustomDomains::Operation < ApplicationRecord
   belongs_to :account, class_name: '::Account'
   belongs_to :domain, class_name: 'Lla::CustomDomains::Domain',
                       foreign_key: :custom_domain_id, inverse_of: :operations, optional: true
+  belongs_to :predecessor, class_name: 'Lla::CustomDomains::Operation', optional: true
+  has_one :successor, class_name: 'Lla::CustomDomains::Operation',
+                      foreign_key: :predecessor_id, inverse_of: :predecessor, dependent: :nullify
 
   scope :dispatchable, lambda { |now = Time.current|
     where(state: WAITING_STATES).where(available_at: ..now).where(expires_at: now..)
   }
   scope :stale_claims, ->(now = Time.current) { where(state: 'claimed').where(claimed_at: ...(now - CLAIM_TIMEOUT)) }
+  scope :runnable, -> { where(state: WAITING_STATES + ['claimed']) }
 
   validates :operation_type, inclusion: { in: TYPES }
   validates :state, inclusion: { in: STATES }
@@ -41,6 +48,7 @@ class Lla::CustomDomains::Operation < ApplicationRecord
   validates :max_attempts, numericality: { only_integer: true, in: 1..MAX_ATTEMPTS }
   validates :attempts, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :deferrals, numericality: { only_integer: true, in: 0..MAX_DEFERRALS }
+  validates :recovery_attempt, numericality: { only_integer: true, in: 0..RECOVERY_LIMIT }
   validate :attempts_within_budget
   validate :domain_shares_tenant
 
@@ -53,6 +61,13 @@ class Lla::CustomDomains::Operation < ApplicationRecord
 
   def waiting?
     state.in?(WAITING_STATES)
+  end
+
+  # True while this row is the one a worker may act on.
+  def claimed_with?(token)
+    return false unless state == 'claimed'
+
+    Lla::CustomDomains::OperationService.token_matches?(claim_digest, token)
   end
 
   # A result is only allowed to mutate the domain when the domain has not moved on

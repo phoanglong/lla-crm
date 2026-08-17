@@ -7,7 +7,7 @@ require Rails.root.join('db/migrate/20260817180000_create_lla_custom_domain_life
 # what it refuses to import, what it records as evidence and what it leaves alone.
 RSpec.describe CreateLlaCustomDomainLifecycle do
   let(:account) { create(:account) }
-  let(:migration) { described_class.new }
+  let(:migration) { described_class.new.tap { |instance| instance.verbose = false } }
 
   def backfill!
     Lla::CustomDomains::Domain.delete_all
