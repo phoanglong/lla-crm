@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1301,11 +1301,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_150000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["article_id"], name: "idx_lla_knowledge_items_article_result", unique: true, where: "(article_id IS NOT NULL)"
     t.index ["generation_operation_id", "item_key_digest"], name: "idx_lla_knowledge_items_idempotency", unique: true
     t.index ["generation_operation_id", "ordinal"], name: "idx_lla_knowledge_items_ordinal", unique: true
+    t.index ["generation_operation_id", "state"], name: "idx_lla_knowledge_items_operation_state"
+    t.index ["state", "claimed_at"], name: "idx_lla_knowledge_items_stale_claims"
     t.index ["state", "updated_at"], name: "idx_lla_knowledge_items_state"
     t.check_constraint "char_length(item_key_digest::text) = 64 AND char_length(source_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_items_digests"
     t.check_constraint "ordinal >= 0 AND attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_items_bounds"
+    t.check_constraint "state::text = 'succeeded'::text AND article_id IS NOT NULL OR state::text <> 'succeeded'::text AND article_id IS NULL", name: "chk_lla_knowledge_items_result_state"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_items_state"
   end
 
@@ -1334,11 +1338,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_150000) do
     t.datetime "expires_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "provider_consent_digests", default: {}, null: false
     t.index ["account_id", "portal_id", "id"], name: "idx_lla_knowledge_operations_tenant_identity", unique: true
     t.index ["account_id", "portal_id", "idempotency_digest"], name: "idx_lla_knowledge_operations_idempotency", unique: true
     t.index ["expires_at"], name: "idx_lla_knowledge_operations_expiry"
+    t.index ["state", "claimed_at"], name: "idx_lla_knowledge_operations_stale_claims"
     t.index ["state", "created_at"], name: "idx_lla_knowledge_operations_state"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (consent_digest IS NULL OR char_length(consent_digest::text) = 64) AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_operations_digests"
+    t.check_constraint "jsonb_typeof(provider_consent_digests) = 'object'::text", name: "chk_lla_knowledge_operations_provider_consents"
     t.check_constraint "operation_type::text = ANY (ARRAY['onboarding'::character varying, 'translation'::character varying, 'reindex'::character varying]::text[])", name: "chk_lla_knowledge_operations_type"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'planning'::character varying, 'dispatching'::character varying, 'running'::character varying, 'completed'::character varying, 'completed_with_errors'::character varying, 'skipped'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_operations_state"
     t.check_constraint "version > 0 AND expected_items >= 0 AND expected_items <= max_items AND finished_items >= 0 AND finished_items <= expected_items AND failed_items >= 0 AND failed_items <= finished_items AND max_items >= 1 AND max_items <= 25 AND max_source_urls >= 1 AND max_source_urls <= 75 AND max_attempts >= 1 AND max_attempts <= 5", name: "chk_lla_knowledge_operations_bounds"
@@ -1361,10 +1368,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_150000) do
     t.datetime "delivered_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["event_type", "state", "available_at"], name: "idx_lla_knowledge_outboxes_dispatch"
     t.index ["generation_operation_id", "idempotency_digest"], name: "idx_lla_knowledge_outboxes_idempotency", unique: true
     t.index ["state", "available_at"], name: "idx_lla_knowledge_outboxes_ready"
+    t.index ["state", "claimed_at"], name: "idx_lla_knowledge_outboxes_stale_claims"
     t.check_constraint "attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_outboxes_attempts"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(payload_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_outboxes_digests"
+    t.check_constraint "char_length(payload_ciphertext) >= 40 AND char_length(payload_ciphertext) <= 131072", name: "chk_lla_knowledge_outboxes_payload"
     t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'delivered'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_knowledge_outboxes_state"
   end
 

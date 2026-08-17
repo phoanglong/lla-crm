@@ -5,6 +5,7 @@ module Lla::Internal::TriggerHourlyScheduledItemsJob
     super
     Lla::Captain::QuotaReconciliationJob.perform_later
     Lla::Voice::OperationReconciliationJob.perform_later
+    Lla::Knowledge::GenerationReconciliationJob.perform_later
     Twilio::VoiceLifecycleRepairJob.perform_later
     Whatsapp::CallingLifecycleRepairJob.perform_later
   end

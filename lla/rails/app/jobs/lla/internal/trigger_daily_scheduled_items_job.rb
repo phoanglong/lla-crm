@@ -8,6 +8,7 @@ module Lla::Internal::TriggerDailyScheduledItemsJob
     super
     schedule_captain_document_syncs
     Lla::Captain::RetentionCleanupJob.perform_later
+    Lla::Knowledge::GenerationRetentionCleanupJob.perform_later
   end
 
   private

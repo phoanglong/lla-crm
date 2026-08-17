@@ -6,7 +6,9 @@ module Lla::Onboarding::WebWidgetCreationService
   def welcome_tagline_text
     return super unless tagline_egress_permitted?
 
-    response = Captain::Llm::WidgetTaglineService.new(account: @account).perform
+    response = Captain::Llm::WidgetTaglineService.new(account: @account)
+                                                 .with_quota_idempotency_key("knowledge-widget-tagline:#{@account.id}")
+                                                 .perform
     response&.dig(:message).to_s.strip.presence || super
   rescue StandardError => e
     Rails.logger.warn("LLA widget tagline fallback account_id=#{@account.id} error_class=#{e.class.name}")

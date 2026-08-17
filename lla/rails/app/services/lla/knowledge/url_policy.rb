@@ -19,6 +19,14 @@ class Lla::Knowledge::UrlPolicy
     false
   end
 
+  def self.canonical_source(value)
+    uri = URI.parse(canonicalize(value))
+    uri.query = nil
+    uri.to_s
+  rescue URI::InvalidURIError => e
+    raise InvalidUrl, e.message
+  end
+
   def self.default_port?(uri)
     uri.port == uri.default_port
   end

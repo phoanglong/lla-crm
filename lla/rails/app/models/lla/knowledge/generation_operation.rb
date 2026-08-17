@@ -20,6 +20,7 @@ class Lla::Knowledge::GenerationOperation < ApplicationRecord
   validates :state, inclusion: { in: STATES }
   validates :idempotency_digest, :request_digest, presence: true, length: { is: 64 }
   validates :consent_digest, :claim_digest, length: { is: 64 }, allow_nil: true
+  validate :valid_provider_consent_digests
   validates :version, numericality: { only_integer: true, greater_than: 0 }
   validates :expected_items, numericality: { only_integer: true, in: 0..25 }
   validates :finished_items, :failed_items, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -54,5 +55,15 @@ class Lla::Knowledge::GenerationOperation < ApplicationRecord
     return if finished_items.between?(failed_items, expected_items)
 
     errors.add(:base, 'operation counts are inconsistent')
+  end
+
+  def valid_provider_consent_digests
+    value = provider_consent_digests
+    return errors.add(:provider_consent_digests, 'must be an object') unless value.is_a?(Hash)
+
+    invalid = value.any? do |provider, digest|
+      Lla::Knowledge::ProviderPolicy::PROVIDERS.exclude?(provider.to_s.to_sym) || !digest.to_s.match?(/\A[0-9a-f]{64}\z/)
+    end
+    errors.add(:provider_consent_digests, 'contains an invalid provider consent') if invalid
   end
 end

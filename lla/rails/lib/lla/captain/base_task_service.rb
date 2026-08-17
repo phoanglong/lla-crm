@@ -61,7 +61,10 @@ module Lla::Captain::BaseTaskService
   end
 
   def lla_successful_result?(result)
-    result.is_a?(Hash) && (result[:message] || result['message']).present? && !(result[:error] || result['error'])
+    return false unless result.is_a?(Hash)
+
+    success = (result[:message] || result['message']).present? || result[:success] == true || result['success'] == true
+    success && !(result[:error] || result['error'])
   end
 
   def lla_quota_error(result)

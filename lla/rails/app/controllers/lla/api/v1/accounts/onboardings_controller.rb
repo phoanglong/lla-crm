@@ -1,6 +1,17 @@
 # frozen_string_literal: true
 
 module Lla::Api::V1::Accounts::OnboardingsController
+  def cancel_help_center_generation
+    @account = Current.account
+    operation = current_knowledge_operation
+    return head :not_found if operation.blank?
+
+    Lla::Knowledge::GenerationCancellationService.new(
+      account: @account, operation_id: operation.id
+    ).perform
+    render json: help_center_generation_status
+  end
+
   private
 
   def onboarding_inbox_setup_enabled?

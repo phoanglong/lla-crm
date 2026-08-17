@@ -5,6 +5,8 @@ RSpec.describe Onboarding::HelpCenterCreationService do
   let(:admin) { create(:user, account: account, role: :administrator) }
   let(:service) { described_class.new(account, admin) }
 
+  before { clear_enqueued_jobs }
+
   it 'persists and reuses the fallback portal when provider egress is denied' do
     first_portal = nil
 
@@ -35,6 +37,10 @@ RSpec.describe Onboarding::HelpCenterCreationService do
       expect(Lla::Knowledge::GenerationOutbox.count).to eq(1)
       expect(account.reload.custom_attributes['lla_knowledge_generation_operation_id']).to eq(operation.id)
       expect(operation.outboxes.sole.payload).to include(website_url: 'https://docs.example.com/')
+      expect(enqueued_jobs).to include(
+        a_hash_including('job_class' => Lla::Knowledge::GenerationOutboxDispatchJob.name,
+                         'arguments' => [operation.id])
+      )
     end
   end
 

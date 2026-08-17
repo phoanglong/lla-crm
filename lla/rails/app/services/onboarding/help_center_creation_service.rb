@@ -49,13 +49,23 @@ class Onboarding::HelpCenterCreationService
   def create_generation_operation(portal)
     return if homepage_link.blank?
 
-    Lla::Knowledge::GenerationOperation.transaction do
+    operation = Lla::Knowledge::GenerationOperation.transaction do
       @account.lock!
       operation = existing_onboarding_operation(portal) || build_generation_operation(portal)
       @account.update!(custom_attributes: @account.custom_attributes.merge(OPERATION_POINTER => operation.id))
+      operation
     end
+    schedule_dispatch(operation)
   rescue Lla::Knowledge::ProviderPolicy::Denied => e
     Rails.logger.info("LLA help center generation disabled account_id=#{@account.id} code=#{e.code}")
+  end
+
+  def schedule_dispatch(operation)
+    return unless operation.outboxes.exists?(state: %w[pending failed])
+
+    Lla::Knowledge::GenerationOutboxDispatchJob.perform_later(operation.id)
+  rescue StandardError => e
+    Rails.logger.warn("LLA knowledge dispatch deferred operation_id=#{operation.id} error_class=#{e.class.name}")
   end
 
   def existing_onboarding_operation(portal)

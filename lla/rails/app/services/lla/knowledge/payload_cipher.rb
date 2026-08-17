@@ -4,6 +4,8 @@
 # external URLs or generation hints. The database stores no readable provider
 # payload and the token becomes unusable after the maximum dispatch window.
 class Lla::Knowledge::PayloadCipher
+  class InvalidPayload < ArgumentError; end
+
   PURPOSE = 'lla-knowledge-generation-outbox'
   RETENTION = 48.hours
 
@@ -14,7 +16,7 @@ class Lla::Knowledge::PayloadCipher
   def self.decrypt(token)
     JSON.parse(encryptor.decrypt_and_verify(token, purpose: PURPOSE), symbolize_names: true)
   rescue ActiveSupport::MessageEncryptor::InvalidMessage, JSON::ParserError
-    raise ArgumentError, 'Invalid or expired knowledge outbox payload'
+    raise InvalidPayload, 'Invalid or expired knowledge outbox payload'
   end
 
   def self.digest(payload)

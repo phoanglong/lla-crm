@@ -14,6 +14,8 @@ RSpec.describe Lla::Onboarding::WebWidgetCreationService do
     stub_const('Captain::Llm::WidgetTaglineService', Class.new do
       def initialize(account:); end
 
+      def with_quota_idempotency_key(_key) = self
+
       def perform; end
     end)
   end
@@ -27,6 +29,7 @@ RSpec.describe Lla::Onboarding::WebWidgetCreationService do
   it 'uses a generated tagline only when every egress gate is granted' do
     grant_openai_consent
     llm = instance_double(Captain::Llm::WidgetTaglineService, perform: { message: '  Generated tagline  ' })
+    allow(llm).to receive(:with_quota_idempotency_key).and_return(llm)
     allow(Captain::Llm::WidgetTaglineService).to receive(:new).with(account: account).and_return(llm)
 
     with_tagline_egress do
@@ -38,6 +41,7 @@ RSpec.describe Lla::Onboarding::WebWidgetCreationService do
     grant_openai_consent
     logged = []
     llm = instance_double(Captain::Llm::WidgetTaglineService)
+    allow(llm).to receive(:with_quota_idempotency_key).and_return(llm)
     allow(llm).to receive(:perform).and_raise(StandardError, 'provider-secret-detail')
     allow(Captain::Llm::WidgetTaglineService).to receive(:new).and_return(llm)
     allow(Rails.logger).to receive(:warn) { |message| logged << message }

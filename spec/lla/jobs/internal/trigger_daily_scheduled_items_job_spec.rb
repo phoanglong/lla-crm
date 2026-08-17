@@ -5,6 +5,7 @@ RSpec.describe Internal::TriggerDailyScheduledItemsJob do
     allow(ChatwootHub).to receive(:installation_identifier).and_return('test-installation-id')
     allow(Captain::Documents::ScheduleSyncsJob).to receive(:perform_later)
     allow(Lla::Captain::RetentionCleanupJob).to receive(:perform_later)
+    allow(Lla::Knowledge::GenerationRetentionCleanupJob).to receive(:perform_later)
   end
 
   it 'enqueues enterprise Captain document auto-sync every day' do
@@ -45,5 +46,11 @@ RSpec.describe Internal::TriggerDailyScheduledItemsJob do
     described_class.perform_now
 
     expect(Lla::Captain::RetentionCleanupJob).to have_received(:perform_later).once
+  end
+
+  it 'enqueues knowledge generation retention cleanup every day' do
+    described_class.perform_now
+
+    expect(Lla::Knowledge::GenerationRetentionCleanupJob).to have_received(:perform_later).once
   end
 end

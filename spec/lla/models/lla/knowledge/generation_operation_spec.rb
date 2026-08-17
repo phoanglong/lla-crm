@@ -54,4 +54,11 @@ RSpec.describe Lla::Knowledge::GenerationOperation do
       operation.terminal?
     end)
   end
+
+  it 'accepts only allowlisted provider evidence with a SHA-256 digest' do
+    operation = build_operation(provider_consent_digests: { 'untrusted_provider' => 'raw consent' })
+
+    expect(operation).not_to be_valid
+    expect(operation.errors[:provider_consent_digests]).to include('contains an invalid provider consent')
+  end
 end
