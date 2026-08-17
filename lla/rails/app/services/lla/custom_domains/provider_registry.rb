@@ -10,11 +10,13 @@ class Lla::CustomDomains::ProviderRegistry
     ADAPTERS.fetch(provider.to_s, Lla::CustomDomains::Providers::NullProvider)
   end
 
-  # The provider a *new* domain request should use. Cloudflare is opt-in and only
-  # selected when it is fully configured, so a half-configured install keeps
-  # working with the local adapter instead of failing every request.
-  def self.default_provider
-    return 'cloudflare' if Lla::CustomDomains::Providers::CloudflareProvider.configured?
+  # The provider a *new* domain request should use. Cloudflare is opt-in and is
+  # only selected when every gate for that specific account is already open —
+  # global egress, capability, account consent and both secret references. A
+  # half-configured install keeps working on the local adapter instead of
+  # selecting a provider it is not allowed to call.
+  def self.default_provider(account:)
+    return 'cloudflare' if Lla::CustomDomains::Providers::CloudflareProvider.available_for?(account)
 
     'none'
   end

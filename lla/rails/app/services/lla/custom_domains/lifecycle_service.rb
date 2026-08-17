@@ -76,6 +76,7 @@ class Lla::CustomDomains::LifecycleService
 
     domain.update!(state: 'active', activated_at: now, provider_synced_at: now,
                    provider_resource_id: resource_id.presence, provider_status: status.presence,
+                   ownership_source: 'nonce_challenge', reverify_required: false,
                    last_error_code: nil)
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
     true
@@ -100,8 +101,15 @@ class Lla::CustomDomains::LifecycleService
   def create_domain!(canonical)
     Lla::CustomDomains::Domain.create!(
       account_id: portal.account_id, portal_id: portal.id, hostname: canonical,
-      state: 'requested', provider: Lla::CustomDomains::ProviderRegistry.default_provider
+      state: 'requested', provider: default_provider,
+      ownership_source: 'nonce_challenge', reverify_required: false
     )
+  end
+
+  # Provider choice is per account: without global egress, the capability, the
+  # account consent and both secret references, the local adapter is selected.
+  def default_provider
+    Lla::CustomDomains::ProviderRegistry.default_provider(account: portal.account)
   end
 
   # Repointing is a teardown plus a fresh request: the previous remote resource is
@@ -115,8 +123,9 @@ class Lla::CustomDomains::LifecycleService
 
     domain.update!(
       hostname: canonical, state: 'requested', version: domain.version + 1,
-      provider: Lla::CustomDomains::ProviderRegistry.default_provider,
+      provider: default_provider,
       provider_resource_id: nil, provider_status: nil, provider_synced_at: nil,
+      ownership_source: 'nonce_challenge', reverify_required: false,
       ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil,
       last_error_code: nil, challenge_rotations: 0
     )

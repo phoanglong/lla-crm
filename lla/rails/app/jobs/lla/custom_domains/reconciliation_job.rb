@@ -1,16 +1,25 @@
 # frozen_string_literal: true
 
-# Periodic safety net: re-dispatches operations whose backoff has elapsed, expires
-# stale ownership challenges, and re-arms teardown for domains that are stuck in
-# `removing`. Nothing here calls a provider directly.
+# Periodic safety net for the custom-domain operation queue.
+#
+# It re-dispatches waiting work whose backoff or deferral window has elapsed,
+# reclaims claims abandoned by a dead worker, cancels operations that outlived
+# their retention, expires stale ownership challenges and re-arms teardown for
+# domains stuck in `removing`. Reclaiming is done by the same atomic CAS as the
+# normal claim, so a worker that is still alive can never be robbed of its work.
 class Lla::CustomDomains::ReconciliationJob < ApplicationJob
-  queue_as :low
+  queue_as :scheduled_jobs
 
   BATCH_SIZE = 100
   STUCK_REMOVAL_AFTER = 1.hour
+  # Terminal rows are kept for a while past retention so the cancellation that
+  # ended them stays auditable instead of vanishing in the same tick.
+  PURGE_GRACE = 7.days
 
   def perform(now: Time.current)
-    redispatch_pending(now)
+    expire_operations(now)
+    redispatch_waiting(now)
+    reclaim_stale_claims(now)
     expire_challenges(now)
     rearm_stuck_removals(now)
     purge_expired_operations(now)
@@ -18,8 +27,30 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
 
   private
 
-  def redispatch_pending(now)
-    Lla::CustomDomains::Operation.dispatchable(now).limit(BATCH_SIZE).pluck(:id).each do |id|
+  def operations
+    Lla::CustomDomains::Operation
+  end
+
+  # Past its retention window: stop touching the provider, record it and move on.
+  def expire_operations(now)
+    operations.where(state: operations::WAITING_STATES + ['claimed'])
+              .where(expires_at: ...now)
+              .limit(BATCH_SIZE)
+              .find_each do |operation|
+      Lla::CustomDomains::OperationService.cancel!(operation, code: 'lla_custom_domain_operation_expired', now: now)
+    end
+  end
+
+  def redispatch_waiting(now)
+    operations.dispatchable(now).limit(BATCH_SIZE).pluck(:id).each do |id|
+      Lla::CustomDomains::OperationDispatchJob.perform_later(id)
+    end
+  end
+
+  # A claim older than CLAIM_TIMEOUT belongs to a worker that never came back.
+  # Dispatch re-runs the CAS claim, which is what makes the takeover safe.
+  def reclaim_stale_claims(now)
+    operations.stale_claims(now).where(expires_at: now..).limit(BATCH_SIZE).pluck(:id).each do |id|
       Lla::CustomDomains::OperationDispatchJob.perform_later(id)
     end
   end
@@ -42,9 +73,9 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
   end
 
   def purge_expired_operations(now)
-    Lla::CustomDomains::Operation.where(state: Lla::CustomDomains::Operation::TERMINAL_STATES)
-                                 .where(expires_at: ...now)
-                                 .limit(BATCH_SIZE)
-                                 .delete_all
+    operations.where(state: operations::TERMINAL_STATES)
+              .where(expires_at: ...(now - PURGE_GRACE))
+              .limit(BATCH_SIZE)
+              .delete_all
   end
 end

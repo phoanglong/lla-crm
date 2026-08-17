@@ -47,7 +47,7 @@ RSpec.describe Lla do
     expect(Rails.application.routes.recognize_path('/.well-known/cf-custom-hostname-challenge/abc'))
       .to include(controller: 'custom_domains', action: 'verify')
     expect(Lla::Knowledge::ProviderPolicy.capability_enabled?(:custom_domains)).to be(false)
-    expect(Lla::CustomDomains::ProviderRegistry.default_provider).to eq('none')
+    expect(Lla::CustomDomains::ProviderRegistry.default_provider(account: create(:account))).to eq('none')
   end
 
   it 'reads no plaintext provider credential from InstallationConfig' do

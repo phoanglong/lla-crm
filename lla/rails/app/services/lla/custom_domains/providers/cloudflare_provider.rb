@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
-# Optional Cloudflare custom-hostname adapter. Default OFF: it is only reachable
-# when the custom-domain capability, the global egress switch, the account consent
-# and both secret references are all present. `provision` only ever creates after
-# an authoritative not-found, so an outage cannot duplicate a hostname.
+# Optional Cloudflare custom-hostname adapter. Default OFF: every entry point —
+# provision, check *and* teardown — passes the same account-aware gate, so with any
+# gate missing no client is constructed and no socket is opened. `provision` only
+# ever creates after an authoritative not-found, so an outage cannot duplicate a
+# hostname.
 class Lla::CustomDomains::Providers::CloudflareProvider
   STATUS_MAX_LENGTH = 64
 
@@ -11,13 +12,25 @@ class Lla::CustomDomains::Providers::CloudflareProvider
     'cloudflare'
   end
 
+  # Static readiness only (capability flag + resolvable secret references).
   def self.configured?
     Lla::Knowledge::ProviderPolicy.capability_enabled?(:custom_domains) &&
       Lla::CustomDomains::Providers::CloudflareClient.configured?
   end
 
+  # Full, account-aware readiness: this is what any caller must consult before
+  # deciding that Cloudflare may be used for a given tenant.
+  def self.available_for?(account)
+    return false if account.blank?
+    return false unless configured?
+
+    Lla::Knowledge::ProviderPolicy.egress_permitted?(
+      account: account, provider: :cloudflare, capability: :custom_domains
+    )
+  end
+
   def self.provision(domain)
-    authorize!(domain)
+    authorize!(domain.account)
 
     begin
       existing = find_hostname(domain.hostname)
@@ -30,30 +43,30 @@ class Lla::CustomDomains::Providers::CloudflareProvider
   end
 
   def self.check(domain)
-    authorize!(domain)
+    authorize!(domain.account)
     find_hostname(domain.hostname) || raise(Lla::CustomDomains::ProviderErrors::NotFound)
   end
 
-  def self.teardown(hostname, resource_id)
+  # Teardown is gated exactly like create/verify. When the gate is shut the caller
+  # gets a typed `NotConfigured` and defers; the remote resource is not forgotten,
+  # it is simply not touched until the tenant is allowed to talk to the provider.
+  def self.teardown(hostname, resource_id, account:)
+    authorize!(account)
     return true if resource_id.blank?
 
-    Lla::CustomDomains::Providers::CloudflareClient.delete_custom_hostname(resource_id)
-    true
-  rescue Lla::CustomDomains::ProviderErrors::NotFound
-    # Already gone: teardown is idempotent by contract.
-    true
-  ensure
-    Rails.logger.info("[LlaCustomDomains] cloudflare teardown host_digest=#{host_digest(hostname)}")
+    begin
+      Lla::CustomDomains::Providers::CloudflareClient.delete_custom_hostname(resource_id)
+      true
+    rescue Lla::CustomDomains::ProviderErrors::NotFound
+      # Already gone: teardown is idempotent by contract.
+      true
+    ensure
+      Rails.logger.info("[LlaCustomDomains] cloudflare teardown host_digest=#{host_digest(hostname)}")
+    end
   end
 
-  def self.authorize!(domain)
-    raise Lla::CustomDomains::ProviderErrors::NotConfigured unless configured?
-
-    return if Lla::Knowledge::ProviderPolicy.egress_permitted?(
-      account: domain.account, provider: :cloudflare, capability: :custom_domains
-    )
-
-    raise Lla::CustomDomains::ProviderErrors::NotConfigured
+  def self.authorize!(account)
+    raise Lla::CustomDomains::ProviderErrors::NotConfigured unless available_for?(account)
   end
   private_class_method :authorize!
 

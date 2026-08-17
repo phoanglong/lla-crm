@@ -14,7 +14,7 @@ RSpec.describe Lla::CustomDomains::OperationDispatchJob do
 
   describe 'ownership verification' do
     it 'advances to provisioning and enqueues provisioning when the proof is served' do
-      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(true)
+      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(:verified)
 
       described_class.perform_now(verify_operation.id)
 
@@ -24,7 +24,7 @@ RSpec.describe Lla::CustomDomains::OperationDispatchJob do
     end
 
     it 'retries and finally fails the domain when the proof never appears' do
-      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(false)
+      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(:unverified)
       operation = verify_operation
 
       operation.max_attempts.times do
@@ -37,17 +37,21 @@ RSpec.describe Lla::CustomDomains::OperationDispatchJob do
       expect(domain.reload).to have_attributes(state: 'failed', last_error_code: 'lla_custom_domain_ownership_unverified')
     end
 
-    it 'performs zero egress when the capability and consent are absent' do
-      described_class.perform_now(verify_operation.id)
+    it 'defers instead of failing, with zero egress, when the capability and consent are absent' do
+      operation = verify_operation
+
+      described_class.perform_now(operation.id)
 
       expect(WebMock).not_to have_requested(:any, //)
+      expect(operation.reload).to have_attributes(state: 'deferred', attempts: 0,
+                                                  last_error_code: 'lla_custom_domain_ownership_deferred')
       expect(domain.reload.state).to eq('ownership_pending')
     end
   end
 
   describe 'staleness' do
     it 'cancels a result that arrives after the domain was repointed' do
-      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(true)
+      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(:verified)
       operation = verify_operation
       lifecycle.request!('help.example.com')
 
@@ -69,7 +73,7 @@ RSpec.describe Lla::CustomDomains::OperationDispatchJob do
 
   describe 'removal' do
     it 'tears the domain down once and stays idempotent on replay' do
-      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(true)
+      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(:verified)
       described_class.perform_now(verify_operation.id)
       provision = Lla::CustomDomains::Operation.find_by!(operation_type: 'provision')
       described_class.perform_now(provision.id)
@@ -82,7 +86,7 @@ RSpec.describe Lla::CustomDomains::OperationDispatchJob do
       expect(Lla::CustomDomains::Domain.where(id: domain.id)).to be_empty
       expect(removal.reload).to have_attributes(state: 'succeeded', custom_domain_id: nil)
 
-      removal.update!(state: 'pending', available_at: 1.minute.ago)
+      removal.update!(state: 'pending', available_at: 1.minute.ago, completed_at: nil)
       expect { described_class.perform_now(removal.id) }.not_to raise_error
       expect(removal.reload.state).to eq('succeeded')
     end
@@ -90,7 +94,7 @@ RSpec.describe Lla::CustomDomains::OperationDispatchJob do
 
   describe 'claiming' do
     it 'lets only the first worker execute a pending operation' do
-      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(true)
+      allow(Lla::CustomDomains::OwnershipVerifier).to receive(:verify).and_return(:verified)
       operation = verify_operation
 
       described_class.perform_now(operation.id)

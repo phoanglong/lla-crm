@@ -12,6 +12,10 @@ class Lla::CustomDomains::Providers::NullProvider
     true
   end
 
+  def self.available_for?(_account)
+    true
+  end
+
   def self.provision(_domain)
     { resource_id: nil, status: 'local' }
   end
@@ -20,7 +24,7 @@ class Lla::CustomDomains::Providers::NullProvider
     { resource_id: nil, status: 'local' }
   end
 
-  def self.teardown(_hostname, _resource_id)
+  def self.teardown(_hostname, _resource_id, account: nil) # rubocop:disable Lint/UnusedMethodArgument
     true
   end
 end

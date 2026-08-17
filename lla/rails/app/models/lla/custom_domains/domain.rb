@@ -9,6 +9,7 @@ class Lla::CustomDomains::Domain < ApplicationRecord
   STATES = %w[requested ownership_pending provisioning active failed removing].freeze
   TERMINAL_STATES = %w[active failed].freeze
   PROVIDERS = %w[none cloudflare].freeze
+  OWNERSHIP_SOURCES = %w[nonce_challenge legacy_import].freeze
   MAX_CHALLENGE_ROTATIONS = 10
 
   belongs_to :account, class_name: '::Account'
@@ -22,6 +23,7 @@ class Lla::CustomDomains::Domain < ApplicationRecord
   validates :hostname, presence: true, uniqueness: true, length: { maximum: 253 }
   validates :state, inclusion: { in: STATES }
   validates :provider, inclusion: { in: PROVIDERS }
+  validates :ownership_source, inclusion: { in: OWNERSHIP_SOURCES }
   validates :version, numericality: { only_integer: true, greater_than: 0 }
   validates :challenge_rotations, numericality: { only_integer: true, in: 0..MAX_CHALLENGE_ROTATIONS }
   validates :challenge_id_digest, format: { with: /\A[0-9a-f]{64}\z/ }, allow_nil: true
@@ -32,6 +34,12 @@ class Lla::CustomDomains::Domain < ApplicationRecord
 
   def active?
     state == 'active'
+  end
+
+  # Imported from the pre-lifecycle `portals.custom_domain` column: it keeps
+  # routing, but it carries no LLA ownership proof and still owes one.
+  def legacy_import?
+    ownership_source == 'legacy_import'
   end
 
   def challenge_active?(now = Time.current)

@@ -1307,7 +1307,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   end
 
   create_table "lla_custom_domain_operations", force: :cascade do |t|
-    t.bigint "account_id", null: false
+    t.integer "account_id", null: false
     t.bigint "custom_domain_id"
     t.string "operation_type", limit: 32, null: false
     t.string "state", limit: 32, default: "pending", null: false
@@ -1320,6 +1320,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.integer "domain_version", default: 1, null: false
     t.integer "attempts", default: 0, null: false
     t.integer "max_attempts", default: 5, null: false
+    t.integer "deferrals", default: 0, null: false
     t.datetime "available_at", null: false
     t.datetime "claimed_at"
     t.datetime "completed_at"
@@ -1331,16 +1332,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.index ["custom_domain_id"], name: "idx_lla_custom_domain_ops_domain"
     t.index ["idempotency_digest"], name: "idx_lla_custom_domain_ops_idempotency", unique: true
     t.index ["state", "available_at"], name: "idx_lla_custom_domain_ops_dispatch"
+    t.index ["state", "claimed_at"], name: "idx_lla_custom_domain_ops_claims"
     t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_custom_domain_ops_digests"
     t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domain_ops_hostname"
-    t.check_constraint "max_attempts >= 1 AND max_attempts <= 5 AND attempts >= 0 AND attempts <= max_attempts AND domain_version >= 1", name: "chk_lla_custom_domain_ops_attempts"
+    t.check_constraint "max_attempts >= 1 AND max_attempts <= 5 AND attempts >= 0 AND attempts <= max_attempts AND domain_version >= 1 AND deferrals >= 0 AND deferrals <= 1000", name: "chk_lla_custom_domain_ops_attempts"
     t.check_constraint "operation_type::text = ANY (ARRAY['provision'::character varying, 'verify'::character varying, 'remove'::character varying, 'reconcile'::character varying]::text[])", name: "chk_lla_custom_domain_ops_type"
     t.check_constraint "provider::text = ANY (ARRAY['none'::character varying, 'cloudflare'::character varying]::text[])", name: "chk_lla_custom_domain_ops_provider"
-    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'dead_lettered'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_custom_domain_ops_state"
+    t.check_constraint "state::text = 'claimed'::text AND claim_digest IS NOT NULL AND claimed_at IS NOT NULL AND completed_at IS NULL OR (state::text = ANY (ARRAY['pending'::character varying, 'deferred'::character varying]::text[])) AND claim_digest IS NULL AND completed_at IS NULL OR (state::text = ANY (ARRAY['succeeded'::character varying, 'failed'::character varying, 'dead_lettered'::character varying, 'cancelled'::character varying]::text[])) AND claim_digest IS NULL AND completed_at IS NOT NULL", name: "chk_lla_custom_domain_ops_claim_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::character varying, 'deferred'::character varying, 'claimed'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'dead_lettered'::character varying, 'cancelled'::character varying]::text[])", name: "chk_lla_custom_domain_ops_state"
   end
 
   create_table "lla_custom_domains", force: :cascade do |t|
-    t.bigint "account_id", null: false
+    t.integer "account_id", null: false
     t.bigint "portal_id", null: false
     t.string "hostname", limit: 253, null: false
     t.string "state", limit: 32, default: "requested", null: false
@@ -1349,6 +1352,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.string "provider_resource_id", limit: 128
     t.string "provider_status", limit: 64
     t.datetime "provider_synced_at"
+    t.string "ownership_source", limit: 32, default: "nonce_challenge", null: false
+    t.boolean "reverify_required", default: false, null: false
     t.string "challenge_id_digest", limit: 64
     t.text "challenge_ciphertext"
     t.datetime "challenge_expires_at"
@@ -1362,13 +1367,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "idx_lla_custom_domains_account"
     t.index ["hostname"], name: "idx_lla_custom_domains_hostname", unique: true
+    t.index ["id", "account_id"], name: "idx_lla_custom_domains_tenant_key", unique: true
     t.index ["portal_id"], name: "idx_lla_custom_domains_portal", unique: true
     t.index ["state", "updated_at"], name: "idx_lla_custom_domains_state"
     t.check_constraint "challenge_id_digest IS NULL AND challenge_ciphertext IS NULL AND challenge_expires_at IS NULL OR char_length(challenge_id_digest::text) = 64 AND challenge_ciphertext IS NOT NULL AND challenge_expires_at IS NOT NULL", name: "chk_lla_custom_domains_challenge"
     t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domains_hostname"
+    t.check_constraint "ownership_source::text = ANY (ARRAY['nonce_challenge'::character varying, 'legacy_import'::character varying]::text[])", name: "chk_lla_custom_domains_ownership_source"
     t.check_constraint "provider::text = ANY (ARRAY['none'::character varying, 'cloudflare'::character varying]::text[])", name: "chk_lla_custom_domains_provider"
     t.check_constraint "provider_resource_id IS NULL OR provider::text <> 'none'::text AND provider_resource_id::text ~ '^[A-Za-z0-9_-]{1,128}$'::text", name: "chk_lla_custom_domains_provider_resource"
-    t.check_constraint "state::text <> 'active'::text OR ownership_verified_at IS NOT NULL AND activated_at IS NOT NULL", name: "chk_lla_custom_domains_active"
+    t.check_constraint "state::text <> 'active'::text OR ownership_source::text = 'nonce_challenge'::text AND ownership_verified_at IS NOT NULL AND activated_at IS NOT NULL AND reverify_required = false OR ownership_source::text = 'legacy_import'::text AND ownership_verified_at IS NULL AND activated_at IS NULL AND reverify_required = true", name: "chk_lla_custom_domains_active"
+    t.check_constraint "state::text <> 'removing'::text OR removal_requested_at IS NOT NULL", name: "chk_lla_custom_domains_removing"
     t.check_constraint "state::text = ANY (ARRAY['requested'::character varying, 'ownership_pending'::character varying, 'provisioning'::character varying, 'active'::character varying, 'failed'::character varying, 'removing'::character varying]::text[])", name: "chk_lla_custom_domains_state"
     t.check_constraint "version >= 1 AND challenge_rotations >= 0 AND challenge_rotations <= 10", name: "chk_lla_custom_domains_version"
   end
@@ -1654,6 +1662,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.index ["account_id", "lla_onboarding_key_digest"], name: "idx_lla_portals_onboarding_identity", unique: true, where: "(lla_onboarding_key_digest IS NOT NULL)"
     t.index ["channel_web_widget_id"], name: "index_portals_on_channel_web_widget_id"
     t.index ["custom_domain"], name: "index_portals_on_custom_domain", unique: true
+    t.index ["id", "account_id"], name: "idx_portals_tenant_key", unique: true
     t.index ["slug"], name: "index_portals_on_slug", unique: true
     t.check_constraint "lla_onboarding_key_digest IS NULL OR char_length(lla_onboarding_key_digest::text) = 64", name: "chk_lla_portals_onboarding_digest"
   end
@@ -1920,9 +1929,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
   add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
   add_foreign_key "lla_custom_domain_operations", "accounts", name: "fk_lla_custom_domain_ops_account", on_delete: :cascade
-  add_foreign_key "lla_custom_domain_operations", "lla_custom_domains", column: "custom_domain_id", name: "fk_lla_custom_domain_ops_domain", on_delete: :nullify
+  add_foreign_key "lla_custom_domain_operations", "lla_custom_domains", column: ["custom_domain_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domain_ops_domain_tenant", on_delete: :cascade
   add_foreign_key "lla_custom_domains", "accounts", name: "fk_lla_custom_domains_account", on_delete: :cascade
-  add_foreign_key "lla_custom_domains", "portals", name: "fk_lla_custom_domains_portal", on_delete: :cascade
+  add_foreign_key "lla_custom_domains", "portals", column: ["portal_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domains_portal_tenant", on_delete: :cascade
   add_foreign_key "lla_knowledge_generation_items", "articles", column: "output_article_id", name: "fk_lla_knowledge_items_output_article", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "articles", name: "fk_lla_knowledge_items_article", on_delete: :nullify
   add_foreign_key "lla_knowledge_generation_items", "categories", name: "fk_lla_knowledge_items_category", on_delete: :nullify

@@ -4,7 +4,8 @@
 #
 # Every branch is guarded by a stale check: if the domain was repointed, released
 # or destroyed since the operation was enqueued, the result is discarded instead of
-# activating a hostname the tenant no longer owns.
+# activating a hostname the tenant no longer owns. A closed gate (capability,
+# consent, secret reference) is a typed deferral, never a failure.
 class Lla::CustomDomains::OperationExecutor
   def initialize(operation)
     @operation = operation
@@ -44,9 +45,12 @@ class Lla::CustomDomains::OperationExecutor
     return Lla::CustomDomains::OperationService.cancel!(operation, code: 'lla_custom_domain_not_pending') unless
       domain.state == 'ownership_pending'
 
-    if Lla::CustomDomains::OwnershipVerifier.verify(domain)
+    case Lla::CustomDomains::OwnershipVerifier.verify(domain)
+    when :verified
       lifecycle(domain).mark_ownership_verified!(domain)
       Lla::CustomDomains::OperationService.succeed!(operation)
+    when :deferred
+      Lla::CustomDomains::OperationService.defer!(operation, code: 'lla_custom_domain_ownership_deferred')
     else
       retry_or_fail(domain, 'lla_custom_domain_ownership_unverified')
     end
@@ -59,6 +63,8 @@ class Lla::CustomDomains::OperationExecutor
     result = domain.provider_adapter.provision(domain)
     lifecycle(domain).activate!(domain, resource_id: result[:resource_id], status: result[:status])
     Lla::CustomDomains::OperationService.succeed!(operation)
+  rescue Lla::CustomDomains::ProviderErrors::NotConfigured => e
+    Lla::CustomDomains::OperationService.defer!(operation, code: e.code)
   rescue Lla::CustomDomains::ProviderErrors::Error => e
     retry_or_fail(domain, e.code)
   end
@@ -67,9 +73,11 @@ class Lla::CustomDomains::OperationExecutor
     return Lla::CustomDomains::OperationService.cancel!(operation, code: 'lla_custom_domain_not_removing') unless
       domain.state == 'removing'
 
-    domain.provider_adapter.teardown(domain.hostname, domain.provider_resource_id)
+    domain.provider_adapter.teardown(domain.hostname, domain.provider_resource_id, account: domain.account)
     domain.destroy!
     Lla::CustomDomains::OperationService.succeed!(operation)
+  rescue Lla::CustomDomains::ProviderErrors::NotConfigured => e
+    Lla::CustomDomains::OperationService.defer!(operation, code: e.code)
   rescue Lla::CustomDomains::ProviderErrors::Error => e
     Lla::CustomDomains::OperationService.fail!(operation, code: e.code)
   end
@@ -78,6 +86,8 @@ class Lla::CustomDomains::OperationExecutor
     result = domain.provider_adapter.check(domain)
     domain.update!(provider_status: result[:status], provider_synced_at: Time.current)
     Lla::CustomDomains::OperationService.succeed!(operation)
+  rescue Lla::CustomDomains::ProviderErrors::NotConfigured => e
+    Lla::CustomDomains::OperationService.defer!(operation, code: e.code)
   rescue Lla::CustomDomains::ProviderErrors::Error => e
     Lla::CustomDomains::OperationService.fail!(operation, code: e.code)
   end
@@ -90,8 +100,11 @@ class Lla::CustomDomains::OperationExecutor
     end
 
     Lla::CustomDomains::ProviderRegistry.for(operation.provider)
-                                        .teardown(operation.hostname, operation.provider_resource_id)
+                                        .teardown(operation.hostname, operation.provider_resource_id,
+                                                  account: Account.find_by(id: operation.account_id))
     Lla::CustomDomains::OperationService.succeed!(operation)
+  rescue Lla::CustomDomains::ProviderErrors::NotConfigured => e
+    Lla::CustomDomains::OperationService.defer!(operation, code: e.code)
   rescue Lla::CustomDomains::ProviderErrors::Error => e
     Lla::CustomDomains::OperationService.fail!(operation, code: e.code)
   end

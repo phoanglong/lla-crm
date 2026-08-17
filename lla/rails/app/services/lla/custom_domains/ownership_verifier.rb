@@ -3,25 +3,29 @@
 # Proves that the customer really controls the hostname by fetching the LLA
 # challenge over the public network through the shared SSRF-guarded fetcher.
 #
-# Egress is gated by the same provider policy as every other LLA outbound call, so
-# an install without the capability or without account consent performs zero
-# network activity and simply reports "unverified".
+# The result is typed on purpose. `:deferred` means "we were not allowed to look",
+# which must never be counted as a failed verification, so a capability that is
+# simply switched off cannot burn the operation's retry budget or push a domain
+# into `failed`.
 class Lla::CustomDomains::OwnershipVerifier
   MAX_BODY_BYTES = 4096
+  RESULTS = %i[verified unverified deferred].freeze
 
   def self.verify(domain, now: Time.current)
     path = Lla::CustomDomains::OwnershipChallenge.probe_path(domain, now: now)
-    return false if path.blank?
-
-    Lla::Knowledge::ProviderPolicy.authorize_egress!(
-      account: domain.account, provider: :direct_fetch, capability: :custom_domains
-    )
+    return :unverified if path.blank?
+    return :deferred unless egress_permitted?(domain)
 
     body = fetch_challenge("https://#{domain.hostname}#{path}")
-    Lla::CustomDomains::OwnershipChallenge.matches?(domain, body, now: now)
-  rescue Lla::Knowledge::ProviderPolicy::Denied
-    false
+    Lla::CustomDomains::OwnershipChallenge.matches?(domain, body, now: now) ? :verified : :unverified
   end
+
+  def self.egress_permitted?(domain)
+    Lla::Knowledge::ProviderPolicy.egress_permitted?(
+      account: domain.account, provider: :direct_fetch, capability: :custom_domains
+    )
+  end
+  private_class_method :egress_permitted?
 
   def self.fetch_challenge(url)
     body = nil

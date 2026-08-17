@@ -3,21 +3,32 @@
 # Durable operation/outbox row for a single custom-domain side effect. Provider
 # identity and hostname are snapshotted so a teardown still runs after the domain
 # row is gone, and `domain_version` makes every late result detectably stale.
+#
+# Dispatch is bound to `after_create_commit`: an operation that is rolled back
+# with its enclosing transaction can never leave a job behind.
 class Lla::CustomDomains::Operation < ApplicationRecord
   self.table_name = 'lla_custom_domain_operations'
 
   TYPES = %w[provision verify remove reconcile].freeze
-  STATES = %w[pending claimed succeeded failed dead_lettered cancelled].freeze
-  TERMINAL_STATES = %w[succeeded dead_lettered cancelled].freeze
+  STATES = %w[pending deferred claimed succeeded failed dead_lettered cancelled].freeze
+  WAITING_STATES = %w[pending deferred].freeze
+  TERMINAL_STATES = %w[succeeded failed dead_lettered cancelled].freeze
   RETENTION_PERIOD = 30.days
   MAX_ATTEMPTS = 5
+  MAX_DEFERRALS = 1000
   BACKOFF_BASE = 30.seconds
+  DEFERRAL_BACKOFF = 15.minutes
+  # A claim older than this is assumed to belong to a worker that died.
+  CLAIM_TIMEOUT = 15.minutes
 
   belongs_to :account, class_name: '::Account'
   belongs_to :domain, class_name: 'Lla::CustomDomains::Domain',
                       foreign_key: :custom_domain_id, inverse_of: :operations, optional: true
 
-  scope :dispatchable, ->(now = Time.current) { where(state: 'pending').where(available_at: ..now) }
+  scope :dispatchable, lambda { |now = Time.current|
+    where(state: WAITING_STATES).where(available_at: ..now).where(expires_at: now..)
+  }
+  scope :stale_claims, ->(now = Time.current) { where(state: 'claimed').where(claimed_at: ...(now - CLAIM_TIMEOUT)) }
 
   validates :operation_type, inclusion: { in: TYPES }
   validates :state, inclusion: { in: STATES }
@@ -29,13 +40,19 @@ class Lla::CustomDomains::Operation < ApplicationRecord
   validates :domain_version, numericality: { only_integer: true, greater_than: 0 }
   validates :max_attempts, numericality: { only_integer: true, in: 1..MAX_ATTEMPTS }
   validates :attempts, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :deferrals, numericality: { only_integer: true, in: 0..MAX_DEFERRALS }
   validate :attempts_within_budget
   validate :domain_shares_tenant
 
   before_validation :set_defaults, on: :create
+  after_create_commit :dispatch_later
 
   def terminal?
     state.in?(TERMINAL_STATES)
+  end
+
+  def waiting?
+    state.in?(WAITING_STATES)
   end
 
   # A result is only allowed to mutate the domain when the domain has not moved on
@@ -49,6 +66,10 @@ class Lla::CustomDomains::Operation < ApplicationRecord
 
   def next_available_at(now = Time.current)
     now + (BACKOFF_BASE * (2**[attempts - 1, 0].max))
+  end
+
+  def dispatch_later
+    Lla::CustomDomains::OperationDispatchJob.perform_later(id)
   end
 
   private
