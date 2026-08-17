@@ -61,16 +61,22 @@ class Lla::Widget::GeoGatekeeper
       account.feature_enabled?('ip_lookup')
   end
 
-  # A cached nil result is stored as a sentinel so repeated nil/malformed/error
-  # lookups stay rate-bounded within the (shorter) unavailable TTL rather than
-  # calling the provider on every request.
+  # Concurrent misses for the same tenant/widget/IP coalesce onto one provider call
+  # via SingleFlight. A cached nil result is stored as a sentinel so repeated
+  # nil/malformed/error lookups stay rate-bounded within the (shorter) unavailable TTL.
   def resolved_country
-    cached = cache.read(cache_key)
-    return cached_country(cached) unless cached.nil?
+    stored = single_flight.call(expires_in: method(:cache_ttl_for)) do
+      provider_country || UNAVAILABLE_SENTINEL
+    end
+    cached_country(stored)
+  end
 
-    country = provider_country
-    cache.write(cache_key, country || UNAVAILABLE_SENTINEL, expires_in: country ? CACHE_TTL : UNAVAILABLE_CACHE_TTL)
-    country
+  def single_flight
+    Lla::Widget::SingleFlight.new(cache: cache, value_key: cache_key, lock_key: lock_key)
+  end
+
+  def cache_ttl_for(value)
+    value == UNAVAILABLE_SENTINEL ? UNAVAILABLE_CACHE_TTL : CACHE_TTL
   end
 
   def cached_country(cached)
@@ -90,8 +96,15 @@ class Lla::Widget::GeoGatekeeper
   end
 
   def cache_key
-    digest = Digest::SHA256.hexdigest("#{account.id}:#{web_widget.id}:#{client_ip}")
-    "#{CACHE_NAMESPACE}:#{account.id}:#{web_widget.id}:#{digest}"
+    "#{CACHE_NAMESPACE}:#{account.id}:#{web_widget.id}:#{ip_digest}"
+  end
+
+  def lock_key
+    "#{cache_key}:lock"
+  end
+
+  def ip_digest
+    Digest::SHA256.hexdigest("#{account.id}:#{web_widget.id}:#{client_ip}")
   end
 
   def policy_config

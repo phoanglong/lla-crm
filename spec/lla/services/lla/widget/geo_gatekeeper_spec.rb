@@ -160,11 +160,6 @@ RSpec.describe Lla::Widget::GeoGatekeeper do
       expect(ip_lookup).to have_received(:perform).once
     end
 
-    it 'bounds provider work under repeated contention within the TTL to a single lookup' do
-      10.times { gatekeeper.call }
-      expect(ip_lookup).to have_received(:perform).once
-    end
-
     it 'rate-bounds a malformed (unavailable) result to one lookup within the TTL' do
       allow(ip_lookup).to receive(:perform).and_return(OpenStruct.new(country_code: 'USA'))
       2.times { expect(gatekeeper.call.reason).to eq('geoip_lookup_unavailable') }
@@ -211,9 +206,59 @@ RSpec.describe Lla::Widget::GeoGatekeeper do
 
     it 'never stores the raw client IP in the cache key' do
       gatekeeper.call
-      key = cache.instance_variable_get(:@data).keys.first
-      expect(key).to include(account.id.to_s, web_widget.id.to_s)
-      expect(key).not_to include(client_ip)
+      keys = cache.instance_variable_get(:@data).keys
+      expect(keys).to be_present
+      expect(keys).to all(satisfy { |key| key.include?(account.id.to_s) && key.exclude?(client_ip) })
+    end
+  end
+
+  describe 'concurrent single-flight coalescing (barrier + threads)' do
+    let(:call_count) { Concurrent::AtomicFixnum.new(0) }
+
+    def run_concurrent(threads: 8)
+      barrier = Concurrent::CyclicBarrier.new(threads)
+      gatekeepers = Array.new(threads) do
+        described_class.new(web_widget: web_widget, client_ip: client_ip, global_enabled: true,
+                            ip_lookup: ip_lookup, cache: cache)
+      end
+      gatekeepers.map do |gk|
+        Thread.new do
+          barrier.wait
+          gk.call
+        end
+      end.each(&:join)
+    end
+
+    it 'coalesces a simultaneous valid miss group to one provider call' do
+      allow(ip_lookup).to receive(:perform) { call_count.increment && OpenStruct.new(country_code: 'US') }
+      run_concurrent
+      expect(call_count.value).to eq(1)
+    end
+
+    it 'coalesces a simultaneous malformed miss group to one provider call' do
+      allow(ip_lookup).to receive(:perform) { call_count.increment && OpenStruct.new(country_code: 'USA') }
+      run_concurrent
+      expect(call_count.value).to eq(1)
+    end
+
+    it 'coalesces a simultaneous expected-error miss group to one provider call' do
+      allow(ip_lookup).to receive(:perform) { call_count.increment && raise(Timeout::Error) }
+      run_concurrent
+      expect(call_count.value).to eq(1)
+    end
+
+    it 'does not let a different tenant/widget/IP key block or leak the cache' do
+      allow(ip_lookup).to receive(:perform) { call_count.increment && OpenStruct.new(country_code: 'US') }
+      other_account = create(:account)
+      other_account.enable_features!('ip_lookup')
+      other_account.update!(custom_attributes: account.custom_attributes)
+      other_widget = create(:channel_widget, account: other_account)
+
+      gatekeeper.call
+      described_class.new(web_widget: other_widget, client_ip: '198.51.100.5', global_enabled: true,
+                          ip_lookup: ip_lookup, cache: cache).call
+
+      expect(call_count.value).to eq(2)
     end
   end
 end
