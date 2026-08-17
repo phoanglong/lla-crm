@@ -11,10 +11,13 @@
 # raw IP) which also bounds the provider call rate within the TTL.
 class Lla::Widget::GeoGatekeeper
   CACHE_TTL = 5.minutes
+  UNAVAILABLE_CACHE_TTL = 1.minute
+  UNAVAILABLE_SENTINEL = '__geo_unavailable__'
   CACHE_NAMESPACE = 'lla:widget_geo'
   OPEN_MODE = 'open'
   UNAVAILABLE_CODE = 'geoip_lookup_unavailable'
   NOT_ALLOWED_CODE = 'country_not_allowed'
+  LOOKUP_ERRORS = [Timeout::Error, SocketError, Errno::ETIMEDOUT, Errno::ECONNREFUSED, Errno::EHOSTUNREACH].freeze
 
   Decision = Struct.new(:outcome, :country, :reason, keyword_init: true)
 
@@ -58,13 +61,28 @@ class Lla::Widget::GeoGatekeeper
       account.feature_enabled?('ip_lookup')
   end
 
+  # A cached nil result is stored as a sentinel so repeated nil/malformed/error
+  # lookups stay rate-bounded within the (shorter) unavailable TTL rather than
+  # calling the provider on every request.
   def resolved_country
     cached = cache.read(cache_key)
-    return cached if cached.present?
+    return cached_country(cached) unless cached.nil?
 
-    country = Lla::Widget::IsoCountryRegistry.canonical(provider_country_code)
-    cache.write(cache_key, country, expires_in: CACHE_TTL) if country
+    country = provider_country
+    cache.write(cache_key, country || UNAVAILABLE_SENTINEL, expires_in: country ? CACHE_TTL : UNAVAILABLE_CACHE_TTL)
     country
+  end
+
+  def cached_country(cached)
+    cached == UNAVAILABLE_SENTINEL ? nil : cached
+  end
+
+  # Maps expected adapter lookup failures to an unavailable result; programming
+  # errors are intentionally not rescued so they surface during development.
+  def provider_country
+    Lla::Widget::IsoCountryRegistry.canonical(provider_country_code)
+  rescue *LOOKUP_ERRORS
+    nil
   end
 
   def provider_country_code

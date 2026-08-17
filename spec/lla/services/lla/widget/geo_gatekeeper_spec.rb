@@ -102,6 +102,24 @@ RSpec.describe Lla::Widget::GeoGatekeeper do
       allow(ip_lookup).to receive(:perform).and_return(nil)
       expect(gatekeeper.call.reason).to eq('geoip_lookup_unavailable')
     end
+
+    it 'maps an expected provider timeout to a typed strict deny, not a 500' do
+      allow(ip_lookup).to receive(:perform).and_raise(Timeout::Error)
+      decision = gatekeeper.call
+      expect(decision.outcome).to eq(:deny)
+      expect(decision.reason).to eq('geoip_lookup_unavailable')
+    end
+
+    it 'fails open for an expected provider timeout when mode is open' do
+      configure_geo('widget_geoip_policy' => { 'enabled' => true, 'consent_enabled' => true, 'mode' => 'open' })
+      allow(ip_lookup).to receive(:perform).and_raise(SocketError)
+      expect(gatekeeper.call.outcome).to eq(:allow)
+    end
+
+    it 'does not rescue an unexpected programming error' do
+      allow(ip_lookup).to receive(:perform).and_raise(NoMethodError)
+      expect { gatekeeper.call }.to raise_error(NoMethodError)
+    end
   end
 
   describe 'zero-egress gates' do
@@ -140,6 +158,42 @@ RSpec.describe Lla::Widget::GeoGatekeeper do
     it 'calls the provider once per tenant/widget/IP within the TTL (bounded rate)' do
       2.times { gatekeeper.call }
       expect(ip_lookup).to have_received(:perform).once
+    end
+
+    it 'bounds provider work under repeated contention within the TTL to a single lookup' do
+      10.times { gatekeeper.call }
+      expect(ip_lookup).to have_received(:perform).once
+    end
+
+    it 'rate-bounds a malformed (unavailable) result to one lookup within the TTL' do
+      allow(ip_lookup).to receive(:perform).and_return(OpenStruct.new(country_code: 'USA'))
+      2.times { expect(gatekeeper.call.reason).to eq('geoip_lookup_unavailable') }
+      expect(ip_lookup).to have_received(:perform).once
+    end
+
+    it 'rate-bounds a provider timeout (unavailable) to one lookup within the TTL' do
+      allow(ip_lookup).to receive(:perform).and_raise(Timeout::Error)
+      2.times { gatekeeper.call }
+      expect(ip_lookup).to have_received(:perform).once
+    end
+
+    it 'looks up again after the positive-country TTL expires' do
+      gatekeeper.call
+      travel(described_class::CACHE_TTL + 1.second) { gatekeeper.call }
+      expect(ip_lookup).to have_received(:perform).twice
+    end
+
+    it 'looks up again after the shorter unavailable TTL expires' do
+      allow(ip_lookup).to receive(:perform).and_return(nil)
+      gatekeeper.call
+      travel(described_class::UNAVAILABLE_CACHE_TTL + 1.second) { gatekeeper.call }
+      expect(ip_lookup).to have_received(:perform).twice
+    end
+
+    it 'does not confuse the unavailable sentinel with a real country' do
+      allow(ip_lookup).to receive(:perform).and_return(nil)
+      gatekeeper.call
+      expect(gatekeeper.call.outcome).to eq(:deny)
     end
 
     it 'does not share cached decisions across accounts (tenant isolation)' do

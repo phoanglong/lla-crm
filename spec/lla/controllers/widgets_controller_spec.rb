@@ -63,6 +63,13 @@ RSpec.describe WidgetsController, type: :controller do
     expect(response.parsed_body['code']).to eq('geoip_lookup_unavailable')
   end
 
+  it 'maps an expected provider timeout to 401 geoip_lookup_unavailable, not a 500' do
+    allow(ip_lookup).to receive(:perform).and_raise(Timeout::Error)
+    show!
+    expect(response).to have_http_status(:unauthorized)
+    expect(response.parsed_body['code']).to eq('geoip_lookup_unavailable')
+  end
+
   it 'allows and skips the provider when GeoIP is disabled for the account' do
     configure_geo('widget_geoip_policy' => { 'enabled' => false, 'consent_enabled' => true })
     show!

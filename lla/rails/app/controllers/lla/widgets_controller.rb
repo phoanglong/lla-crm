@@ -28,24 +28,8 @@ module Lla::WidgetsController
     )
   end
 
-  # Only honour X-Forwarded-For when the direct peer is a configured trusted proxy;
-  # otherwise use the unspoofable direct connection address so a client cannot forge geo.
   def geo_client_ip
-    direct_peer_trusted? ? request.remote_ip : request.remote_addr
-  end
-
-  def direct_peer_trusted?
-    peer = request.remote_addr
-    return false if peer.blank?
-
-    address = IPAddr.new(peer)
-    trusted_proxy_ranges.any? { |range| range.respond_to?(:include?) && range.include?(address) }
-  rescue IPAddr::InvalidAddressError
-    false
-  end
-
-  def trusted_proxy_ranges
-    ActionDispatch::RemoteIp::TRUSTED_PROXIES + Array(Rails.application.config.action_dispatch.trusted_proxies)
+    Lla::Widget::TrustedClientIp.resolve(remote_ip: request.remote_ip, remote_addr: request.remote_addr)
   end
 
   def audit_geo_decision(result:, country: nil, error_code: nil)
