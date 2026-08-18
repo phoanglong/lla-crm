@@ -70,7 +70,10 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
               .where.not(custom_domain_id: nil)
               .order(id: :desc)
               .limit(BATCH_SIZE)
-              .find_each { |operation| recover(operation, now) }
+              # `each`, not `find_each`: batching would replace this order with its
+              # own and hand back the *oldest* rows, so the newest failures would
+              # never be reached once a batch of stale ones existed.
+              .each { |operation| recover(operation, now) }
   end
 
   def recover(operation, now)
@@ -135,7 +138,7 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
               .where.not(provider_resource_id: nil)
               .order(id: :desc)
               .limit(BATCH_SIZE)
-              .find_each do |operation|
+              .each do |operation|
       next if orphan_teardown_runnable?(operation)
 
       successor = Lla::CustomDomains::OperationService.enqueue_recovery!(operation, now: now)
@@ -144,8 +147,10 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
   end
 
   def orphan_teardown_runnable?(operation)
-    operations.runnable.exists?(custom_domain_id: nil, operation_type: 'remove',
-                                hostname: operation.hostname,
+    # Tenant-scoped: hostname and resource id are values, not tenant-checked keys, so
+    # another account's runnable teardown must never be read as this one's.
+    operations.runnable.exists?(account_id: operation.account_id, custom_domain_id: nil,
+                                operation_type: 'remove', hostname: operation.hostname,
                                 provider_resource_id: operation.provider_resource_id)
   end
 
@@ -181,7 +186,13 @@ class Lla::CustomDomains::ReconciliationJob < ApplicationJob
       domain = Lla::CustomDomains::Domain.lock.find_by(id: id, state: 'ownership_pending')
       next if domain.blank? || domain.challenge_expires_at.blank? || domain.challenge_expires_at >= now
 
-      Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+      # Revocation is the decision, and it carries the challenge generation as its
+      # premise: if it is a no-op the material on the row is no longer the expired
+      # generation this pass read, so there is nothing to expire. Under the row lock
+      # taken above this cannot normally happen; it is the guard that makes the
+      # conclusion true rather than merely likely.
+      next unless Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+
       Lla::CustomDomains::LifecycleService.new(portal: domain.portal).fail!(domain, code: CHALLENGE_EXPIRED_CODE)
     end
   end
