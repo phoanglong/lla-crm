@@ -20,6 +20,14 @@ module Lla::PortalPolicy
     record_authorized? && (custom_role_can_manage_kb? || super)
   end
 
+  # Custom-domain reverification changes DNS/TLS-facing tenant state, so it keeps the
+  # base administrator-only grant and deliberately does NOT accept the content
+  # permission — but it still passes through the same tenant guard as every other
+  # action here, so a stale or forged context cannot reach it.
+  def custom_domain_reverify?
+    record_authorized? && super
+  end
+
   private
 
   def record_authorized?

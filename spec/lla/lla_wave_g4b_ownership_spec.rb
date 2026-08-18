@@ -21,11 +21,20 @@ RSpec.describe Lla do
   end
 
   it 'removes the superseded Enterprise runtime files' do
+    # The whole G4 union, not just G4b's four: a bad merge that resurrects any file
+    # either branch removed has to fail here rather than in production.
     legacy_paths = %w[
+      enterprise/app/controllers/enterprise/api/v1/accounts/portals_controller.rb
       enterprise/app/controllers/enterprise/widgets_controller.rb
+      enterprise/app/jobs/enterprise/cloudflare_verification_job.rb
+      enterprise/app/models/enterprise/concerns/portal.rb
       enterprise/app/policies/enterprise/article_policy.rb
       enterprise/app/policies/enterprise/category_policy.rb
       enterprise/app/policies/enterprise/portal_policy.rb
+      enterprise/app/services/cloudflare/base_cloudflare_zone_service.rb
+      enterprise/app/services/cloudflare/check_custom_hostname_service.rb
+      enterprise/app/services/cloudflare/create_custom_hostname_service.rb
+      enterprise/app/services/enterprise/website_branding_service.rb
     ]
 
     expect(legacy_paths.select { |path| Rails.root.join(path).exist? }).to be_empty

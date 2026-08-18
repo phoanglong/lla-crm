@@ -138,7 +138,7 @@ RSpec.describe 'Portal custom-domain lifecycle', type: :request do
   # which accepts `knowledge_base_manage` for `update?`. With enterprise disabled the
   # custom role does not exist at all, so the scenario is not reachable there.
   describe 'field-level authorization' do
-    before { skip('custom roles are an enterprise feature') unless ChatwootApp.enterprise? }
+    before { skip('custom roles are unavailable in this build') unless ChatwootApp.custom_roles? }
 
     it 'refuses a custom-domain change from a content role that may edit the portal' do
       patch "/api/v1/accounts/#{account.id}/portals/#{portal.slug}",
@@ -304,7 +304,7 @@ RSpec.describe 'Portal custom-domain lifecycle', type: :request do
     end
 
     it 'reports a content role as unable to manage the domain' do
-      skip('custom roles are an enterprise feature') unless ChatwootApp.enterprise?
+      skip('custom roles are unavailable in this build') unless ChatwootApp.custom_roles?
 
       get "/api/v1/accounts/#{account.id}/portals/#{portal.slug}",
           headers: content_editor.create_new_auth_token, as: :json

@@ -2,6 +2,12 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
   include ::FileTypeHelper
 
   before_action :fetch_portal, except: [:index, :create]
+  # `fetch_portal` is scoped to `Current.account`, so an unknown slug and another
+  # tenant's slug are the same thing: nil. Without this every member action then
+  # dereferenced nil and answered 500 on an authenticated endpoint — the tenant
+  # boundary held, but the error contract did not, and an unhandled exception is not
+  # how a "no such portal" answer should be produced.
+  before_action :ensure_portal_present, except: [:index, :create]
   before_action :check_authorization
   before_action :set_current_page, only: [:index]
 
@@ -70,6 +76,10 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
 
   def fetch_portal
     @portal = Current.account.portals.find_by(slug: permitted_params[:id])
+  end
+
+  def ensure_portal_present
+    head :not_found if @portal.blank?
   end
 
   def permitted_params
