@@ -4,11 +4,16 @@
 #
 # The lock lives in the shared cache store via an atomic `write(unless_exist:)`
 # (SET NX for Memcached/Redis stores), so concurrent misses across processes/pods
-# coalesce onto one computation. The lock has a bounded lifetime, an owner token so
-# only the holder releases it, and a fail-safe: if a peer does not publish within the
-# wait timeout the waiter computes locally instead of deadlocking. Lock and value keys
-# are supplied by the caller and must already be tenant/widget/digest scoped — no raw
-# IP ever reaches this layer.
+# coalesce onto one computation.
+#
+# Release is TTL-only: the lock is never actively deleted. ActiveSupport::Cache exposes
+# no portable atomic compare-and-delete, and a read-then-delete is a TOCTOU that lets a
+# stale owner erase a lock another owner re-acquired after expiry. Instead the bounded
+# lock TTL (kept well below the value TTL) frees the lock. A lingering lock cannot
+# amplify provider calls because the value cache is read before the lock, and a waiter
+# that never sees a published value within the wait timeout computes locally, so there
+# is no deadlock. Lock and value keys are supplied by the caller and must already be
+# tenant/widget/digest scoped — no raw IP ever reaches this layer.
 class Lla::Widget::SingleFlight
   DEFAULT_LOCK_TTL = 5.seconds
   DEFAULT_WAIT_TIMEOUT = 2.seconds
@@ -28,20 +33,17 @@ class Lla::Widget::SingleFlight
     cached = @cache.read(@value_key)
     return cached unless cached.nil?
 
-    token = SecureRandom.hex(16)
-    return compute_as_owner(token, expires_in, &compute) if acquire_lock(token)
+    return compute_as_owner(expires_in, &compute) if acquire_lock
 
     await_peer(expires_in, &compute)
   end
 
   private
 
-  def compute_as_owner(token, expires_in)
+  def compute_as_owner(expires_in)
     value = yield
     write_value(value, expires_in.call(value))
     value
-  ensure
-    release_lock(token)
   end
 
   def await_peer(expires_in)
@@ -59,12 +61,10 @@ class Lla::Widget::SingleFlight
     value
   end
 
-  def acquire_lock(token)
-    @cache.write(@lock_key, token, unless_exist: true, expires_in: @lock_ttl)
-  end
-
-  def release_lock(token)
-    @cache.delete(@lock_key) if @cache.read(@lock_key) == token
+  # SET NX with a bounded TTL. The token marks the acquiring owner for observability;
+  # the lock is released by TTL expiry only, never by an active delete.
+  def acquire_lock
+    @cache.write(@lock_key, SecureRandom.hex(16), unless_exist: true, expires_in: @lock_ttl)
   end
 
   def write_value(value, ttl)
