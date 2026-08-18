@@ -20,22 +20,39 @@ class Lla::CustomDomains::OwnershipChallenge
 
   Issued = Struct.new(:id, :body, :expires_at, keyword_init: true)
 
-  def self.issue!(domain, now: Time.current)
-    write(domain, now: now, rotation: false)
+  # `expected` lets a caller add its own premise (typically the lifecycle state it
+  # decided from). The challenge generation premise below is always added on top.
+  def self.issue!(domain, now: Time.current, expected: {})
+    write(domain, now: now, rotation: false, expected: expected)
   end
 
-  def self.rotate!(domain, now: Time.current)
+  # The budget check reads the same snapshot the write fences on, so a rotation that
+  # loses the race consumes nothing: the winner already spent that attempt.
+  def self.rotate!(domain, now: Time.current, expected: {})
     raise RotationExhausted if domain.challenge_rotations >= Lla::CustomDomains::Domain::MAX_CHALLENGE_ROTATIONS
 
-    write(domain, now: now, rotation: true)
+    write(domain, now: now, rotation: true, expected: expected)
   end
 
-  # Revocation is idempotent and safe to lose: if the row moved, whoever moved it
-  # revoked or replaced the material as part of that transition.
-  def self.revoke!(domain)
+  # Revocation is idempotent and safe to lose, but it is *not* safe to apply blindly:
+  # a snapshot taken before someone else rotated must never clear the replacement
+  # material. So it carries the same generation premise as a write and returns false
+  # — a no-op — when the challenge it read is no longer the one on the row.
+  def self.revoke!(domain, expected: {})
     domain.fenced_update({ challenge_id_digest: nil, challenge_ciphertext: nil,
-                           challenge_expires_at: nil, challenge_rotated_at: nil })
+                           challenge_expires_at: nil, challenge_rotated_at: nil },
+                         expected: generation_premise(domain).merge(expected))
   end
+
+  # The identity of one challenge generation. The digest is derived from 24 random
+  # bytes, so it changes on every issue and every rotation and is what makes two
+  # writers reading the same snapshot mutually exclusive; the rotation count is what
+  # makes the bounded budget exact — a lost racer spends none of it.
+  def self.generation_premise(domain)
+    { challenge_id_digest: domain.challenge_id_digest,
+      challenge_rotations: domain.challenge_rotations }
+  end
+  private_class_method :generation_premise
 
   # Returns the proof body only for the exact, unexpired challenge of the exact
   # canonical host. Every other input is indistinguishable from "no challenge".
@@ -75,24 +92,28 @@ class Lla::CustomDomains::OwnershipChallenge
   end
   private_class_method :payload
 
-  def self.write(domain, now:, rotation:)
+  def self.write(domain, now:, rotation:, expected: {})
     id = SecureRandom.urlsafe_base64(ID_BYTES)
     body = SecureRandom.urlsafe_base64(BODY_BYTES)
     expires_at = now + TTL
 
-    # Fenced: challenge material is bound to one hostname, so minting it onto a row
-    # that has been repointed since the read would produce a proof for the wrong
-    # host. The write carries the identity it was computed for.
-    moved = domain.fenced_update(
+    # Fenced twice over. Challenge material is bound to one hostname, so minting it
+    # onto a row repointed since the read would produce a proof for the wrong host —
+    # that is what the domain identity in `fenced_update` catches. And the material
+    # itself is a generation: the write also carries the exact challenge it read, so
+    # two writers that decided from the same snapshot cannot both win and the loser
+    # never overwrites the token the winner just issued.
+    written = domain.fenced_update(
       { challenge_id_digest: Lla::CustomDomains::ChallengeCipher.digest(id, hostname: domain.hostname),
         challenge_ciphertext: Lla::CustomDomains::ChallengeCipher.encrypt(
           { id: id, body: body }.to_json, hostname: domain.hostname, expires_at: expires_at
         ),
         challenge_expires_at: expires_at,
         challenge_rotated_at: (now if rotation),
-        challenge_rotations: domain.challenge_rotations + (rotation ? 1 : 0) }
+        challenge_rotations: domain.challenge_rotations + (rotation ? 1 : 0) },
+      expected: generation_premise(domain).merge(expected)
     )
-    raise Stale unless moved
+    raise Stale unless written
 
     Issued.new(id: id, body: body, expires_at: expires_at)
   end

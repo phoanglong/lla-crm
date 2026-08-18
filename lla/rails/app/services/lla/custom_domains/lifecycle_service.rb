@@ -257,9 +257,15 @@ class Lla::CustomDomains::LifecycleService
   # bounded rotation budget is what stops an administrator from minting fresh
   # challenge material indefinitely.
   def rotate_challenge!(domain, code)
-    Lla::CustomDomains::OwnershipChallenge.rotate!(domain)
+    Lla::CustomDomains::OwnershipChallenge.rotate!(domain, expected: { state: domain.state })
   rescue Lla::CustomDomains::OwnershipChallenge::RotationExhausted
     raise InvalidRequest, code
+  rescue Lla::CustomDomains::OwnershipChallenge::Stale
+    raise InvalidRequest, 'lla_custom_domain_conflict'
+  end
+
+  def issue_challenge!(domain)
+    Lla::CustomDomains::OwnershipChallenge.issue!(domain, expected: { state: 'requested' })
   rescue Lla::CustomDomains::OwnershipChallenge::Stale
     raise InvalidRequest, 'lla_custom_domain_conflict'
   end
@@ -272,8 +278,11 @@ class Lla::CustomDomains::LifecycleService
     raise InvalidRequest, 'lla_custom_domain_conflict'
   end
 
+  # The state premise is part of the challenge write, not a check before it: minting
+  # material and then discovering the row had already been released would leave a
+  # live proof on a domain nobody is verifying any more.
   def start_ownership!(domain)
-    Lla::CustomDomains::OwnershipChallenge.issue!(domain)
+    issue_challenge!(domain)
     transition!(domain, { state: 'ownership_pending' }, state: 'requested')
     emit_transition(domain, 'requested')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
