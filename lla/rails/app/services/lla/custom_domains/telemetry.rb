@@ -28,6 +28,16 @@ class Lla::CustomDomains::Telemetry
     payload
   end
 
+  # One lifecycle state change, described only by internal identifiers and states.
+  # Lives here rather than on the lifecycle service because it is telemetry, and the
+  # allow-list that keeps it safe is here too.
+  def self.transition(domain, previous_state, error_code: nil)
+    emit('lifecycle_transition', account_id: domain.account_id, portal_id: domain.portal_id,
+                                 domain_id: domain.id, provider: domain.provider,
+                                 previous_state: previous_state, state: domain.state,
+                                 error_code: error_code)
+  end
+
   # Times a block and emits the duration with the result, without ever touching the
   # block's return value.
   def self.measure(event, **labels)

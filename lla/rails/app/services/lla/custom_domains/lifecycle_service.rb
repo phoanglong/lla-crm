@@ -9,25 +9,9 @@
 # A hostname is globally unique and bound to one tenant: another account can never
 # claim, re-claim or take over a hostname that is already registered, and every
 # repoint tears the previous remote resource down before the new one is built.
+# Its two refusal types, `InvalidRequest` and its `Conflict` subclass, live in
+# `lifecycle_service/` so the service itself stays about transitions.
 class Lla::CustomDomains::LifecycleService
-  class InvalidRequest < StandardError
-    attr_reader :code
-
-    def initialize(code = 'lla_custom_domain_invalid_request')
-      @code = code
-      super(code)
-    end
-  end
-
-  # rubocop:disable Style/OneClassPerFile -- both are the service's own error contract
-  class Conflict < InvalidRequest
-    def initialize(code = 'lla_custom_domain_taken')
-      super
-    end
-  end
-
-  # rubocop:enable Style/OneClassPerFile
-
   def initialize(portal:)
     @portal = portal
   end
@@ -52,22 +36,30 @@ class Lla::CustomDomains::LifecycleService
     start_ownership!(domain)
   end
 
+  # Losing the race once is ordinary; the re-read sees the newer state.
+  RELEASE_ATTEMPTS = 3
+
   def release!
-    domain = Lla::CustomDomains::Domain.find_by(portal_id: portal.id)
-    return if domain.blank?
-    return domain if domain.state == 'removing'
+    RELEASE_ATTEMPTS.times do
+      domain = Lla::CustomDomains::Domain.find_by(portal_id: portal.id)
+      return if domain.blank?
+      return domain if domain.state == 'removing'
 
-    # Fenced like every other transition: an administrator releasing a domain races
-    # with whatever worker is mid-flight on it, and the loser must not write.
-    previous = domain.state
-    return domain unless domain.fenced_update({ state: 'removing', removal_requested_at: Time.current,
-                                                version: domain.version + 1, last_error_code: nil },
-                                              expected: { state: previous })
+      # Fenced, and never silent: `portals.custom_domain` is cleared by the same
+      # save that calls this, so a swallowed lost write would leave the column NULL
+      # while the row stays active, keeps routing, and never enqueues a teardown.
+      previous = domain.state
+      next unless domain.fenced_update({ state: 'removing', removal_requested_at: Time.current,
+                                         version: domain.version + 1, last_error_code: nil },
+                                       expected: { state: previous })
 
-    Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
-    emit_transition(domain, previous)
-    Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'remove')
-    domain
+      Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
+      Lla::CustomDomains::Telemetry.transition(domain, previous)
+      Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'remove')
+      return domain
+    end
+
+    raise InvalidRequest, 'lla_custom_domain_conflict'
   end
 
   # Administrator-triggered reverification of a legacy import. Routing is left alone
@@ -112,9 +104,9 @@ class Lla::CustomDomains::LifecycleService
     transition!(domain, { state: 'requested', version: domain.version + 1, last_error_code: nil,
                           ownership_verified_at: nil, activated_at: nil, removal_requested_at: nil },
                 state: previous)
-    emit_transition(domain, previous)
+    Lla::CustomDomains::Telemetry.transition(domain, previous)
     transition!(domain, { state: 'ownership_pending' }, state: 'requested')
-    emit_transition(domain, 'requested')
+    Lla::CustomDomains::Telemetry.transition(domain, 'requested')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
     domain
   end
@@ -149,7 +141,7 @@ class Lla::CustomDomains::LifecycleService
                                                last_error_code: nil },
                                              expected: { state: 'ownership_pending' })
 
-    emit_transition(domain, 'ownership_pending')
+    Lla::CustomDomains::Telemetry.transition(domain, 'ownership_pending')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'provision')
     true
   end
@@ -166,7 +158,7 @@ class Lla::CustomDomains::LifecycleService
     end
 
     Lla::CustomDomains::OwnershipChallenge.revoke!(domain)
-    emit_transition(domain, 'provisioning')
+    Lla::CustomDomains::Telemetry.transition(domain, 'provisioning')
     true
   end
 
@@ -178,23 +170,13 @@ class Lla::CustomDomains::LifecycleService
     return false unless domain.fenced_update({ state: 'failed', last_error_code: code.to_s.first(64) },
                                              expected: { state: previous })
 
-    emit_transition(domain, previous, error_code: code)
+    Lla::CustomDomains::Telemetry.transition(domain, previous, error_code: code)
     false
   end
 
   private
 
   attr_reader :portal
-
-  def emit_transition(domain, previous_state, error_code: nil)
-    Lla::CustomDomains::Telemetry.emit('lifecycle_transition', account_id: domain.account_id,
-                                                               portal_id: domain.portal_id,
-                                                               domain_id: domain.id,
-                                                               provider: domain.provider,
-                                                               previous_state: previous_state,
-                                                               state: domain.state,
-                                                               error_code: error_code)
-  end
 
   # The installation's own hostnames already resolve to this application, so a proof
   # fetched over them would be served by this very app: a tenant could "prove"
@@ -284,7 +266,7 @@ class Lla::CustomDomains::LifecycleService
   def start_ownership!(domain)
     issue_challenge!(domain)
     transition!(domain, { state: 'ownership_pending' }, state: 'requested')
-    emit_transition(domain, 'requested')
+    Lla::CustomDomains::Telemetry.transition(domain, 'requested')
     Lla::CustomDomains::OperationService.enqueue!(domain: domain, operation_type: 'verify')
     domain
   end
