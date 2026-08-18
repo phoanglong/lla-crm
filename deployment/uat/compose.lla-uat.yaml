@@ -1,0 +1,111 @@
+# LLA CRM — isolated UAT / private DEV-DEMO stack.
+#
+# Deliberately shares NOTHING with production: its own PostgreSQL, its own Redis,
+# its own object storage volume, its own project name and its own port. It is
+# started from an image built at one exact Git SHA and pinned by digest, and it is
+# seeded with synthetic tenants only.
+#
+#   docker compose -f deployment/uat/compose.lla-uat.yaml --env-file deployment/uat/.env.uat up -d
+#
+# `deployment/uat/.env.uat` is NOT committed (`.env.*` is git-ignored). Generate it
+# from `.env.uat.example` next to this file, and keep every value synthetic:
+#
+#   * no production database, Redis, S3 bucket or domain;
+#   * no production webhook URL and no provider callback that a real provider can
+#     reach — every provider capability ships OFF and stays OFF here;
+#   * no production provider credential and no customer personal data.
+#
+# LLA_IMAGE must be an image *digest*, not a tag, so the stack cannot silently drift
+# onto a different build between a test run and its evidence.
+
+name: lla-crm-uat
+
+x-app: &app
+  image: ${LLA_IMAGE:?set LLA_IMAGE to an image digest, e.g. lla-crm@sha256:...}
+  env_file: ${LLA_UAT_ENV_FILE:-./.env.uat}
+  environment:
+    RAILS_ENV: production
+    NODE_ENV: production
+    INSTALLATION_ENV: docker
+    RAILS_LOG_TO_STDOUT: "true"
+    POSTGRES_HOST: postgres
+    POSTGRES_DATABASE: lla_crm_uat
+    POSTGRES_USERNAME: lla_uat
+    REDIS_URL: redis://redis:6379
+    # Every optional external capability stays off in UAT. Turning any of these on
+    # is a separate owner decision that also needs a provider sandbox, a data
+    # region answer and a retention answer.
+    DISABLE_ENTERPRISE: "true"
+    LLA_WIDGET_GEOIP_ENABLED: "false"
+    LLA_CUSTOM_DOMAIN_ENABLED: "false"
+    LLA_EGRESS_ENABLED: "false"
+  volumes:
+    - uat_storage:/app/storage
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  networks: [uat]
+
+services:
+  rails:
+    <<: *app
+    ports:
+      # Loopback only. A UAT stack is not something to expose on an interface.
+      - '127.0.0.1:${LLA_UAT_PORT:-4185}:3000'
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  sidekiq:
+    <<: *app
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: lla_crm_uat
+      POSTGRES_USER: lla_uat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.uat}
+    volumes:
+      - uat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lla_uat -d lla_crm_uat']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    networks: [uat]
+
+  redis:
+    image: redis:7-alpine
+    command: ['sh', '-c', 'redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.uat}
+    volumes:
+      - uat_redisdata:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    networks: [uat]
+
+volumes:
+  uat_storage:
+  uat_pgdata:
+  uat_redisdata:
+
+networks:
+  uat:
+    driver: bridge
