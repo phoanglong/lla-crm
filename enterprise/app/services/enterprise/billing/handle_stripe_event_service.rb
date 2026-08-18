@@ -48,7 +48,16 @@ class Enterprise::Billing::HandleStripeEventService
   end
 
   def capture_previous_usage
-    { responses: account.custom_attributes['captain_responses_usage'].to_i, monthly: current_plan_credits[:responses] }
+    { responses: consumed_captain_responses, monthly: current_plan_credits[:responses] }
+  end
+
+  # Wave E5 moved Captain response usage out of `custom_attributes` and into the
+  # LLA quota ledger. Nothing writes that key any more, so reading it here made
+  # `consumed_topup_credits` in `adjust_captain_credits` permanently zero — and
+  # top-up credits a customer had already burned were re-granted at every renewal,
+  # plan change and cancellation. Read the ledger through the public accessor.
+  def consumed_captain_responses
+    account.usage_limits.dig(:captain, :responses, :consumed).to_i
   end
 
   def current_plan_credits
@@ -105,7 +114,7 @@ class Enterprise::Billing::HandleStripeEventService
     return unless Enterprise::Billing::CreateStripeCustomerService.new(account: account).perform
 
     account.with_lock do
-      previous_usage = { responses: account.custom_attributes['captain_responses_usage'].to_i, monthly: previous_monthly_credits }
+      previous_usage = { responses: consumed_captain_responses, monthly: previous_monthly_credits }
       adjust_captain_credits(previous_usage, new_plan_credits: 0)
       account.reset_response_usage
     end

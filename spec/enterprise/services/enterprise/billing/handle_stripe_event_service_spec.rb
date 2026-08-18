@@ -64,23 +64,40 @@ describe Enterprise::Billing::HandleStripeEventService do
       expect(account).not_to be_feature_enabled('audit_logs')
     end
 
-    it 'resets captain usage on billing period renewal' do
-      # Prime the account with some usage
-      5.times { account.increment_response_usage }
-      expect(account.custom_attributes['captain_responses_usage']).to eq(5)
+    # OPEN DECISION (Wave J, DOC-OMCRM-044). Wave E5 moved Captain quota enforcement
+    # into the LLA ledger, whose period is the *calendar month*
+    # (`Lla::Captain::QuotaManager#current_period_start` → `beginning_of_month`).
+    # `Account#reset_response_usage` only zeroes the legacy `custom_attributes`
+    # counter, which nothing enforces against any more — so a Stripe *anniversary*
+    # renewal does not hand the account fresh quota until the 1st of the next month.
+    #
+    # This example asserts what the code actually does rather than what its method
+    # name suggests, so the gap is visible instead of hidden behind a green test.
+    # It is not reachable in the shipping configuration — Stripe billing is OFF and
+    # Wave J removes the Chatwoot Hub billing path outright — but if LLA ever bills
+    # on a Stripe anniversary, Wave J has to close the current ledger period and open
+    # a new one at the renewal timestamp. Zeroing the counters in place is not an
+    # option: `Lla::Captain::QuotaReconciliationService` recomputes them from the
+    # immutable reservation rows on an hourly job and would undo it within the hour.
+    it 'zeroes the legacy counter on renewal but does not reset the ledger that enforces quota' do
+      account.update!(custom_attributes: account.custom_attributes.merge('plan_name' => 'Startups'),
+                      limits: { 'captain_responses' => 10 })
+      quota = Lla::Captain::QuotaManager.new(account: account, idempotency_key: 'renewal-spec',
+                                             owner_token: 'spec', feature: 'editor', provider: 'openai',
+                                             credential_source: 'system', reason: 'spec')
+      quota.reserve!
+      quota.consume!
+      expect(account.reload.usage_limits.dig(:captain, :responses, :consumed)).to eq(1)
 
-      # Setup for any plan
       allow(subscription).to receive(:[]).with('plan')
                                          .and_return({ 'id' => 'test', 'product' => 'plan_id_startups', 'name' => 'Startups' })
       allow(subscription).to receive(:[]).with('current_period_start').and_return(1_686_567_520)
-
-      # Simulate billing period renewal with previous_attributes showing old period
       allow(data).to receive(:previous_attributes).and_return({ 'current_period_start' => 1_683_975_520 })
 
       stripe_event_service.new.perform(event: event)
 
-      # Verify usage was reset
       expect(account.reload.custom_attributes['captain_responses_usage']).to eq(0)
+      expect(account.usage_limits.dig(:captain, :responses, :consumed)).to eq(1)
     end
   end
 

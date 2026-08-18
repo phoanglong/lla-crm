@@ -105,7 +105,8 @@ RSpec.describe Captain::Copilot::ChatService do
       expect(response.message).to eq(
         'content' => 'Hey', 'reasoning' => 'Test reasoning', 'reply_suggestion' => false
       )
-      expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+      # Quota lives in the LLA ledger since Wave E5; the old counter is dead.
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 1, reserved: 0)
     end
 
     it 'does not include future thread messages in the bounded request history' do

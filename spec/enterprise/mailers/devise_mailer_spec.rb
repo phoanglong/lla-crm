@@ -20,6 +20,13 @@ RSpec.describe 'Devise::Mailer' do
         create(:installation_config, name: 'BRAND_NAME', value: '')
       end
 
+      # `GlobalConfig` caches into `$alfred`, which is an in-process MockRedis in
+      # test and is not touched by transactional rollback. Without this, the blank
+      # brand set here leaks into every later example in the same process — which is
+      # exactly what made the SSO example below fail in a whole-tree run and pass on
+      # its own.
+      after { GlobalConfig.clear_cache }
+
       it 'preserves the blank brand override' do
         expect(mail_body).not_to include('Chatwoot')
       end
@@ -51,7 +58,11 @@ RSpec.describe 'Devise::Mailer' do
 
         it 'mentions SSO invitation' do
           expect(mail_body).to include("You're invited to join #{account.name}")
-          expect(mail_body).to include("#{inviter_val.name} invited you to access the #{account.name} workspace on Chatwoot.")
+          # Deliberately stops before the brand: `BRAND_NAME` is deployment-configurable
+          # and reads "LLA CRM" on a seeded install. What must stay proven is the SAML
+          # branch's wording — "access the ... workspace", against the non-SAML branch's
+          # "join the ... workspace".
+          expect(mail_body).to include("#{inviter_val.name} invited you to access the #{account.name} workspace on")
         end
 
         it 'explains SSO authentication' do

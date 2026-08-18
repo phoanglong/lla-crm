@@ -230,7 +230,11 @@ RSpec.describe 'Enterprise Billing APIs', type: :request do
               'conversation' => {},
               'captain' => {
                 'documents' => { 'consumed' => 0, 'current_available' => ChatwootApp.max_limit, 'total_count' => ChatwootApp.max_limit },
-                'responses' => { 'consumed' => 0, 'current_available' => ChatwootApp.max_limit, 'total_count' => ChatwootApp.max_limit }
+                # `reserved` is additive and required for the payload to be self-consistent:
+                # `current_available` now subtracts reservations too, so without it a client
+                # cannot reconcile total_count - consumed against current_available.
+                'responses' => { 'consumed' => 0, 'reserved' => 0, 'current_available' => ChatwootApp.max_limit,
+                                 'total_count' => ChatwootApp.max_limit }
               },
               'non_web_inboxes' => {}
             }

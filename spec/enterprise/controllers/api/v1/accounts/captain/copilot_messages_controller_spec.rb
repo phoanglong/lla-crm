@@ -41,7 +41,11 @@ RSpec.describe 'Api::V1::Accounts::Captain::CopilotMessagesController', type: :r
         copilot_thread_id: copilot_thread.id,
         response_state: 'reserved'
       )
-      expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+      # Wave E5 moved Captain quota out of `account.custom_attributes` and into the
+      # LLA ledger (`lla_captain_quota_ledgers`), so the old counter is never written
+      # and reads back nil — an assertion against it passes for nothing. These read the
+      # ledger through the public accessor instead.
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, reserved: 1)
       expect(Captain::Copilot::ResponseJob).to have_been_enqueued.with(
         message_id: source.id,
         reservation_token: source.response_job_token

@@ -41,7 +41,9 @@ RSpec.describe Captain::Copilot::ResponseJob, type: :job do
 
     expect(source_message.reload).to be_response_completed
     expect(source_message.response_attempts).to eq(1)
-    expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+    # Wave E5 moved Captain quota into the LLA ledger; the old
+    # `custom_attributes` counter is never written, so asserting it proved nothing.
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 1, reserved: 0)
     expect(Redis::Alfred).to have_received(:delete_if_equals).with(
       format(described_class::LOCK_KEY, account_id: account.id, thread_id: copilot_thread.id),
       kind_of(String)
@@ -53,7 +55,9 @@ RSpec.describe Captain::Copilot::ResponseJob, type: :job do
 
     expect(Captain::Copilot::ChatService).not_to have_received(:new)
     expect(source_message.reload).to be_response_reserved
-    expect(account.reload.custom_attributes['captain_responses_usage']).to eq(1)
+    # Wave E5 moved Captain quota into the LLA ledger; the old
+    # `custom_attributes` counter is never written, so asserting it proved nothing.
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, reserved: 1)
   end
 
   it 'is a no-op after the response has completed' do
@@ -75,7 +79,9 @@ RSpec.describe Captain::Copilot::ResponseJob, type: :job do
     expect(source_message.copilot_response.message['content']).to eq(
       I18n.t('captain.copilot_generation_failed', default: 'Copilot could not generate a response. Please try again.')
     )
-    expect(account.reload.custom_attributes['captain_responses_usage']).to eq(0)
+    # Wave E5 moved Captain quota into the LLA ledger; the old
+    # `custom_attributes` counter is never written, so asserting it proved nothing.
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, reserved: 0)
   end
 
   it 'releases the reservation when conversation access is revoked before execution' do
@@ -84,7 +90,9 @@ RSpec.describe Captain::Copilot::ResponseJob, type: :job do
     expect { perform }.to change(CopilotMessage, :count).by(1)
 
     expect(source_message.reload).to be_response_released
-    expect(account.reload.custom_attributes['captain_responses_usage']).to eq(0)
+    # Wave E5 moved Captain quota into the LLA ledger; the old
+    # `custom_attributes` counter is never written, so asserting it proved nothing.
+    expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 0, reserved: 0)
     expect(Captain::Copilot::ChatService).not_to have_received(:new)
   end
 end

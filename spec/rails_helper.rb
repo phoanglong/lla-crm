@@ -44,6 +44,16 @@ rescue ActiveRecord::PendingMigrationError => e
 end
 RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
+
+  # `Current` is a plain `thread_mattr_accessor` module, and builders such as
+  # `AccountBuilder#create_account` set `Current.account` without ever clearing it.
+  # RSpec does not reset it between examples, so a later example can enqueue mail
+  # carrying a GlobalID for an account whose row was already rolled back — and
+  # `have_enqueued_mail` then destructively truncates that job while failing to
+  # deserialize it, which is how a green single-file run becomes a red whole-tree
+  # run. Production resets it in `RequestExceptionHandler` and `ApplicationMailer`;
+  # the suite needs the same guarantee.
+  config.before { Current.reset }
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
   config.fixture_path = Rails.root.join('spec/fixtures')
 

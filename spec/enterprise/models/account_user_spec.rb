@@ -52,11 +52,18 @@ RSpec.describe AccountUser, type: :model do
     end
   end
 
+  # Scoped to the record under test on purpose. `Audited::Audit.where(action:).first`
+  # orders by id, so it returns the *oldest* audit row in the table — and `audits`
+  # survives anything that commits outside a transactional example (a `rails runner`,
+  # a truncation-mode spec). The assertion then reads a row belonging to an account
+  # that no longer exists, `associated` resolves to nil, and the failure has nothing
+  # to do with auditing.
   describe 'audit log' do
     context 'when account user is created' do
       it 'has associated audit log created' do
         account_user = create(:account_user)
-        account_user_audit_log = Audited::Audit.where(auditable_type: 'AccountUser', action: 'create').first
+        account_user_audit_log = Audited::Audit.where(auditable_type: 'AccountUser', auditable_id: account_user.id,
+                                                      action: 'create').first
         expect(account_user_audit_log).to be_present
         expect(account_user_audit_log.associated).to eq(account_user.account)
       end
@@ -66,7 +73,8 @@ RSpec.describe AccountUser, type: :model do
       it 'has associated audit log created' do
         account_user = create(:account_user)
         account_user.update!(availability: 'offline')
-        account_user_audit_log = Audited::Audit.where(auditable_type: 'AccountUser', action: 'update').first
+        account_user_audit_log = Audited::Audit.where(auditable_type: 'AccountUser', auditable_id: account_user.id,
+                                                      action: 'update').first
         expect(account_user_audit_log).to be_present
         expect(account_user_audit_log.associated).to eq(account_user.account)
         expect(account_user_audit_log.audited_changes).to eq('availability' => [0, 1])
