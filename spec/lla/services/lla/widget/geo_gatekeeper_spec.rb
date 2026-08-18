@@ -53,9 +53,16 @@ RSpec.describe Lla::Widget::GeoGatekeeper do
   end
 
   describe 'configuration validation (zero egress on error)' do
-    it 'rejects a present-but-empty allowlist with a stable code' do
+    # A cleared list is how an administrator turns the restriction off, and it is
+    # what an emptied UI control serialises to. The community implementation this
+    # replaces did `return if countries.blank?`, so treating it as a configuration
+    # error would take the customer's widget down with a 422 the moment they cleared
+    # their countries. A *blank entry* inside a list is still a typo and still raises.
+    it 'treats a present-but-empty allowlist as no restriction, with zero egress' do
       configure_geo('allowed_countries' => [])
-      expect { gatekeeper.call }.to raise_error(Lla::Widget::GeoConfigurationError) { |e| expect(e.code).to eq('geoip_policy_invalid') }
+      decision = gatekeeper.call
+      expect(decision.outcome).to eq(:bypass)
+      expect(decision.reason).to eq('not_configured')
       expect(ip_lookup).not_to have_received(:perform)
     end
 

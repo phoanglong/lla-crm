@@ -28,7 +28,15 @@ class Lla::Widget::TrustedClientIp
     false
   end
 
+  # Rails is explicit that setting `config.action_dispatch.trusted_proxies` to an
+  # enumerable *replaces* the default set (see ActionDispatch::RemoteIp). Unioning
+  # it with the defaults would silently re-trust every RFC1918 peer for an operator
+  # who deliberately narrowed the set to their edge load balancer, which is the
+  # whole point of narrowing it. So: configured means configured.
   def trusted_proxy_ranges
-    ActionDispatch::RemoteIp::TRUSTED_PROXIES + Array(Rails.application.config.action_dispatch.trusted_proxies)
+    configured = Array(Rails.application.config.action_dispatch.trusted_proxies)
+    return configured if configured.any?
+
+    ActionDispatch::RemoteIp::TRUSTED_PROXIES
   end
 end

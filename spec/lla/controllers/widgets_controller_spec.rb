@@ -41,11 +41,12 @@ RSpec.describe WidgetsController, type: :controller do
     expect(response).to have_http_status(:unauthorized)
   end
 
-  it 'returns 422 with a stable code for a present-but-empty allowlist' do
+  # See Lla::Widget::CountryAllowlist.unset? — a cleared list means "no restriction",
+  # not "broken configuration", so the widget keeps serving and nothing is looked up.
+  it 'serves the widget with zero egress when the allowlist is present but empty' do
     configure_geo('allowed_countries' => [])
     show!
-    expect(response).to have_http_status(:unprocessable_entity)
-    expect(response.parsed_body['code']).to eq('geoip_policy_invalid')
+    expect(response).to have_http_status(:success)
     expect(ip_lookup).not_to have_received(:perform)
   end
 
