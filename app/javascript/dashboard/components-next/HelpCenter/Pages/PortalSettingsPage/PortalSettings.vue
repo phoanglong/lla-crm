@@ -21,6 +21,10 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
+  domainInstructionsFor: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits([
@@ -28,6 +32,8 @@ const emit = defineEmits([
   'updatePortalConfiguration',
   'deletePortal',
   'refreshStatus',
+  'reverifyDomain',
+  'closeInstructions',
   'sendCnameInstructions',
 ]);
 
@@ -59,6 +65,14 @@ const handleUpdatePortalConfiguration = portal => {
 
 const fetchSSLStatus = () => {
   emit('refreshStatus');
+};
+
+const handleReverifyDomain = () => {
+  emit('reverifyDomain');
+};
+
+const handleCloseInstructions = () => {
+  emit('closeInstructions');
 };
 
 const handleSendCnameInstructions = payload => {
@@ -98,8 +112,11 @@ const handleDeletePortal = () => {
           :active-portal="activePortal"
           :is-fetching="isFetching"
           :is-fetching-status="isFetchingSSLStatus"
+          :domain-instructions-for="domainInstructionsFor"
           @update-portal-configuration="handleUpdatePortalConfiguration"
           @refresh-status="fetchSSLStatus"
+          @reverify-domain="handleReverifyDomain"
+          @close-instructions="handleCloseInstructions"
           @send-cname-instructions="handleSendCnameInstructions"
         />
         <div class="w-full h-px bg-n-weak" />

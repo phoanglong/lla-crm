@@ -1,34 +1,41 @@
+# frozen_string_literal: true
+
 require 'rails_helper'
 
 RSpec.describe Lla::CustomDomains::ChallengeResolver do
-  let(:portal) do
-    create(
-      :portal,
-      custom_domain: 'docs.example.com',
-      ssl_settings: {
-        'cf_verification_id' => 'challenge-123',
-        'cf_verification_body' => 'proof-body',
-        'cf_verification_expires_at' => 10.minutes.from_now.iso8601
-      }
-    )
+  let(:account) { create(:account) }
+  let(:portal) { create(:portal, account: account) }
+  let(:domain) { Lla::CustomDomains::LifecycleService.new(portal: portal).request!('docs.example.com') }
+
+  it 'returns the proof for the exact canonical host and live challenge id' do
+    challenge = Lla::CustomDomains::OwnershipChallenge.issue!(domain)
+
+    expect(described_class.resolve(host: 'DOCS.EXAMPLE.COM.', challenge_id: challenge.id)).to eq(challenge.body)
   end
 
-  before { portal }
+  it 'returns nothing for another host, another id or an expired challenge' do
+    challenge = Lla::CustomDomains::OwnershipChallenge.issue!(domain)
 
-  it 'returns the proof only for the exact active host, token, and expiry' do
-    expect(described_class.resolve(host: 'DOCS.EXAMPLE.COM.', challenge_id: 'challenge-123')).to eq('proof-body')
+    expect(described_class.resolve(host: 'help.example.com', challenge_id: challenge.id)).to be_nil
+    expect(described_class.resolve(host: 'docs.example.com', challenge_id: 'not-the-nonce')).to be_nil
+    expect(
+      described_class.resolve(host: 'docs.example.com', challenge_id: challenge.id,
+                              now: Lla::CustomDomains::OwnershipChallenge::TTL.from_now + 1.second)
+    ).to be_nil
   end
 
-  it 'does not disclose proof for a wrong host or token' do
-    expect(described_class.resolve(host: 'other.example.com', challenge_id: 'challenge-123')).to be_nil
-    expect(described_class.resolve(host: 'docs.example.com', challenge_id: 'wrong')).to be_nil
+  it 'returns nothing for a malformed or hostile Host header' do
+    challenge = Lla::CustomDomains::OwnershipChallenge.issue!(domain)
+
+    ["docs.example.com\r\nX-Injected: 1", 'docs.example.com:8443', 'docs.example.com/admin', ''].each do |host|
+      expect(described_class.resolve(host: host, challenge_id: challenge.id)).to be_nil
+    end
   end
 
-  it 'does not disclose expired or archived portal challenges' do
-    portal.update!(ssl_settings: portal.ssl_settings.merge('cf_verification_expires_at' => 1.minute.ago.iso8601))
-    expect(described_class.resolve(host: portal.custom_domain, challenge_id: 'challenge-123')).to be_nil
+  it 'stops serving the challenge once the domain leaves ownership_pending' do
+    challenge = Lla::CustomDomains::OwnershipChallenge.issue!(domain)
+    domain.update!(state: 'provisioning', ownership_verified_at: Time.current)
 
-    portal.update!(archived: true, ssl_settings: portal.ssl_settings.merge('cf_verification_expires_at' => 1.minute.from_now.iso8601))
-    expect(described_class.resolve(host: portal.custom_domain, challenge_id: 'challenge-123')).to be_nil
+    expect(described_class.resolve(host: 'docs.example.com', challenge_id: challenge.id)).to be_nil
   end
 end

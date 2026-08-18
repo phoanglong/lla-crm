@@ -40,9 +40,7 @@ json.meta do
   json.default_locale portal.default_locale
 end
 
-if portal.ssl_settings.present?
-  json.ssl_settings do
-    json.status portal.ssl_settings['cf_status']
-    json.verification_errors portal.ssl_settings['cf_verification_errors']
-  end
-end
+# Always emitted, including for a portal with no custom domain: the dashboard reads
+# capability, provider readiness and the caller's permission from here, so omitting
+# the key would render an administrator as unable to manage the domain.
+json.ssl_settings Lla::CustomDomains::StatusPresenter.call(portal: portal, account_user: Current.account_user)

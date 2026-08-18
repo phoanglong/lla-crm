@@ -57,10 +57,7 @@ class DashboardController < ActionController::Base
   end
 
   def render_hc_if_custom_domain
-    domain = request.host
-    return if domain == URI.parse(ENV.fetch('FRONTEND_URL', '')).host
-
-    @portal = Portal.find_by(custom_domain: domain)
+    @portal = Lla::CustomDomains::HostResolver.portal_for(request.host)
     return unless @portal
 
     @locale = @portal.default_locale
