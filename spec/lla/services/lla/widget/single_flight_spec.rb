@@ -61,10 +61,37 @@ RSpec.describe Lla::Widget::SingleFlight do
     expect(count.value).to eq(2)
   end
 
-  it 'fails safe by computing locally when a peer never publishes within the timeout' do
+  # A waiter must never compute. Computing on timeout is what turns the coalescing
+  # bound back into one call per caller the moment the owner is slower than the wait
+  # budget, which is exactly the case the bound exists for. The caller is told the
+  # value is unavailable and applies its own documented policy instead.
+  it 'raises WaitTimeout instead of computing when a peer never publishes in budget' do
     cache.write(lock_key, 'stuck-owner-token', expires_in: 60)
-    result = single_flight(wait_timeout: 0.1).call(expires_in: ttl) { 'computed-locally' }
-    expect(result).to eq('computed-locally')
+    computed = false
+    expect do
+      single_flight(wait_timeout: 0.1).call(expires_in: ttl) { computed = true }
+    end.to raise_error(described_class::WaitTimeout)
+    expect(computed).to be(false)
+  end
+
+  it 'lets exactly one waiter take over when the owner dies without publishing' do
+    cache.write(lock_key, 'dead-owner-token', expires_in: 0.1)
+    count = Concurrent::AtomicFixnum.new(0)
+    results = Array.new(5) do
+      Thread.new do
+        described_class.new(cache: cache, value_key: value_key, lock_key: lock_key,
+                            lock_ttl: 5.seconds, wait_timeout: 3.seconds)
+                       .call(expires_in: ttl) { count.increment && 'US' }
+      end
+    end.map(&:value)
+
+    expect(count.value).to eq(1)
+    expect(results).to all(eq('US'))
+  end
+
+  it 'reports whether a store can coalesce at all' do
+    expect(described_class.coalescing_capable?(ActiveSupport::Cache::MemoryStore.new)).to be(true)
+    expect(described_class.coalescing_capable?(ActiveSupport::Cache::NullStore.new)).to be(false)
   end
 
   # Regression for the read-then-delete TOCTOU on commit 3786779: owner A read its own
