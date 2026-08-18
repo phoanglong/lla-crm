@@ -23,5 +23,19 @@ module Lla::Account
     has_many :lla_knowledge_generation_operations,
              class_name: 'Lla::Knowledge::GenerationOperation', dependent: :delete_all
     has_many :calls, dependent: :destroy_async
+
+    # Every custom-domain table cascades with `accounts`, and portals are destroyed
+    # asynchronously *after* the account row is gone, so a plain delete drops queued
+    # provider teardowns and operator evidence while the remote objects they describe
+    # keep existing. Exported and refused here, before anything is destroyed, rather
+    # than discovered later from a provider bill.
+    # See Lla::CustomDomains::AccountDeletionSweep for the contract and its override.
+    before_destroy :sweep_lla_custom_domain_obligations, prepend: true
+  end
+
+  private
+
+  def sweep_lla_custom_domain_obligations
+    Lla::CustomDomains::AccountDeletionSweep.call(self)
   end
 end
