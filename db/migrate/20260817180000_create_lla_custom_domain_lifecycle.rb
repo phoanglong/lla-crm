@@ -12,17 +12,33 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   TOMBSTONE_EVIDENCE_SQL = 'char_length(evidence_key) BETWEEN 1 AND 128 AND ' \
                            "evidence_key ~ '^[a-z0-9_.:-]+$' AND " \
                            "(source_value_digest IS NULL OR source_value_digest ~ '^[0-9a-f]{64}$') AND " \
+                           "(provider_resource_digest IS NULL OR provider_resource_digest ~ '^[0-9a-f]{64}$') AND " \
+                           "(provider_resource_id IS NULL OR provider_resource_id ~ '^[A-Za-z0-9_-]{1,128}$') AND " \
                            '(source_value_preview IS NULL OR (' \
                            'char_length(source_value_preview) BETWEEN 1 AND 253 AND ' \
                            "source_value_preview !~ '[[:cntrl:]]'))"
   # What each kind of evidence must be able to answer. A dropped legacy value must
   # name the portal an operator has to fix and carry a reference to the exact
   # original bytes; evidence about a live remote resource must name the hostname.
-  TOMBSTONE_REASON_SHAPE_SQL = "reason NOT IN ('legacy_hostname_unsupported','legacy_hostname_duplicate') OR " \
-                               '(portal_id IS NOT NULL AND source_value_digest IS NOT NULL ' \
+  #
+  # The portal named is `source_portal_id`, not `portal_id`: the first is the
+  # immutable audit fact this evidence is *about*, the second is the live foreign
+  # key that is detached if the portal is later deleted.
+  TOMBSTONE_REASON_SHAPE_SQL = "reason NOT IN ('legacy_hostname_unsupported','legacy_hostname_duplicate'," \
+                               "'legacy_hostname_contested','legacy_hostname_unroutable') OR " \
+                               '(source_portal_id IS NOT NULL AND source_value_digest IS NOT NULL ' \
                                'AND source_value_preview IS NOT NULL)'
   TOMBSTONE_RESOURCE_SHAPE_SQL = "reason NOT IN ('legacy_provider_resource_unknown','provider_teardown_abandoned') " \
                                  'OR hostname IS NOT NULL'
+  # An abandoned teardown is the one kind of evidence that names a remote object LLA
+  # *knows* exists. It is only actionable if it carries that object's identifier and
+  # the provider it lives at, so the schema refuses the shape that cannot be acted on.
+  TOMBSTONE_ABANDONED_SHAPE_SQL = "reason <> 'provider_teardown_abandoned' OR " \
+                                  "(provider <> 'none' AND provider_resource_id IS NOT NULL " \
+                                  'AND provider_resource_digest IS NOT NULL)'
+  # The live reference may be detached, but it can never point somewhere else: while
+  # it is set it is the portal the evidence was recorded for.
+  TOMBSTONE_PORTAL_SHAPE_SQL = 'portal_id IS NULL OR portal_id = source_portal_id'
 
   # `portals.custom_domain` used to route on its own. The backfill materialises an
   # explicit lifecycle row so routing keeps working, but it never invents an
@@ -216,7 +232,10 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   def create_custom_domain_tombstones # rubocop:disable Metrics/MethodLength
     create_table :lla_custom_domain_tombstones do |t|
       t.integer :account_id, null: false
+      # Live tenant-checked reference: detached (NULL) if the portal is deleted.
       t.bigint :portal_id
+      # Immutable audit reference: which portal this evidence is about, forever.
+      t.bigint :source_portal_id
       t.string :hostname, limit: 253
       t.string :reason, null: false, limit: 64
       # Identity of one piece of evidence. It is deliberately *not* the hostname:
@@ -226,6 +245,13 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
       t.string :source_value_digest, limit: 64
       t.string :source_value_preview, limit: 253
       t.string :provider, null: false, default: 'none', limit: 32
+      # The identifier of the remote object that is still out there, and its SHA-256
+      # fingerprint. The fingerprint is what identity and telemetry use; the raw id
+      # never appears in an evidence key or a log line, only in this column, because
+      # it is the one thing that lets an operator delete the object after the
+      # operation that knew about it has been purged.
+      t.string :provider_resource_id, limit: 128
+      t.string :provider_resource_digest, limit: 64
       t.string :provider_status_hint, limit: 64
       t.string :state, null: false, default: 'manual_adoption_required', limit: 32
       t.datetime :resolved_at
@@ -233,28 +259,49 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
       t.timestamps
     end
 
+    add_tombstone_indexes
+    add_tombstone_constraints
+  end
+
+  def add_tombstone_indexes
     add_index :lla_custom_domain_tombstones, %i[account_id evidence_key], unique: true,
                                                                           name: 'idx_lla_custom_domain_tombstones_key'
     add_index :lla_custom_domain_tombstones, %i[account_id hostname], name: 'idx_lla_custom_domain_tombstones_host'
     add_index :lla_custom_domain_tombstones, :portal_id, name: 'idx_lla_custom_domain_tombstones_portal'
+    add_index :lla_custom_domain_tombstones, %i[account_id source_portal_id],
+              name: 'idx_lla_custom_domain_tombstones_source_portal'
     add_index :lla_custom_domain_tombstones, %i[state created_at], name: 'idx_lla_custom_domain_tombstones_state'
     add_foreign_key :lla_custom_domain_tombstones, :accounts, on_delete: :cascade,
                                                               name: 'fk_lla_custom_domain_tombstones_account'
-
-    add_tombstone_constraints
+    # The tenant boundary, enforced by PostgreSQL rather than by a model: evidence of
+    # account A can only ever name a portal of account A. No `ON DELETE` action is
+    # declared on purpose — evidence must neither be cascaded away with the portal
+    # nor left pointing at a row that no longer exists, so the database refuses a
+    # portal delete that would orphan it and the application detaches the live
+    # reference first (`Lla::Concerns::Portal`), keeping `source_portal_id`.
+    execute <<~SQL.squish
+      ALTER TABLE lla_custom_domain_tombstones
+        ADD CONSTRAINT fk_lla_custom_domain_tombstones_portal_tenant
+        FOREIGN KEY (portal_id, account_id) REFERENCES portals (id, account_id)
+    SQL
   end
 
   def add_tombstone_constraints
+    add_tombstone_shape_constraints
     add_check_constraint :lla_custom_domain_tombstones,
                          "state IN ('manual_adoption_required','resolved')",
                          name: 'chk_lla_custom_domain_tombstones_state'
     add_check_constraint :lla_custom_domain_tombstones,
                          "reason IN ('legacy_provider_resource_unknown','provider_teardown_abandoned'," \
-                         "'legacy_hostname_unsupported','legacy_hostname_duplicate')",
+                         "'legacy_hostname_unsupported','legacy_hostname_duplicate'," \
+                         "'legacy_hostname_contested','legacy_hostname_unroutable')",
                          name: 'chk_lla_custom_domain_tombstones_reason'
     add_check_constraint :lla_custom_domain_tombstones,
                          "state <> 'resolved' OR resolved_at IS NOT NULL",
                          name: 'chk_lla_custom_domain_tombstones_resolved'
+  end
+
+  def add_tombstone_shape_constraints
     add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_HOSTNAME_SQL,
                          name: 'chk_lla_custom_domain_tombstones_hostname'
     add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_EVIDENCE_SQL,
@@ -263,6 +310,10 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
                          name: 'chk_lla_custom_domain_tombstones_shape'
     add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_RESOURCE_SHAPE_SQL,
                          name: 'chk_lla_custom_domain_tombstones_resource'
+    add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_ABANDONED_SHAPE_SQL,
+                         name: 'chk_lla_custom_domain_tombstones_abandoned'
+    add_check_constraint :lla_custom_domain_tombstones, TOMBSTONE_PORTAL_SHAPE_SQL,
+                         name: 'chk_lla_custom_domain_tombstones_portal'
   end
 
   # Backfill goes through the real canonicalizer, so a hostname the runtime would
@@ -276,17 +327,75 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   # value contains. `portals.custom_domain` itself is left untouched, so nothing is
   # lost and the operator can re-enter a supported hostname.
   def backfill_custom_domains
-    seen = Set.new
     now = Time.current
+    groups = legacy_portals.group_by { |row| Lla::CustomDomains::HostCanonicalizer.canonicalize(row['custom_domain']) }
 
-    legacy_portals.each do |row|
-      hostname = Lla::CustomDomains::HostCanonicalizer.canonicalize(row['custom_domain'])
-      next record_dropped_legacy(row, 'legacy_hostname_unsupported', nil, now) if hostname.blank?
-      next record_dropped_legacy(row, 'legacy_hostname_duplicate', hostname, now) if seen.include?(hostname)
+    groups.each do |hostname, rows|
+      next rows.each { |row| record_dropped_legacy(row, 'legacy_hostname_unsupported', nil, now) } if hostname.blank?
 
-      seen << hostname
-      insert_legacy_domain(row, hostname, now)
+      import_legacy_group(hostname, rows, now)
     end
+  end
+
+  def import_legacy_group(hostname, rows, now)
+    routed, unroutable = rows.partition { |row| routed_form?(row['custom_domain'], hostname) }
+
+    unroutable.each { |row| record_dropped_legacy(row, 'legacy_hostname_unroutable', hostname, now) }
+    import_routed_group(hostname, routed, now)
+  end
+
+  def import_routed_group(hostname, rows, now)
+    owner = elect_legacy_owner(hostname, rows)
+    reason = owner ? 'legacy_hostname_duplicate' : 'legacy_hostname_contested'
+
+    rows.each do |row|
+      next insert_legacy_domain(row, hostname, now) if owner && row['id'] == owner['id']
+
+      record_dropped_legacy(row, reason, hostname, now)
+    end
+  end
+
+  # Could this stored value ever have been the `Host` of a request?
+  #
+  # Legacy routing was `Portal.find_by(custom_domain: request.host)` — an exact
+  # string comparison. Case and a trailing dot are the only differences a normal
+  # client erases on its way to that comparison, so those variants plausibly served.
+  # Everything else the canonicalizer folds — NFKC, IDNA — produces a hostname the
+  # stored value could not have matched: a browser sends punycode, not `ｄｏｃｓ`.
+  # Importing such a row would hand its account a hostname it demonstrably never
+  # served, take the globally unique row for it, and lock out whoever does own it.
+  # So it is evidence, not a claim.
+  def routed_form?(raw, hostname)
+    value = raw.to_s.strip
+    # ASCII first, and not as an optimisation: `String#downcase` is Unicode-aware, so
+    # U+212A KELVIN SIGN lowercases to a plain `k` and a value spelled with it would
+    # otherwise pass for the case variant of a hostname it could never have matched.
+    # A hostname is ASCII by the time it routes (IDNs arrive as punycode), so a
+    # non-ASCII stored value is never the form that was compared against `Host`.
+    return false unless value.ascii_only?
+
+    value.chomp('.').downcase == hostname
+  end
+
+  # Which portal was actually serving this hostname before the lifecycle existed.
+  #
+  # Legacy routing matched `portals.custom_domain` exactly and the column is globally
+  # unique, so at most one row can hold the canonical host itself — that row, and only
+  # that row, was resolving. Every other row in the group is a case or trailing-dot
+  # variant that never served anything.
+  #
+  # When no row holds the canonical value the group is ambiguous. Inside one account
+  # that is harmless: the tenant keeps the hostname either way and an operator sorts
+  # out which portal. Across accounts there is no fact that says whose it is, and the
+  # imported row would route immediately, so importing either one would hand a tenant
+  # a hostname it never proved and cannot be shown to have served. Nobody gets it, and
+  # every portal in the group gets its own evidence instead.
+  def elect_legacy_owner(hostname, rows)
+    exact = rows.find { |row| row['custom_domain'] == hostname }
+    return exact if exact
+    return if rows.pluck('account_id').uniq.size > 1
+
+    rows.first
   end
 
   # Evidence for one portal whose custom domain no longer resolves after this
@@ -307,16 +416,23 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     return if raw.empty?
 
     digest = Digest::SHA256.hexdigest(raw)
-    execute(<<~SQL.squish)
+    insert_with_binds(<<~SQL.squish,
       INSERT INTO lla_custom_domain_tombstones
-        (account_id, portal_id, hostname, reason, evidence_key, source_value_digest,
+        (account_id, portal_id, source_portal_id, hostname, reason, evidence_key, source_value_digest,
          source_value_preview, provider, state, created_at, updated_at)
-      VALUES (#{quote(row['account_id'])}, #{quote(row['id'])}, #{quote(hostname)}, #{quote(reason)},
-              #{quote(evidence_key(reason, row['id'], digest))}, #{quote(digest)},
-              #{quote(safe_preview(raw))}, 'none',
-              'manual_adoption_required', #{quote(now)}, #{quote(now)})
+      VALUES ($1, $2, $2, $3, $4, $5, $6, $7, 'none', 'manual_adoption_required', $8, $8)
       ON CONFLICT DO NOTHING
     SQL
+                      [row['account_id'], row['id'], hostname, reason,
+                       evidence_key(reason, row['id'], digest), digest, safe_preview(raw), now])
+  end
+
+  # Values go in as bind parameters, never as interpolated literals: `squish` runs
+  # over the whole statement, so an interpolated value containing whitespace would be
+  # silently rewritten on its way into the row — and legacy data is exactly where
+  # such values live.
+  def insert_with_binds(sql, binds)
+    ActiveRecord::Base.connection.exec_query(sql, 'lla_custom_domain_backfill', binds)
   end
 
   def evidence_key(reason, portal_id, digest)
@@ -348,14 +464,14 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     settings = parse_settings(row['ssl_settings'])
     status = settings['cf_status'].to_s.presence&.first(64)
 
-    execute(<<~SQL.squish)
+    insert_with_binds(<<~SQL.squish,
       INSERT INTO lla_custom_domains
         (account_id, portal_id, hostname, state, version, provider, provider_status,
          ownership_source, reverify_required, created_at, updated_at)
-      VALUES (#{quote(row['account_id'])}, #{quote(row['id'])}, #{quote(hostname)}, 'active', 1, 'none',
-              #{quote(status)}, 'legacy_import', TRUE, #{quote(now)}, #{quote(now)})
+      VALUES ($1, $2, $3, 'active', 1, 'none', $4, 'legacy_import', TRUE, $5, $5)
       ON CONFLICT DO NOTHING
     SQL
+                      [row['account_id'], row['id'], hostname, status, now])
   end
 
   def parse_settings(value)
@@ -363,9 +479,5 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     parsed.is_a?(Hash) ? parsed : {}
   rescue JSON::ParserError
     {}
-  end
-
-  def quote(value)
-    ActiveRecord::Base.connection.quote(value)
   end
 end

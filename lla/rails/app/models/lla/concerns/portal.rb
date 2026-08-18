@@ -12,6 +12,13 @@ module Lla::Concerns::Portal
   included do
     has_one :lla_custom_domain, class_name: 'Lla::CustomDomains::Domain',
                                 foreign_key: :portal_id, inverse_of: :portal, dependent: :destroy
+    # Evidence outlives the portal it is about. Deleting the portal detaches the live
+    # reference and keeps `source_portal_id`, so the work list still names the portal
+    # an operator has to reason about while PostgreSQL never holds a dangling one —
+    # the composite tenant foreign key refuses a portal delete that would orphan it.
+    has_many :lla_custom_domain_tombstones, class_name: 'Lla::CustomDomains::Tombstone',
+                                            foreign_key: :portal_id, inverse_of: :portal,
+                                            dependent: :nullify
 
     before_validation :canonicalize_lla_custom_domain
     after_save :synchronize_lla_custom_domain, if: :saved_change_to_custom_domain?

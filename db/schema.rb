@@ -1349,12 +1349,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   create_table "lla_custom_domain_tombstones", force: :cascade do |t|
     t.integer "account_id", null: false
     t.bigint "portal_id"
+    t.bigint "source_portal_id"
     t.string "hostname", limit: 253
     t.string "reason", limit: 64, null: false
     t.string "evidence_key", limit: 128, null: false
     t.string "source_value_digest", limit: 64
     t.string "source_value_preview", limit: 253
     t.string "provider", limit: 32, default: "none", null: false
+    t.string "provider_resource_id", limit: 128
+    t.string "provider_resource_digest", limit: 64
     t.string "provider_status_hint", limit: 64
     t.string "state", limit: 32, default: "manual_adoption_required", null: false
     t.datetime "resolved_at"
@@ -1363,13 +1366,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "evidence_key"], name: "idx_lla_custom_domain_tombstones_key", unique: true
     t.index ["account_id", "hostname"], name: "idx_lla_custom_domain_tombstones_host"
+    t.index ["account_id", "source_portal_id"], name: "idx_lla_custom_domain_tombstones_source_portal"
     t.index ["portal_id"], name: "idx_lla_custom_domain_tombstones_portal"
     t.index ["state", "created_at"], name: "idx_lla_custom_domain_tombstones_state"
-    t.check_constraint "(reason::text <> ALL (ARRAY['legacy_hostname_unsupported'::character varying, 'legacy_hostname_duplicate'::character varying]::text[])) OR portal_id IS NOT NULL AND source_value_digest IS NOT NULL AND source_value_preview IS NOT NULL", name: "chk_lla_custom_domain_tombstones_shape"
+    t.check_constraint "(reason::text <> ALL (ARRAY['legacy_hostname_unsupported'::character varying, 'legacy_hostname_duplicate'::character varying, 'legacy_hostname_contested'::character varying, 'legacy_hostname_unroutable'::character varying]::text[])) OR source_portal_id IS NOT NULL AND source_value_digest IS NOT NULL AND source_value_preview IS NOT NULL", name: "chk_lla_custom_domain_tombstones_shape"
     t.check_constraint "(reason::text <> ALL (ARRAY['legacy_provider_resource_unknown'::character varying, 'provider_teardown_abandoned'::character varying]::text[])) OR hostname IS NOT NULL", name: "chk_lla_custom_domain_tombstones_resource"
-    t.check_constraint "char_length(evidence_key::text) >= 1 AND char_length(evidence_key::text) <= 128 AND evidence_key::text ~ '^[a-z0-9_.:-]+$'::text AND (source_value_digest IS NULL OR source_value_digest::text ~ '^[0-9a-f]{64}$'::text) AND (source_value_preview IS NULL OR char_length(source_value_preview::text) >= 1 AND char_length(source_value_preview::text) <= 253 AND source_value_preview::text !~ '[[:cntrl:]]'::text)", name: "chk_lla_custom_domain_tombstones_evidence"
+    t.check_constraint "char_length(evidence_key::text) >= 1 AND char_length(evidence_key::text) <= 128 AND evidence_key::text ~ '^[a-z0-9_.:-]+$'::text AND (source_value_digest IS NULL OR source_value_digest::text ~ '^[0-9a-f]{64}$'::text) AND (provider_resource_digest IS NULL OR provider_resource_digest::text ~ '^[0-9a-f]{64}$'::text) AND (provider_resource_id IS NULL OR provider_resource_id::text ~ '^[A-Za-z0-9_-]{1,128}$'::text) AND (source_value_preview IS NULL OR char_length(source_value_preview::text) >= 1 AND char_length(source_value_preview::text) <= 253 AND source_value_preview::text !~ '[[:cntrl:]]'::text)", name: "chk_lla_custom_domain_tombstones_evidence"
     t.check_constraint "hostname IS NULL OR char_length(hostname::text) >= 1 AND char_length(hostname::text) <= 253 AND hostname::text !~ '[[:space:][:cntrl:]]'::text", name: "chk_lla_custom_domain_tombstones_hostname"
-    t.check_constraint "reason::text = ANY (ARRAY['legacy_provider_resource_unknown'::character varying, 'provider_teardown_abandoned'::character varying, 'legacy_hostname_unsupported'::character varying, 'legacy_hostname_duplicate'::character varying]::text[])", name: "chk_lla_custom_domain_tombstones_reason"
+    t.check_constraint "portal_id IS NULL OR portal_id = source_portal_id", name: "chk_lla_custom_domain_tombstones_portal"
+    t.check_constraint "reason::text <> 'provider_teardown_abandoned'::text OR provider::text <> 'none'::text AND provider_resource_id IS NOT NULL AND provider_resource_digest IS NOT NULL", name: "chk_lla_custom_domain_tombstones_abandoned"
+    t.check_constraint "reason::text = ANY (ARRAY['legacy_provider_resource_unknown'::character varying, 'provider_teardown_abandoned'::character varying, 'legacy_hostname_unsupported'::character varying, 'legacy_hostname_duplicate'::character varying, 'legacy_hostname_contested'::character varying, 'legacy_hostname_unroutable'::character varying]::text[])", name: "chk_lla_custom_domain_tombstones_reason"
     t.check_constraint "state::text <> 'resolved'::text OR resolved_at IS NOT NULL", name: "chk_lla_custom_domain_tombstones_resolved"
     t.check_constraint "state::text = ANY (ARRAY['manual_adoption_required'::character varying, 'resolved'::character varying]::text[])", name: "chk_lla_custom_domain_tombstones_state"
   end
@@ -1963,6 +1969,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   add_foreign_key "lla_custom_domain_operations", "lla_custom_domain_operations", column: "predecessor_id", name: "fk_lla_custom_domain_ops_predecessor", on_delete: :nullify
   add_foreign_key "lla_custom_domain_operations", "lla_custom_domains", column: ["custom_domain_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domain_ops_domain_tenant", on_delete: :cascade
   add_foreign_key "lla_custom_domain_tombstones", "accounts", name: "fk_lla_custom_domain_tombstones_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_tombstones", "portals", column: ["portal_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domain_tombstones_portal_tenant"
   add_foreign_key "lla_custom_domains", "accounts", name: "fk_lla_custom_domains_account", on_delete: :cascade
   add_foreign_key "lla_custom_domains", "portals", column: ["portal_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domains_portal_tenant", on_delete: :cascade
   add_foreign_key "lla_knowledge_generation_items", "articles", column: "output_article_id", name: "fk_lla_knowledge_items_output_article", on_delete: :nullify

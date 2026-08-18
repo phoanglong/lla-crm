@@ -158,7 +158,7 @@ RSpec.describe 'LLA custom-domain database invariants' do # rubocop:disable RSpe
     def insert_tombstone(columns)
       defaults = { account_id: account.id, reason: 'legacy_hostname_unsupported',
                    evidence_key: "legacy_hostname_unsupported:#{portal.id}:#{'a' * 32}",
-                   portal_id: portal.id, source_value_digest: 'b' * 64,
+                   portal_id: portal.id, source_portal_id: portal.id, source_value_digest: 'b' * 64,
                    source_value_preview: 'bad_host.example.com', provider: 'none',
                    state: 'manual_adoption_required' }
       values = defaults.merge(columns)
@@ -181,7 +181,7 @@ RSpec.describe 'LLA custom-domain database invariants' do # rubocop:disable RSpe
         insert_tombstone(reason: 'legacy_hostname_duplicate', hostname: 'docs.example.com',
                          evidence_key: "legacy_hostname_duplicate:#{portal.id}:#{'a' * 32}")
         insert_tombstone(reason: 'legacy_hostname_duplicate', hostname: 'docs.example.com',
-                         portal_id: second_portal.id,
+                         portal_id: second_portal.id, source_portal_id: second_portal.id,
                          evidence_key: "legacy_hostname_duplicate:#{second_portal.id}:#{'c' * 32}")
       end.to change(Lla::CustomDomains::Tombstone, :count).by(2)
     end
@@ -193,15 +193,17 @@ RSpec.describe 'LLA custom-domain database invariants' do # rubocop:disable RSpe
     end
 
     it 'refuses a dropped legacy value that names no portal or no original' do
-      expect_refusal({ portal_id: nil }, 'chk_lla_custom_domain_tombstones_shape')
+      expect_refusal({ portal_id: nil, source_portal_id: nil }, 'chk_lla_custom_domain_tombstones_shape')
       expect_refusal({ source_value_digest: nil }, 'chk_lla_custom_domain_tombstones_shape')
       expect_refusal({ source_value_preview: nil }, 'chk_lla_custom_domain_tombstones_shape')
     end
 
     it 'refuses remote-resource evidence with no hostname to act on' do
       expect_refusal({ reason: 'provider_teardown_abandoned', hostname: nil, portal_id: nil,
-                       source_value_digest: nil, source_value_preview: nil,
-                       evidence_key: "provider_teardown_abandoned:0:#{'a' * 32}" },
+                       source_portal_id: nil, source_value_digest: nil, source_value_preview: nil,
+                       provider: 'cloudflare', provider_resource_id: 'res-a',
+                       provider_resource_digest: 'd' * 64,
+                       evidence_key: "provider_teardown_abandoned:cloudflare:#{'a' * 32}" },
                      'chk_lla_custom_domain_tombstones_resource')
     end
 
