@@ -108,7 +108,10 @@ class Lla::CustomDomains::AccountDeletionSweep
     end
   end
 
+  # Overriding this sweep deletes an account that still owes a provider an action.
+  # A destructive override has to be asked for in words that mean yes, not merely in
+  # words that are not "no".
   def override?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch(OVERRIDE_FLAG, nil)).present?
+    ChatwootApp.enabled_flag?(OVERRIDE_FLAG)
   end
 end

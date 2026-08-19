@@ -17,20 +17,28 @@ class Lla::Search::ConversationCohort
 
   pattr_initialize [:account!, :user!, :account_user, :inbox_ids!]
 
-  # A relation over conversations, already scoped to the account and the inboxes the
+  # A relation over conversations, already scoped to the account and to what the
   # caller may read.
   def relation
-    base = account.conversations
-    base = base.where(inbox_id: inbox_ids) unless inbox_ids.nil?
+    base = base_scope
     return base unless custom_role_scoped?
 
     permissions = custom_role_permissions
     return base if permissions.include?(MANAGE_ALL)
-    return unassigned_scope(base) if permissions.include?(UNASSIGNED)
-    return participating_scope(base) if permissions.include?(PARTICIPATING)
+
+    grants = []
+    grants << unassigned_scope(base) if permissions.include?(UNASSIGNED)
+    grants << participating_scope(base) if permissions.include?(PARTICIPATING)
 
     # A custom role that grants no conversation permission grants no conversations.
-    base.none
+    return base.none if grants.empty?
+
+    # The grants are additive, exactly as `ConversationPolicy#show?` applies them:
+    # each `return true if …` there is a union, not a branch. Reading them as an
+    # elsif ladder made a member holding both `unassigned_manage` and
+    # `participating_manage` lose the participating half — a conversation they could
+    # open by URL was invisible to search.
+    grants.reduce { |left, right| left.or(right) }
   end
 
   def restricted?
@@ -38,6 +46,22 @@ class Lla::Search::ConversationCohort
   end
 
   private
+
+  # `ConversationPolicy` reaches a conversation through `inbox_access? ||
+  # team_access?`. Filtering on inbox alone made a conversation that is only
+  # reachable through team membership unsearchable, while remaining openable.
+  def base_scope
+    scope = account.conversations
+    return scope if inbox_ids.nil?
+
+    return scope.where(inbox_id: inbox_ids) if team_ids.empty?
+
+    scope.where(inbox_id: inbox_ids).or(scope.where(team_id: team_ids))
+  end
+
+  def team_ids
+    @team_ids ||= user.teams.where(account_id: account.id).pluck(:id)
+  end
 
   def unassigned_scope(base)
     base.where(assignee_id: [nil, user.id])

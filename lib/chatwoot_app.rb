@@ -12,21 +12,56 @@ module ChatwootApp
     100_000
   end
 
+  MAILER_FALLBACK_HOST = 'localhost'
+
   # The address outgoing mail comes from when the operator has not configured one.
   # The inherited default was `Chatwoot <accounts@chatwoot.com>` — a domain this
-  # installation does not own, so unconfigured mail either failed SPF/DMARC or
-  # asked Chatwoot's mail domain to answer for it. Derived from the installation's
-  # own frontend host instead, which every real deployment sets.
+  # installation does not own, so unconfigured mail either failed SPF/DMARC or asked
+  # Chatwoot's mail domain to answer for it. Derived from the installation's own
+  # frontend host instead, which every real deployment sets.
+  #
+  # Three cases review found by running it, each of which produced a wrong address
+  # rather than an obviously broken one:
+  #
+  #   FRONTEND_URL=crm.example.com     — no scheme, so `URI.host` is nil and mail
+  #                                      silently came from no-reply@localhost
+  #   FRONTEND_URL=http://[::1]:3000   — yielded `no-reply@[::1]`, which is not an
+  #                                      RFC 5321 address literal (needs `IPv6:`)
+  #   FRONTEND_URL=HTTPS://CRM.EX.COM  — host left uppercase
   def self.default_mailer_sender
-    host = begin
-      URI.parse(ENV.fetch('FRONTEND_URL', '').to_s).host
+    "no-reply@#{mailer_sender_host}"
+  end
+
+  def self.mailer_sender_host
+    host = frontend_host(ENV.fetch('FRONTEND_URL', '').to_s.strip)
+    # `blank?` is ActiveSupport; this file is required before Rails boots.
+    return MAILER_FALLBACK_HOST if host.nil? || host.empty? # rubocop:disable Rails/Blank
+
+    host = host.downcase
+    return "[IPv6:#{host[1..-2]}]" if host.start_with?('[') && host.end_with?(']')
+
+    host
+  end
+
+  # A bare `crm.example.com` is what an operator writes when they think of
+  # FRONTEND_URL as a hostname. Parsing it as a URI yields no host at all, so read it
+  # as the authority it was meant to be rather than falling back to localhost.
+  def self.frontend_host(value)
+    return nil if value.empty?
+
+    parsed = begin
+      URI.parse(value)
     rescue URI::InvalidURIError
       nil
     end
-    # `blank?` is ActiveSupport; this file is required before Rails boots.
-    host = 'localhost' if host.nil? || host.empty? # rubocop:disable Rails/Blank
+    return parsed.host if parsed&.host
 
-    "no-reply@#{host}"
+    authority = value.sub(%r{\A[a-zA-Z][a-zA-Z0-9+.-]*://}, '').split(%r{[/?#]}).first.to_s
+    authority = authority.split('@').last.to_s
+    return authority[/\A\[[^\]]+\]/] if authority.start_with?('[')
+
+    host = authority.split(':').first.to_s
+    host.match?(/\A[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\z/) ? host : nil
   end
 
   # Giá trị ENV bị coi là "tắt". Không dùng ActiveModel::Type::Boolean vì tệp này

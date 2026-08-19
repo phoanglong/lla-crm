@@ -34,8 +34,10 @@ class Captain::Assistant < ApplicationRecord
   validates :name, presence: true
   validates :description, presence: true
 
+  # Outbound HTTP from assistant tools: read strictly, so a misspelt value cannot
+  # switch it on. See `ChatwootApp.enabled_flag?`.
   def self.custom_http_tools_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch(CUSTOM_HTTP_TOOLS_FLAG, 'false'))
+    ChatwootApp.enabled_flag?(CUSTOM_HTTP_TOOLS_FLAG)
   end
 
   def self.custom_http_tools_enabled_for?(account)

@@ -1,0 +1,45 @@
+{
+  "CALLS_PAGE": {
+    "HEADER": "Cuộc gọi",
+    "ALL_CALLS": "Tất cả cuộc gọi",
+    "ALL_CALLS_COUNT": "Tất cả cuộc gọi ({count})",
+    "EMPTY_STATE": "Không tìm thấy cuộc gọi nào",
+    "SETUP": {
+      "TITLE": "Gọi đi và nhận cuộc gọi ở cùng một nơi",
+      "SUBTITLE": "Thiết lập kênh thoại để bắt đầu xử lý cuộc gọi cùng đội ngũ của bạn. Mọi cuộc gọi, kèm bản ghi âm, sẽ hiển thị tại đây.",
+      "ACTION": "Thiết lập kênh thoại"
+    },
+    "FILTERS": {
+      "MISSED": "Gọi nhỡ",
+      "NO_REPLY": "Không trả lời",
+      "OTHER_ACTIVITY": "Hoạt động khác",
+      "INCOMING": "Gọi đến",
+      "OUTGOING": "Gọi đi",
+      "IN_PROGRESS": "Đang diễn ra",
+      "ASSIGNEE": "Người phụ trách",
+      "ALL_ASSIGNEES": "Tất cả người phụ trách",
+      "MORE_FILTERS": "Thêm bộ lọc",
+      "INBOX": "Hộp thư đến",
+      "ALL_INBOXES": "Tất cả hộp thư đến"
+    },
+    "STATUS": {
+      "ONGOING": "Đang diễn ra",
+      "INCOMING": "Gọi đến",
+      "OUTGOING": "Gọi đi",
+      "MISSED": "Gọi nhỡ",
+      "NO_REPLY": "Không trả lời",
+      "FAILED": "Thất bại"
+    },
+    "ROW": {
+      "PICKED_BY": "Người nhận máy",
+      "DIALED_BY": "Người gọi",
+      "ANSWERED": "Đã nhận máy",
+      "RINGING": "Đang đổ chuông",
+      "IN_PROGRESS": "Đang trong cuộc gọi",
+      "NO_AGENT": "Không có tổng đài viên nào nhận cuộc gọi này",
+      "NO_CONTACT_ANSWER": "Liên hệ không bắt máy",
+      "FAILED": "Không thể kết nối cuộc gọi này",
+      "YESTERDAY": "Hôm qua"
+    }
+  }
+}

@@ -23,7 +23,21 @@ module Lla::CustomRolePermissions
     custom_role_permissions.include?(permission)
   end
 
+  # "Is this member's access decided by a custom role?" — not "does that role grant
+  # anything". The two are different questions and conflating them was a fail-open:
+  # `permissions.any?` made a role with an empty permission list read as *no role*,
+  # so `ConversationPolicy#show?` fell through to the base rule and the member kept
+  # full agent access. `permissions` has no presence validation, so an operator can
+  # create exactly that role, tick nothing, and get the opposite of what they asked
+  # for. `Lla::ConversationPolicy` documents the intended rule — "a role that grants
+  # no conversation permission grants no conversation access" — and this is what
+  # makes the code say it.
+  #
+  # A role belonging to another account still reads as no role: `Lla::AccountUser`
+  # refuses that at write time, and a row predating the validation must not start
+  # deciding access here either.
   def custom_role_scoped?
-    account_user&.custom_role_id.present? && custom_role_permissions.any?
+    role = account_user&.custom_role
+    role.present? && role.account_id == account_user.account_id
   end
 end

@@ -11,21 +11,35 @@ RSpec.describe 'no connection through a Chatwoot-operated server' do # rubocop:d
   # hosted app, the docs, the help centre, the hub and its staging siblings.
   let(:host_pattern) { /\b[a-z0-9-]*(?:\.[a-z0-9-]+)*\.?chatwoot\.(?:com|dev|io|help)\b/i }
 
-  let(:roots) { %w[app lib config db] + ['lla'] }
+  let(:roots) { %w[app lib config db bin lla] }
 
   # Test data, storybook fixtures and the specs themselves are neither shipped to
   # a browser nor executed by the server, so a Chatwoot URL in them is a string,
   # not a destination.
+  #
+  # Anchored on the directories that actually hold test material, rather than on any
+  # path segment with one of those names: a future feature directory called
+  # `stories` would otherwise be excluded from the scan by its name alone.
   let(:excluded_path) do
     %r{
-      (^|/)(spec|specs|stories|story|fixtures)(/|$)
-      | \.spec\.(js|ts)$
-      | \.story\.(js|ts|vue)$
+      ^spec/
+      | ^app/javascript/[^/]+/i18n/.*/(spec|specs)/
+      | (^|/)(specs?|stories|story|fixtures|__tests__|__mocks__)/
+      | \.(spec|test)\.(js|ts|mjs|cjs|jsx|tsx)$
+      | \.story\.(js|ts|mjs|vue)$
       | (^|/)fixtures\.js$
     }x
   end
 
-  let(:text_extensions) { %w[.rb .erb .js .ts .vue .json .yml .yaml .liquid .html .haml .slim .css .scss] }
+  # Widened after review pointed out that a Chatwoot host reintroduced in a rake task
+  # or an .mjs harness would not have been scanned at all. `.rake` alone covers 25
+  # shipped files.
+  let(:text_extensions) do
+    %w[
+      .rb .rake .ru .erb .js .mjs .cjs .jsx .ts .tsx .vue .json .yml .yaml
+      .liquid .html .haml .slim .css .scss .sh .env .example
+    ]
+  end
 
   def shipped_files(roots, text_extensions, excluded_path)
     roots.flat_map { |root| Dir.glob(Rails.root.join(root, '**', '*')) }

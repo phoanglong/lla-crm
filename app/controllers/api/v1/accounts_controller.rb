@@ -136,7 +136,9 @@ class Api::V1::AccountsController < Api::BaseController
     # ENABLE_ACCOUNT_SIGNUP='api_only' is a legacy sentinel for the same purpose.
     # Read ENABLE_ACCOUNT_SIGNUP raw from InstallationConfig because GlobalConfig.get
     # typecasts it to boolean, coercing 'api_only' to true.
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch('CW_API_ONLY_SERVER', false)) ||
+    # Strictly read: an api-only signup is handed auth tokens without confirming the
+    # email address, so a value the operator did not mean as "yes" must not turn it on.
+    ChatwootApp.enabled_flag?('CW_API_ONLY_SERVER') ||
       InstallationConfig.find_by(name: 'ENABLE_ACCOUNT_SIGNUP')&.value.to_s == 'api_only'
   end
 
