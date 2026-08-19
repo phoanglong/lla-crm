@@ -14,7 +14,7 @@ require 'rails_helper'
 RSpec.describe 'Vietnamese locale parity' do # rubocop:disable RSpec/DescribeClass
   # The ratchet. Measured on the tree that introduced this file. It may go down and
   # must never go up: adding an English key without a Vietnamese one fails here.
-  let(:max_missing_keys) { 116 }
+  let(:max_missing_keys) { 115 }
   let(:en_dir) { Rails.root.join('app/javascript/dashboard/i18n/locale/en') }
   let(:vi_dir) { Rails.root.join('app/javascript/dashboard/i18n/locale/vi') }
   let(:english) { messages_in(en_dir) }
@@ -94,6 +94,26 @@ RSpec.describe 'Vietnamese locale parity' do # rubocop:disable RSpec/DescribeCla
       something, lower max_missing_keys to #{missing.size} in this file so the ratchet
       holds the new position.
     MESSAGE
+  end
+
+  # The primary navigation: what a Vietnamese user reads on every screen. Product
+  # names stay as they are — SMS, WhatsApp, CSAT, SLA, Captain, Beta, Macro — so the
+  # check is that the *label* differs from English, not that no English word appears.
+  it 'translates the navigation a user sees on every screen' do
+    labels = %w[
+      settings.json:SIDEBAR.CALLS
+      settings.json:SIDEBAR.INBOX
+      settings.json:SIDEBAR.COMPANIES
+      settings.json:SIDEBAR.AUDIT_LOGS
+      settings.json:SIDEBAR.SECURITY
+      settings.json:SIDEBAR.HELP_CENTER.TITLE
+      settings.json:SIDEBAR_ITEMS.PROFILE_SETTINGS
+      settings.json:SIDEBAR_ITEMS.LOGOUT
+    ]
+
+    untranslated = labels.select { |key| vietnamese[key].nil? || vietnamese[key] == english[key] }
+
+    expect(untranslated).to be_empty, "still English in the navigation: #{untranslated.join(', ')}"
   end
 
   # The voice-call surface, the one review found. Named on its own so a regression
