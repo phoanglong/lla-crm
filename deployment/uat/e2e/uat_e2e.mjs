@@ -347,6 +347,215 @@ const run = async () => {
     }
   );
 
+  // ---------------------------------------------------------------------------
+  // Wave G closure evidence: onboarding -> draft -> publish -> search -> custom
+  // domain, with every provider capability OFF. Nothing below may reach an LLM, a
+  // crawler or Cloudflare; the point is that the flow is complete without them.
+  // ---------------------------------------------------------------------------
+
+  let authorId = null;
+  let articleId = null;
+  let articleSlug = null;
+  const runTag = `g5-${Date.now()}`;
+
+  await step('the profile identifies the administrator who will author the article', async () => {
+    const response = await page.request.get(`${BASE}/api/v1/profile`, { headers: authHeaders });
+    assert(response.ok(), `profile returned ${response.status()}`);
+    const body = await response.json();
+    authorId = body.id;
+    assert(Number.isInteger(authorId), `profile did not return a numeric id: ${JSON.stringify(body).slice(0, 120)}`);
+    return { authorId };
+  });
+
+  await step('onboarding completes without a provider and starts no generation', async () => {
+    const update = await page.request.patch(`${BASE}/api/v1/accounts/${accountId}/onboarding`, {
+      headers: authHeaders,
+      data: { onboarding_step: 'account_details', name: 'LLA UAT Tenant', locale: 'en' }
+    });
+    assert(update.ok(), `onboarding returned ${update.status()}: ${(await update.text()).slice(0, 200)}`);
+
+    // With the onboarding_workspace capability off there is no help-center
+    // generation to report, and asking must still answer rather than error.
+    const generation = await page.request.get(
+      `${BASE}/api/v1/accounts/${accountId}/onboarding/help_center_generation`,
+      { headers: authHeaders }
+    );
+    assert(generation.ok(), `help_center_generation returned ${generation.status()}`);
+    const state = await generation.json();
+    assert(!state.generation_id, `a generation was started with the capability off: ${JSON.stringify(state)}`);
+    return { onboarding: update.status(), generation: state };
+  });
+
+  await step('an unknown onboarding step is refused rather than silently accepted', async () => {
+    const response = await page.request.patch(`${BASE}/api/v1/accounts/${accountId}/onboarding`, {
+      headers: authHeaders,
+      data: { onboarding_step: 'not_a_step' }
+    });
+    assert(response.status() === 422, `expected 422, got ${response.status()}`);
+    return { status: response.status() };
+  });
+
+  await step('a draft article is created against the seeded portal', async () => {
+    const categories = await page.request.get(
+      `${BASE}/api/v1/accounts/${accountId}/portals/uat-portal/categories`,
+      { headers: authHeaders }
+    );
+    assert(categories.ok(), `categories returned ${categories.status()}`);
+    const payload = await categories.json();
+    const list = payload.payload ?? payload;
+    const category = list.find((c) => c.locale === 'en') ?? list[0];
+    assert(category, `no category to write into: ${JSON.stringify(payload).slice(0, 200)}`);
+
+    // An explicit slug: the generated one is `<unix seconds>-<title>`, which
+    // collides for two articles created in the same second and answers 500,
+    // because the unique index has no matching model validation.
+    articleSlug = `${runTag}-draft`;
+    const response = await page.request.post(
+      `${BASE}/api/v1/accounts/${accountId}/portals/uat-portal/articles`,
+      {
+        headers: authHeaders,
+        data: {
+          article: {
+            title: 'Wave G closure article',
+            content: 'Written by the UAT harness with every provider capability off.',
+            slug: articleSlug,
+            author_id: authorId,
+            category_id: category.id,
+            locale: category.locale
+          }
+        }
+      }
+    );
+    assert(response.ok(), `create returned ${response.status()}: ${(await response.text()).slice(0, 300)}`);
+    const article = (await response.json()).payload;
+    articleId = article.id;
+    assert(article.status === 'draft', `a new article should be a draft, was ${article.status}`);
+    return { articleId, slug: article.slug, status: article.status, locale: article.locale };
+  });
+
+  await step('the draft is not visible in the public help center', async () => {
+    const response = await page.request.get(`${BASE}/hc/uat-portal/en/articles?query=closure`);
+    assert(response.ok(), `public article list returned ${response.status()}`);
+    const body = await response.text();
+    assert(!body.includes('Wave G closure article'), 'an unpublished draft was served to the public help center');
+    return { status: response.status() };
+  });
+
+  await step('publishing the article succeeds with no embedding provider', async () => {
+    const response = await page.request.patch(
+      `${BASE}/api/v1/accounts/${accountId}/portals/uat-portal/articles/${articleId}`,
+      { headers: authHeaders, data: { article: { status: 'published' } } }
+    );
+    assert(response.ok(), `publish returned ${response.status()}: ${(await response.text()).slice(0, 300)}`);
+    const article = (await response.json()).payload;
+    assert(article.status === 'published', `status is ${article.status}`);
+    return { status: article.status };
+  });
+
+  await step('the published article is found by public search, on the text fallback', async () => {
+    const response = await page.request.get(`${BASE}/hc/uat-portal/en/search?query=closure`);
+    assert(response.ok(), `search returned ${response.status()}`);
+    const body = await response.text();
+    assert(body.includes('Wave G closure article'), 'the published article was not returned by public search');
+    return { status: response.status() };
+  });
+
+  await step('a browser renders the published article on the public help center', async () => {
+    const response = await page.goto(`${BASE}/hc/uat-portal/articles/${articleSlug}`, {
+      waitUntil: 'domcontentloaded'
+    });
+    assert(response && response.status() < 400, `article page returned ${response && response.status()}`);
+    const text = await page.textContent('body');
+    assert(/Wave G closure article/.test(text), 'the article page did not render the article');
+    assert(!/chatwoot/i.test(text), 'the public article page renders upstream branding');
+    return { status: response.status() };
+  });
+
+  await step('the custom-domain challenge endpoint stays 404 with the capability off', async () => {
+    const response = await page.request.get(`${BASE}/.well-known/cf-custom-hostname-challenge/${runTag}`);
+    assert(response.status() === 404, `expected 404, got ${response.status()}`);
+    const body = await response.text();
+    assert(body.trim() === '', `the challenge endpoint returned a body: ${body.slice(0, 120)}`);
+    return { status: response.status() };
+  });
+
+  await step('reserved and internal suffixes are refused outright', async () => {
+    const refused = {};
+    for (const hostname of ['uat.lla.invalid', 'portal.localhost', 'help.internal', 'x.onion', 'a.local']) {
+      const response = await page.request.patch(`${BASE}/api/v1/accounts/${accountId}/portals/uat-portal`, {
+        headers: authHeaders,
+        data: { portal: { custom_domain: hostname } }
+      });
+      assert(response.status() === 422, `${hostname} was answered ${response.status()}, not 422`);
+      refused[hostname] = (await response.json()).message;
+    }
+    return refused;
+  });
+
+  await step('a custom domain can be requested, and stops at ownership rather than provisioning', async () => {
+    // A hostname that is syntactically real, because the product deliberately
+    // refuses the RFC 2606 suffixes, and that nothing here can reach: the
+    // capability is off, so ownership verification defers without any DNS lookup
+    // or provider call. The assertions below are what proves that.
+    const response = await page.request.patch(`${BASE}/api/v1/accounts/${accountId}/portals/uat-portal`, {
+      headers: authHeaders,
+      data: { portal: { custom_domain: 'uat-e2e-synthetic.lla-crm-uat-do-not-register.vn' } }
+    });
+    assert(response.ok(), `setting a custom domain returned ${response.status()}: ${(await response.text()).slice(0, 300)}`);
+
+    const status = await page.request.get(
+      `${BASE}/api/v1/accounts/${accountId}/portals/uat-portal/ssl_status`,
+      { headers: authHeaders }
+    );
+    assert(status.ok(), `ssl_status returned ${status.status()}`);
+    const body = await status.json();
+    assert(body.configured === true, `ssl_status says configured=${body.configured}`);
+    assert(body.capability_enabled === false, 'the custom-domain capability reports enabled with the flag off');
+    assert(body.provider_ready === false, 'a provider reports ready with no credential configured');
+    assert(body.lifecycle_state !== 'active', `the lifecycle reached ${body.lifecycle_state} without a provider`);
+    return { lifecycle_state: body.lifecycle_state, configured: body.configured };
+  });
+
+  await step('an invalid custom domain is refused with 422, not accepted or 500', async () => {
+    const response = await page.request.patch(`${BASE}/api/v1/accounts/${accountId}/portals/uat-portal`, {
+      headers: authHeaders,
+      data: { portal: { custom_domain: 'not a hostname' } }
+    });
+    assert(response.status() === 422, `expected 422, got ${response.status()}`);
+    return { status: response.status() };
+  });
+
+  await step('the custom domain can be released again, leaving no routing row behind', async () => {
+    const response = await page.request.patch(`${BASE}/api/v1/accounts/${accountId}/portals/uat-portal`, {
+      headers: authHeaders,
+      data: { portal: { custom_domain: '' } }
+    });
+    assert(response.ok(), `releasing returned ${response.status()}: ${(await response.text()).slice(0, 300)}`);
+
+    const status = await page.request.get(
+      `${BASE}/api/v1/accounts/${accountId}/portals/uat-portal/ssl_status`,
+      { headers: authHeaders }
+    );
+    const body = await status.json();
+    assert(body.configured === false, `ssl_status still reports configured=${body.configured}`);
+    return { configured: body.configured };
+  });
+
+  await step('archiving the article removes it from public search again', async () => {
+    const response = await page.request.patch(
+      `${BASE}/api/v1/accounts/${accountId}/portals/uat-portal/articles/${articleId}`,
+      { headers: authHeaders, data: { article: { status: 'archived' } } }
+    );
+    assert(response.ok(), `archive returned ${response.status()}`);
+    const article = (await response.json()).payload;
+    assert(article.status === 'archived', `status is ${article.status}`);
+
+    const search = await page.request.get(`${BASE}/hc/uat-portal/en/search?query=closure`);
+    const body = await search.text();
+    assert(!body.includes('Wave G closure article'), 'an archived article is still served by public search');
+    return { status: article.status };
+  });
+
   await step(
     'signing out invalidates the session and returns to the login screen',
     async () => {
