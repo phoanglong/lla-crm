@@ -76,6 +76,19 @@ RUN pnpm i
 
 COPY . /app
 
+# A build host that checks the repository out with CRLF endings (git's
+# `core.autocrlf=true`, the default on Windows) turns `#!/bin/sh` into
+# `#!/bin/sh\r`, and the kernel then looks for an interpreter that does not
+# exist. The image builds, starts, and dies with "no such file or directory" —
+# a failure that points at the wrong thing entirely. `.gitattributes` pins these
+# files to LF; this refuses the build if the checkout ignored it anyway.
+RUN CR=$(printf '\r'); \
+    if grep -rlI "$CR" docker/entrypoints bin .husky 2>/dev/null | grep .; then \
+      echo 'CRLF line endings in executable scripts: the build host checkout is not LF-normalised.' >&2; \
+      echo 'Set core.autocrlf=false and re-checkout before building.' >&2; \
+      exit 1; \
+    fi
+
 # creating a log directory so that image wont fail when RAILS_LOG_TO_STDOUT is false
 # https://github.com/chatwoot/chatwoot/issues/701
 RUN mkdir -p /app/log
