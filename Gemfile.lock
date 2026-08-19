@@ -336,10 +336,10 @@ GEM
     fcm (1.0.8)
       faraday (>= 1.0.0, < 3.0)
       googleauth (~> 1)
-    ffi (1.17.2)
-    ffi (1.17.2-arm64-darwin)
-    ffi (1.17.2-x86_64-darwin)
-    ffi (1.17.2-x86_64-linux-gnu)
+    ffi (1.17.4)
+    ffi (1.17.4-arm64-darwin)
+    ffi (1.17.4-x86_64-darwin)
+    ffi (1.17.4-x86_64-linux-gnu)
     ffi-compiler (1.0.1)
       ffi (>= 1.0.0)
       rake
@@ -847,8 +847,9 @@ GEM
     ruby-saml (1.18.1)
       nokogiri (>= 1.13.10)
       rexml
-    ruby-vips (2.1.4)
+    ruby-vips (2.3.0)
       ffi (~> 1.12)
+      logger
     ruby2_keywords (0.0.5)
     ruby2ruby (2.5.0)
       ruby_parser (~> 3.1)
@@ -1168,6 +1169,7 @@ DEPENDENCIES
   rubocop-rails
   rubocop-rspec
   ruby-openai
+  ruby-vips (>= 2.2.1)
   ruby_llm (>= 1.14.1)
   ruby_llm-schema
   scout_apm

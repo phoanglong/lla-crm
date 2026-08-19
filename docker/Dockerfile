@@ -133,6 +133,13 @@ ARG RAILS_ENV=production
 ENV RAILS_ENV ${RAILS_ENV}
 ENV BUNDLE_PATH="/gems"
 
+# CVE-2026-66066: libvips exposes loaders that are unsafe on untrusted input, and
+# Active Storage <= 7.1 does not disable them. This image installs libvips (vips is
+# an apk dependency below), so the library is present whether or not Rails is
+# configured to use it. libvips reads this at initialisation, in every process,
+# before any Ruby has run.
+ENV VIPS_BLOCK_UNTRUSTED=1
+
 RUN apk update && apk add --no-cache \
   build-base \
   openssl \
