@@ -123,7 +123,6 @@
         "CUSTOM_EMAIL_DOMAIN_ENABLED": "Du kan nu ta emot e-postmeddelanden i din egna domän."
       }
     },
-    "UPDATE_CHATWOOT": "En uppdatering {latestChatwootVersion} för Chatwoot är tillgänglig. Vänligen uppdatera din instans.",
     "LEARN_MORE": "Läs mer",
     "PAYMENT_PENDING": "Your payment is pending. Please update your payment information to continue using Chatwoot",
     "UPGRADE": "Upgrade to continue using Chatwoot",

@@ -31,6 +31,7 @@ const currentUser = useMapGetter('getCurrentUser');
 const currentUserAvailability = useMapGetter('getCurrentUserAvailability');
 const accountId = useMapGetter('getCurrentAccountId');
 const globalConfig = useMapGetter('globalConfig/get');
+const docsURL = computed(() => globalConfig.value.docsURL);
 const isFeatureEnabledonAccount = useMapGetter(
   'accounts/isFeatureEnabledonAccount'
 );
@@ -85,21 +86,16 @@ const menuItems = computed(() => {
         ninja.open({ parent: 'appearance_settings' });
       },
     },
+    // Documentation lives wherever the installation says it does. This used to
+    // point at Chatwoot's user guide and changelog unconditionally; the changelog
+    // entry is gone, because the in-app changelog card already covers it and is
+    // driven by the same configuration.
     {
-      show: true,
-      showOnCustomBrandedInstance: false,
+      show: Boolean(docsURL.value),
+      showOnCustomBrandedInstance: true,
       label: t('SIDEBAR_ITEMS.DOCS'),
       icon: 'i-lucide-book',
-      link: 'https://www.chatwoot.com/hc/user-guide/en',
-      nativeLink: true,
-      target: '_blank',
-    },
-    {
-      show: true,
-      showOnCustomBrandedInstance: false,
-      label: t('SIDEBAR_ITEMS.CHANGELOG'),
-      icon: 'i-lucide-scroll-text',
-      link: 'https://www.chatwoot.com/changelog/',
+      link: docsURL.value,
       nativeLink: true,
       target: '_blank',
     },

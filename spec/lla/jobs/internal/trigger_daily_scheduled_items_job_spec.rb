@@ -2,7 +2,6 @@ require 'rails_helper'
 
 RSpec.describe Internal::TriggerDailyScheduledItemsJob do
   before do
-    allow(ChatwootHub).to receive(:installation_identifier).and_return('test-installation-id')
     allow(Captain::Documents::ScheduleSyncsJob).to receive(:perform_later)
     allow(Lla::Captain::RetentionCleanupJob).to receive(:perform_later)
     allow(Lla::Knowledge::GenerationRetentionCleanupJob).to receive(:perform_later)

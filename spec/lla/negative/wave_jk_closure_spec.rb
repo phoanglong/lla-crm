@@ -78,42 +78,27 @@ RSpec.describe 'Wave J and K closure' do # rubocop:disable RSpec/DescribeClass
     end
   end
 
-  describe 'outbound calls to the Chatwoot hub' do
+  describe 'the Chatwoot hub' do
     # `sync_with_hub` posted instance metrics — account, user, inbox, conversation
     # and message counts — on a schedule. `register_instance` posted the owner's
-    # company name, name and email at install time. Neither was opt-in.
-    it 'sends no telemetry by default' do
-      expect(ChatwootHub.sync_with_hub).to be_nil
-      expect(ChatwootHub.emit_event('x', {})).to be_nil
-      expect(WebMock).not_to have_requested(:post, /hub\.2\.chatwoot\.com/)
+    # company name, name and email at install time. `send_push` relayed every
+    # mobile notification. None was opt-in. The capability was first gated, then
+    # removed outright: there is no client left to switch on.
+    it 'has no client, gate or switch' do
+      expect(defined?(ChatwootHub)).to be_nil
+      expect(defined?(Lla::Hub::EgressPolicy)).to be_nil
     end
 
-    it 'does not register the installation, or the owner, by default' do
-      expect(ChatwootHub.register_instance('ACME', 'Owner', 'owner@example.com')).to be_nil
-      expect(WebMock).not_to have_requested(:post, /hub\.2\.chatwoot\.com/)
+    it 'no longer registers the installation, or the owner, at onboarding' do
+      source = Rails.root.join('app/controllers/installation/onboarding_controller.rb').read
+
+      expect(source).not_to match(/^\s*[^#]*register_instance/)
+      expect(source).not_to include(':subscribe_to_updates')
     end
 
-    it 'does not relay push notifications by default' do
-      expect(ChatwootHub.send_push({ token: 'x' })).to be_nil
-      expect(WebMock).not_to have_requested(:post, /hub\.2\.chatwoot\.com/)
-    end
-
-    it 'does call out once the operator turns telemetry on' do
-      stub_request(:post, %r{hub\.2\.chatwoot\.com/ping}).to_return(status: 200, body: '{}')
-
-      with_modified_env('LLA_HUB_TELEMETRY_ENABLED' => 'true') do
-        ChatwootHub.sync_with_hub
-      end
-
-      expect(WebMock).to have_requested(:post, %r{hub\.2\.chatwoot\.com/ping})
-    end
-
-    # The strict reader, so a misspelt value cannot open an egress path.
-    it 'stays closed for a value that does not mean yes' do
-      with_modified_env('LLA_HUB_TELEMETRY_ENABLED' => 'no') do
-        expect(ChatwootHub.sync_with_hub).to be_nil
-      end
-      expect(WebMock).not_to have_requested(:post, /hub\.2\.chatwoot\.com/)
+    it 'no longer relays mobile push through anybody' do
+      expect(Notification::PushNotificationService.instance_methods(false).map(&:to_s))
+        .not_to include('send_push_via_chatwoot_hub')
     end
   end
 
@@ -136,9 +121,11 @@ RSpec.describe 'Wave J and K closure' do # rubocop:disable RSpec/DescribeClass
       expect(Lla::Entitlements.plan).to eq('lla')
     end
 
-    it 'reports the plan through ChatwootHub without asking the hub' do
-      expect(ChatwootHub.pricing_plan).to eq('lla')
-      expect(WebMock).not_to have_requested(:post, /hub\.2\.chatwoot\.com/)
+    it 'decides the plan without a network call of any kind' do
+      # WebMock refuses every non-local connection, so reaching an answer at all
+      # is proof that nothing was asked of anybody.
+      expect(Lla::Entitlements.plan).to eq('lla')
+      expect(WebMock).not_to have_requested(:any, //)
     end
 
     it 'enables the capability cards that used to depend on a remote plan' do

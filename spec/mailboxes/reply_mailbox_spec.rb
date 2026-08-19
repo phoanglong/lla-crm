@@ -379,16 +379,30 @@ RSpec.describe ReplyMailbox do
     end
   end
 
-  describe 'when a chatwoot notification email is received' do
+  # A notification this installation sent, bouncing back into an inbox, is not a
+  # customer writing in. The test states the configured sender explicitly: it used
+  # to rely on the default being the same Chatwoot address as the fixture's, which
+  # made the example pass for the wrong reason on any installation that set one.
+  describe 'when a notification email sent by this installation is received' do
     let(:account) { create(:account) }
     let!(:channel_email) { create(:channel_email, email: 'sojan@chatwoot.com', account: account) }
     let(:notification_mail) { create_inbound_email_from_fixture('notification.eml') }
-    let(:described_subject) { described_class.receive notification_mail }
     let(:conversation) { Conversation.where(inbox_id: channel_email.inbox).last }
 
     it 'shouldnt create a conversation in the channel' do
-      described_subject
+      with_modified_env('MAILER_SENDER_EMAIL' => 'accounts@chatwoot.com') do
+        described_class.receive notification_mail
+      end
+
       expect(conversation.present?).to be(false)
+    end
+
+    it 'does create a conversation when the sender is not this installation' do
+      with_modified_env('MAILER_SENDER_EMAIL' => 'no-reply@llavn.org') do
+        described_class.receive notification_mail
+      end
+
+      expect(conversation.present?).to be(true)
     end
   end
 

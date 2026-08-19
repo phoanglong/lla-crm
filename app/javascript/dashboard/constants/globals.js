@@ -38,11 +38,16 @@ export default {
     CONDENSED: 'condensed',
     EXPANDED: 'expanded',
   },
-  DOCS_URL: 'https://www.chatwoot.com/docs/product/',
-  HELP_CENTER_DOCS_URL:
-    'https://www.chatwoot.com/docs/product/others/help-center',
-  TESTIMONIAL_URL:
-    'https://testimonials.cdn.chatwoot.com/testimonial-content.json',
+  // Documentation links come from the installation's own configuration. They used
+  // to be hardcoded to Chatwoot's documentation site, which is not this product's
+  // documentation. Empty is the default, and the components that render these
+  // hide the link when it is empty.
+  get DOCS_URL() {
+    return window.globalConfig?.DOCS_URL || '';
+  },
+  get HELP_CENTER_DOCS_URL() {
+    return window.globalConfig?.DOCS_URL || '';
+  },
   WHATSAPP_EMBEDDED_SIGNUP_DOCS_URL:
     'https://developers.facebook.com/docs/whatsapp/embedded-signup/custom-flows/onboarding-business-app-users#limitations',
   SMALL_SCREEN_BREAKPOINT: 768,

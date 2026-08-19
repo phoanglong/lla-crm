@@ -17,7 +17,8 @@ RSpec.describe 'Devise::Mailer' do
     end
 
     it 'has the correct header data' do
-      expect(mail.reply_to).to contain_exactly('accounts@chatwoot.com')
+      # Follows the configured sender. The default used to be a Chatwoot address.
+      expect(mail.reply_to).to contain_exactly(ChatwootApp.default_mailer_sender)
       expect(mail.to).to contain_exactly(confirmable_user.email)
       expect(mail.subject).to eq('Confirmation Instructions')
     end

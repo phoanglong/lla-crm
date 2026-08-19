@@ -34,6 +34,18 @@
   value: 'https://llavn.org'
   display_title: 'Brand URL'
   description: 'The URL that would be used in emails under the section “Powered By”'
+- name: DOCS_URL
+  value: ''
+  display_title: 'Documentation URL'
+  description: 'Where the in-product help links point. Empty hides them. This used to be hardcoded to Chatwoot''s documentation site.'
+- name: CHANGELOG_URL
+  value: ''
+  display_title: 'Changelog feed URL'
+  description: 'A JSON feed for the in-app changelog. Empty means the dashboard makes no request and shows no changelog. This used to be hardcoded to an upstream-operated host.'
+- name: TESTIMONIALS_URL
+  value: ''
+  display_title: 'Sign-up testimonials URL'
+  description: 'A JSON feed of testimonials shown beside the sign-up form. Empty means the page makes no request. This used to be hardcoded to an upstream-operated CDN.'
 - name: WIDGET_BRAND_URL
   value: 'https://llavn.org'
   display_title: 'Widget Brand URL'

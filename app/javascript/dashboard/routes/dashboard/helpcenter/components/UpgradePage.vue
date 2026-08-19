@@ -60,6 +60,10 @@ export default {
       });
     },
     openHelpCenterDocs() {
+      // The documentation URL is an installation setting and is empty by default,
+      // because it used to point at Chatwoot's documentation site. An empty
+      // setting opens nothing rather than an empty tab.
+      if (!this.helpCenterDocsURL) return;
       window.open(this.helpCenterDocsURL, '_blank');
     },
   },

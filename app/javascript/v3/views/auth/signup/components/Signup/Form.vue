@@ -52,13 +52,14 @@ const v$ = useVuelidate(rules, { credentials });
 
 const globalConfig = computed(() => store.getters['globalConfig/get']);
 
+// The URLs are interpolated, not string-replaced: the translation carries a
+// placeholder rather than a Chatwoot URL that happens to be swapped out when the
+// installation configures one.
 const termsLink = computed(() =>
-  t('REGISTER.TERMS_ACCEPT')
-    .replace('https://www.chatwoot.com/terms', globalConfig.value.termsURL)
-    .replace(
-      'https://www.chatwoot.com/privacy-policy',
-      globalConfig.value.privacyURL
-    )
+  t('REGISTER.TERMS_ACCEPT', {
+    termsURL: globalConfig.value.termsURL,
+    privacyURL: globalConfig.value.privacyURL,
+  })
 );
 
 const allowedLoginMethods = computed(

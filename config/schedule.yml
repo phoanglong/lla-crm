@@ -4,7 +4,7 @@
 
 # executed daily at 0000 UTC
 # schedules daily deferred jobs at stable times for each installation
-internal_check_new_versions_job:
+internal_trigger_daily_scheduled_items_job:
   cron: '0 0 * * *'
   class: 'Internal::TriggerDailyScheduledItemsJob'
   queue: scheduled_jobs

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'pathname'
+require 'uri'
 
 module ChatwootApp
   def self.root
@@ -9,6 +10,23 @@ module ChatwootApp
 
   def self.max_limit
     100_000
+  end
+
+  # The address outgoing mail comes from when the operator has not configured one.
+  # The inherited default was `Chatwoot <accounts@chatwoot.com>` — a domain this
+  # installation does not own, so unconfigured mail either failed SPF/DMARC or
+  # asked Chatwoot's mail domain to answer for it. Derived from the installation's
+  # own frontend host instead, which every real deployment sets.
+  def self.default_mailer_sender
+    host = begin
+      URI.parse(ENV.fetch('FRONTEND_URL', '').to_s).host
+    rescue URI::InvalidURIError
+      nil
+    end
+    # `blank?` is ActiveSupport; this file is required before Rails boots.
+    host = 'localhost' if host.nil? || host.empty? # rubocop:disable Rails/Blank
+
+    "no-reply@#{host}"
   end
 
   # Giá trị ENV bị coi là "tắt". Không dùng ActiveModel::Type::Boolean vì tệp này

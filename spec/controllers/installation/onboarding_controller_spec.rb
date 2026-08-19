@@ -28,7 +28,6 @@ RSpec.describe 'Installation::Onboarding API', type: :request do
     before do
       allow(AccountBuilder).to receive(:new).and_return(account_builder)
       allow(account_builder).to receive(:perform).and_return(true)
-      allow(ChatwootHub).to receive(:register_instance).and_return(true)
       Redis::Alfred.set(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING, true)
     end
 
@@ -42,14 +41,22 @@ RSpec.describe 'Installation::Onboarding API', type: :request do
         expect(Redis::Alfred.get(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)).to be_nil
       end
 
-      it 'will not call register instance when checkboxes are unchecked' do
-        post '/installation/onboarding', params: { user: {} }
-        expect(ChatwootHub).not_to have_received(:register_instance)
+      # Finishing onboarding used to post the owner's company name, name and email
+      # address to Chatwoot's hosted hub. There is no longer anything to opt into,
+      # so the parameter is not permitted and the form does not offer it.
+      it 'ignores subscribe_to_updates and makes no outbound request' do
+        # WebMock refuses every non-local connection, so a redirect here is proof
+        # that nothing was posted anywhere.
+        post '/installation/onboarding', params: { user: {}, subscribe_to_updates: 1 }
+
+        expect(response).to have_http_status(:redirect)
+        expect(Redis::Alfred.get(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)).to be_nil
       end
 
-      it 'will call register instance when checkboxes are checked' do
-        post '/installation/onboarding', params: { user: {}, subscribe_to_updates: 1 }
-        expect(ChatwootHub).to have_received(:register_instance)
+      it 'does not offer a subscription checkbox on the form' do
+        get '/installation/onboarding'
+
+        expect(response.body).not_to include('subscribe_to_updates')
       end
     end
 

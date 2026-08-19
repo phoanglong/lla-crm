@@ -11,6 +11,9 @@ class DashboardController < ActionController::Base
     TERMS_URL
     BRAND_URL
     BRAND_NAME
+    DOCS_URL
+    CHANGELOG_URL
+    TESTIMONIALS_URL
     PRIVACY_URL
     DISPLAY_MANIFEST
     CREATE_NEW_ACCOUNT_FROM_DASHBOARD
@@ -101,10 +104,11 @@ class DashboardController < ActionController::Base
     methods
   end
 
-  # SAML là năng lực LLA (ADR-OMCRM-032); bản LLA không phụ thuộc pricing plan
-  # của Chatwoot Hub — điều kiện plan chỉ còn áp dụng cho cài đặt EE upstream.
+  # SAML là năng lực LLA (ADR-OMCRM-032). Điều kiện pricing plan của Chatwoot Hub
+  # đã bị gỡ cùng với chính Hub: entitlement do `Lla::Entitlements` quyết định
+  # tại chỗ, không hỏi máy chủ nào.
   def saml_login_available?
-    ChatwootApp.lla? || ChatwootHub.pricing_plan != 'community'
+    ChatwootApp.lla? || Lla::Entitlements.premium?
   end
 
   def set_application_pack
