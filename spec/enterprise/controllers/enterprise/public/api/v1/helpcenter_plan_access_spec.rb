@@ -21,16 +21,6 @@ RSpec.describe 'Public Help Center Access', type: :request do
     end
   end
 
-  it 'blocks chatwoot-hosted portal pages when the help center feature is disabled' do
-    account.disable_features!(:help_center)
-    host! 'help.chatwoot.com'
-
-    get "/hc/#{portal.slug}/en"
-
-    expect(response).to have_http_status(:payment_required)
-    expect(response.body).to include('Help Center Unavailable')
-  end
-
   context 'when the account is on the default plan' do
     let(:plan_name) { 'Hacker' }
 

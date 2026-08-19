@@ -8,22 +8,20 @@ class AccountDashboard < Administrate::BaseDashboard
   # which determines how the attribute is displayed
   # on pages throughout the dashboard.
 
-  extension_attribute_types = if ChatwootApp.enterprise?
-                                attributes = {
-                                  limits: AccountLimitsField
+  # Limits and features are LLA control-plane fields now. They used to be gated on
+  # `ChatwootApp.enterprise?`, so an installation running with enterprise off had no
+  # way to see or set either. The manually-managed features column is gone with the
+  # rest of the Chatwoot Cloud plane: it read from a Cloud-only internal-attributes
+  # service and was only ever rendered on Chatwoot's own hosting.
+  extension_attribute_types = if ChatwootApp.lla?
+                                {
+                                  limits: Lla::AccountLimitsField,
+                                  all_features: Lla::AccountFeaturesField,
+                                  captain_models: CaptainModelOverridesField
                                 }
-
-                                # Only show manually managed features in Chatwoot Cloud deployment
-                                attributes[:manually_managed_features] = ManuallyManagedFeaturesField if ChatwootApp.chatwoot_cloud?
-
-                                # Add all_features last so it appears after manually_managed_features
-                                attributes[:all_features] = AccountFeaturesField
-
-                                attributes
                               else
                                 {}
                               end
-  extension_attribute_types[:captain_models] = CaptainModelOverridesField if ChatwootApp.lla?
 
   ATTRIBUTE_TYPES = {
     id: Field::Number.with_options(searchable: true),
@@ -55,15 +53,7 @@ class AccountDashboard < Administrate::BaseDashboard
 
   # SHOW_PAGE_ATTRIBUTES
   # an array of attributes that will be displayed on the model's show page.
-  extension_show_page_attributes = if ChatwootApp.enterprise?
-                                     attrs = %i[custom_attributes limits]
-                                     attrs << :manually_managed_features if ChatwootApp.chatwoot_cloud?
-                                     attrs << :all_features
-                                     attrs
-                                   else
-                                     []
-                                   end
-  extension_show_page_attributes << :captain_models if ChatwootApp.lla?
+  extension_show_page_attributes = ChatwootApp.lla? ? %i[custom_attributes limits all_features captain_models] : []
   SHOW_PAGE_ATTRIBUTES = (%i[
     id
     name
@@ -79,15 +69,7 @@ class AccountDashboard < Administrate::BaseDashboard
   # FORM_ATTRIBUTES
   # an array of attributes that will be displayed
   # on the model's form (`new` and `edit`) pages.
-  extension_form_attributes = if ChatwootApp.enterprise?
-                                attrs = %i[limits]
-                                attrs << :manually_managed_features if ChatwootApp.chatwoot_cloud?
-                                attrs << :all_features
-                                attrs
-                              else
-                                []
-                              end
-  extension_form_attributes << :captain_models if ChatwootApp.lla?
+  extension_form_attributes = ChatwootApp.lla? ? %i[limits all_features captain_models] : []
   FORM_ATTRIBUTES = (%i[
     name
     locale
@@ -124,10 +106,6 @@ class AccountDashboard < Administrate::BaseDashboard
   def permitted_attributes(action)
     attrs = super + [limits: {}, captain_models: {}]
     attrs += %i[suspension_category suspension_reason] if action == 'update'
-
-    # Add manually_managed_features to permitted attributes only for Chatwoot Cloud
-    attrs << { manually_managed_features: [] } if ChatwootApp.chatwoot_cloud?
-
     attrs
   end
 end

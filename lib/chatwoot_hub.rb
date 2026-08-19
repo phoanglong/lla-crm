@@ -36,15 +36,14 @@ class ChatwootHub
     "#{billing_base_url}?installation_identifier=#{installation_identifier}"
   end
 
+  # Overridden by `Lla::ChatwootHub` to read `Lla::Entitlements` instead. These
+  # remain as the base behaviour for a plain community install; they read rows that
+  # only Chatwoot's hosted hub writes.
   def self.pricing_plan
-    return 'community' unless ChatwootApp.enterprise?
-
     InstallationConfig.find_by(name: 'INSTALLATION_PRICING_PLAN')&.value || 'community'
   end
 
   def self.pricing_plan_quantity
-    return 0 unless ChatwootApp.enterprise?
-
     InstallationConfig.find_by(name: 'INSTALLATION_PRICING_PLAN_QUANTITY')&.value || 0
   end
 

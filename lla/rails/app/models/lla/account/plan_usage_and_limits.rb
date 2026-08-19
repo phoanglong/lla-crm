@@ -33,8 +33,27 @@ module Lla::Account::PlanUsageAndLimits
     )
   SQL
 
+  LIMIT_SCHEMA = {
+    'type' => 'object',
+    'properties' => {
+      'inboxes' => { 'type' => 'number' },
+      'agents' => { 'type' => 'number' },
+      'captain_responses' => { 'type' => 'number' },
+      'captain_documents' => { 'type' => 'number' },
+      'emails' => { 'type' => 'number' }
+    },
+    'required' => [],
+    'additionalProperties' => false
+  }.freeze
+
+  # Per-account agent and inbox allowances. The community base answers
+  # `ChatwootApp.max_limit` for both, so without this the `limits` column an
+  # operator sets in the console — and the `ACCOUNT_AGENTS_LIMIT` /
+  # `ACCOUNT_INBOXES_LIMIT` global configs — were read by nothing.
   def usage_limits
     super.merge(
+      agents: configured_limit(:agents).to_i,
+      inboxes: configured_limit(:inboxes).to_i,
       captain: {
         documents: captain_limit(:documents),
         responses: captain_limit(:responses)
@@ -164,6 +183,33 @@ module Lla::Account::PlanUsageAndLimits
   def sync_captain_usage(key)
     persisted = Account.where(id: id).pick(:custom_attributes) || {}
     custom_attributes[key] = persisted[key]
+  end
+
+  # Account row, then global config, then no limit. `limits` is operator-set; the
+  # global config is the deployment default.
+  def configured_limit(name)
+    stored = self[:limits].is_a?(Hash) ? self[:limits][name.to_s] : nil
+    return stored if stored.present?
+
+    config_name = "ACCOUNT_#{name.to_s.upcase}_LIMIT"
+    configured = GlobalConfig.get(config_name)[config_name]
+    return configured if configured.present?
+
+    ChatwootApp.max_limit
+  end
+
+  # `limits` is a free-form jsonb column with a `before_validation` hook whose
+  # community body is empty, so anything at all could be written into it — including
+  # keys nothing reads and values that are not numbers, which then produced a
+  # `NoMethodError` deep inside an assignment run rather than a validation error.
+  def validate_limit_keys
+    unless self[:limits].is_a?(Hash)
+      errors.add(:limits, ': Invalid data')
+      return
+    end
+
+    self[:limits] = {} if self[:limits].blank?
+    errors.add(:limits, ': Invalid data') unless JSONSchemer.schema(LIMIT_SCHEMA).valid?(self[:limits])
   end
 end
 # rubocop:enable Metrics/ModuleLength

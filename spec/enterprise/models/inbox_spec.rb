@@ -31,14 +31,14 @@ RSpec.describe Inbox do
   describe 'audit log' do
     context 'when inbox is created' do
       it 'has associated audit log created' do
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'create').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'create').count).to eq(1)
       end
     end
 
     context 'when inbox is updated' do
       it 'has associated audit log created' do
         inbox.update(name: 'Updated Inbox')
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(1)
       end
     end
 
@@ -49,9 +49,9 @@ RSpec.describe Inbox do
         inbox.channel.update(widget_color: new_color)
 
         # check if channel update creates an audit log against inbox
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(1)
         # Check for the specific widget_color update in the audit log
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update',
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update',
                                     audited_changes: { 'widget_color' => [previous_color, new_color] }).count).to eq(1)
       end
     end
@@ -63,14 +63,14 @@ RSpec.describe Inbox do
 
     context 'when inbox is created' do
       it 'has associated audit log created' do
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'create').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'create').count).to eq(1)
       end
     end
 
     context 'when inbox is updated' do
       it 'has associated audit log created' do
         inbox.update(name: 'Updated Inbox')
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(1)
       end
     end
 
@@ -81,9 +81,9 @@ RSpec.describe Inbox do
         inbox.channel.update(webhook_url: new_webhook)
 
         # check if channel update creates an audit log against inbox
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(1)
         # Check for the specific webhook_update update in the audit log
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update',
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update',
                                     audited_changes: { 'webhook_url' => [previous_webhook, new_webhook] }).count).to eq(1)
       end
     end
@@ -107,14 +107,14 @@ RSpec.describe Inbox do
 
     context 'when inbox is created' do
       it 'has associated audit log created' do
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'create').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'create').count).to eq(1)
       end
     end
 
     context 'when inbox is updated' do
       it 'has associated audit log created' do
         inbox.update(name: 'Updated Inbox')
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(1)
       end
     end
 
@@ -125,9 +125,9 @@ RSpec.describe Inbox do
         inbox.channel.update(phone_number: new_phone_number)
 
         # check if channel update creates an audit log against inbox
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(1)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(1)
         # Check for the specific phone_number update in the audit log
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update',
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update',
                                     audited_changes: { 'phone_number' => [previous_phone_number, new_phone_number] }).count).to eq(1)
       end
     end
@@ -136,7 +136,7 @@ RSpec.describe Inbox do
       it 'has no associated audit log created' do
         channel.sync_templates
         # check if template sync does not create an audit log
-        expect(Audited::Audit.where(auditable_type: 'Inbox', action: 'update').count).to eq(0)
+        expect(Audited::Audit.where(auditable_type: 'Inbox', auditable_id: inbox.id, action: 'update').count).to eq(0)
       end
     end
   end

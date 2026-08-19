@@ -10,8 +10,8 @@ class SuperAdmin::InstanceStatusesController < SuperAdmin::ApplicationController
   end
 
   def chatwoot_edition
-    @metrics['LLA CRM edition'] = if ChatwootApp.enterprise?
-                                    'Enterprise'
+    @metrics['LLA CRM edition'] = if ChatwootApp.lla?
+                                    'LLA'
                                   elsif ChatwootApp.custom?
                                     'Custom'
                                   else

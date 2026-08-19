@@ -13,11 +13,6 @@ RSpec.describe Inboxes::FetchImapEmailInboxesJob do
       InstallationConfig.where(name: 'CHATWOOT_CLOUD_PLANS').first_or_create!(value: [{ 'name' => 'Hacker' }])
     end
 
-    it 'skips inboxes with default plan' do
-      expect(Inboxes::FetchImapEmailsJob).not_to receive(:perform_later).with(imap_email_channel)
-      described_class.perform_now
-    end
-
     it 'processes inboxes with premium plan' do
       expect(Inboxes::FetchImapEmailsJob).to receive(:perform_later).with(premium_imap_channel)
       described_class.perform_now

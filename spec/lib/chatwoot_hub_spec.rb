@@ -22,8 +22,17 @@ describe ChatwootHub do
   end
 
   context 'when fetching sync_with_hub' do
+    after { ENV.delete('LLA_HUB_TELEMETRY_ENABLED') }
+
+    it 'sends nothing at all unless the operator has enabled telemetry' do
+      allow(RestClient).to receive(:post)
+      expect(described_class.sync_with_hub).to be_nil
+      expect(RestClient).not_to have_received(:post)
+    end
+
     it 'get latest version from chatwoot hub' do
       version = '1.1.1'
+      ENV['LLA_HUB_TELEMETRY_ENABLED'] = 'true'
       allow(RestClient).to receive(:post).and_return({ version: version }.to_json)
       expect(described_class.sync_with_hub['version']).to eq version
       expect(RestClient).to have_received(:post).with(described_class.ping_url, described_class.instance_config
@@ -32,7 +41,7 @@ describe ChatwootHub do
 
     it 'will not send instance metrics when telemetry is disabled' do
       version = '1.1.1'
-      with_modified_env DISABLE_TELEMETRY: 'true' do
+      with_modified_env DISABLE_TELEMETRY: 'true', LLA_HUB_TELEMETRY_ENABLED: 'true' do
         allow(RestClient).to receive(:post).and_return({ version: version }.to_json)
         expect(described_class.sync_with_hub['version']).to eq version
         expect(RestClient).to have_received(:post).with(described_class.ping_url,
@@ -41,8 +50,10 @@ describe ChatwootHub do
     end
 
     it 'returns nil when chatwoot hub is down' do
-      allow(RestClient).to receive(:post).and_raise(ExceptionList::REST_CLIENT_EXCEPTIONS.sample)
-      expect(described_class.sync_with_hub).to be_nil
+      with_modified_env LLA_HUB_TELEMETRY_ENABLED: 'true' do
+        allow(RestClient).to receive(:post).and_raise(ExceptionList::REST_CLIENT_EXCEPTIONS.sample)
+        expect(described_class.sync_with_hub).to be_nil
+      end
     end
   end
 
@@ -51,8 +62,19 @@ describe ChatwootHub do
     let(:owner_name) { 'test' }
     let(:owner_email) { 'test@test.com' }
 
+    # Registration carries the owner's name and email address. It is off unless the
+    # operator has said otherwise.
+    after { ENV.delete('LLA_HUB_REGISTRATION_ENABLED') }
+
+    it 'sends nothing unless registration is enabled' do
+      allow(RestClient).to receive(:post)
+      described_class.register_instance(company_name, owner_name, owner_email)
+      expect(RestClient).not_to have_received(:post)
+    end
+
     it 'sends info of registration' do
       info = { company_name: company_name, owner_name: owner_name, owner_email: owner_email, subscribed_to_mailers: true }
+      ENV['LLA_HUB_REGISTRATION_ENABLED'] = 'true'
       allow(RestClient).to receive(:post)
       described_class.register_instance(company_name, owner_name, owner_email)
       expect(RestClient).to have_received(:post).with(described_class.registration_url,
@@ -64,8 +86,17 @@ describe ChatwootHub do
     let(:event_name) { 'sample_event' }
     let(:event_data) { { 'sample_data' => 'sample_data' } }
 
+    after { ENV.delete('LLA_HUB_TELEMETRY_ENABLED') }
+
+    it 'sends nothing unless telemetry is enabled' do
+      allow(RestClient).to receive(:post)
+      described_class.emit_event(event_name, event_data)
+      expect(RestClient).not_to have_received(:post)
+    end
+
     it 'will send instance events' do
       info = { event_name: event_name, event_data: event_data }
+      ENV['LLA_HUB_TELEMETRY_ENABLED'] = 'true'
       allow(RestClient).to receive(:post)
       described_class.emit_event(event_name, event_data)
       expect(RestClient).to have_received(:post).with(described_class.events_url,
@@ -73,7 +104,7 @@ describe ChatwootHub do
     end
 
     it 'will not send instance events when telemetry is disabled' do
-      with_modified_env DISABLE_TELEMETRY: 'true' do
+      with_modified_env DISABLE_TELEMETRY: 'true', LLA_HUB_TELEMETRY_ENABLED: 'true' do
         info = { event_name: event_name, event_data: event_data }
         allow(RestClient).to receive(:post)
         described_class.emit_event(event_name, event_data)

@@ -101,8 +101,12 @@ module ChatwootApp
     extension_names
   end
 
+  # Advanced search is available when an index is configured. It used to also
+  # require the enterprise directory to exist, so removing that directory would
+  # have silently switched every account back to SQL search with a configured
+  # OpenSearch cluster sitting idle beside it.
   def self.advanced_search_allowed?
-    enterprise? && ENV.fetch('OPENSEARCH_URL', nil).present?
+    ENV.fetch('OPENSEARCH_URL', nil).present?
   end
 
   def self.otel_enabled?
