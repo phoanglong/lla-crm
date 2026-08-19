@@ -55,8 +55,14 @@ const isCallsAvailable = computed(
 const searchShortcut = useKbd([`$mod`, 'k']);
 const { t } = useI18n();
 
-const isACustomBrandedInstance = useMapGetter(
-  'globalConfig/isACustomBrandedInstance'
+// The changelog card used to be shown only on a Chatwoot-branded cloud instance,
+// because the feed it read was Chatwoot's own. The feed is now an installation
+// setting, so the question is no longer "whose brand is this" but "did the
+// operator configure a feed". Unset means the card does not render and no
+// request is made.
+const globalConfig = useMapGetter('globalConfig/get');
+const hasChangelogFeed = computed(() =>
+  Boolean(globalConfig.value.changelogURL)
 );
 const isRTL = useMapGetter('accounts/isRTL');
 
@@ -1052,18 +1058,10 @@ const menuItems = computed(() => {
         class="pointer-events-none absolute inset-x-0 -top-[1.938rem] h-8 bg-gradient-to-t from-n-background to-transparent"
       />
       <SidebarChangelogCard
-        v-if="
-          isOnChatwootCloud &&
-          !isACustomBrandedInstance &&
-          !isEffectivelyCollapsed
-        "
+        v-if="hasChangelogFeed && !isEffectivelyCollapsed"
       />
       <SidebarChangelogButton
-        v-if="
-          isOnChatwootCloud &&
-          !isACustomBrandedInstance &&
-          isEffectivelyCollapsed
-        "
+        v-if="hasChangelogFeed && isEffectivelyCollapsed"
       />
       <div
         class="px-1 py-1.5 flex-shrink-0 flex w-full z-50 gap-2 items-center border-t border-n-weak shadow-[0px_-2px_4px_0px_rgba(27,28,29,0.02)]"
