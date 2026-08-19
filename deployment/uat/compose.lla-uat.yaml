@@ -58,7 +58,15 @@ services:
     entrypoint: docker/entrypoints/rails.sh
     command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api || exit 1']
+      # Assert the payload, not just that something answered. `/api` returns 200
+      # while reporting a dependency as failing, so a status-only probe calls a
+      # half-dead stack healthy.
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1:3000/api
+          | grep -q '"data_services":"ok"'
+          && wget -qO- http://127.0.0.1:3000/api | grep -q '"queue_services":"ok"'
       interval: 10s
       timeout: 5s
       retries: 30
