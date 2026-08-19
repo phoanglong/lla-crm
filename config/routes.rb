@@ -248,7 +248,9 @@ Rails.application.routes.draw do
               get :download
             end
             member do
-              patch :update if ChatwootApp.enterprise?
+              # LLA owns CSAT review notes; the route used to exist only in
+              # enterprise mode, so the capability disappeared with it.
+              patch :update if ChatwootApp.enterprise? || ChatwootApp.lla?
             end
           end
           resources :applied_slas, only: [:index] do
@@ -257,7 +259,10 @@ Rails.application.routes.draw do
               get :download
             end
           end
-          resources :reporting_events, only: [:index] if ChatwootApp.enterprise?
+          # Account-level reporting events. Owned by LLA and served by
+          # `Lla::Api::V1::Accounts::ReportingEventsController`; the enterprise
+          # controller inherited a name rather than any behaviour.
+          resources :reporting_events, only: [:index], controller: '/lla/api/v1/accounts/reporting_events' if ChatwootApp.lla?
 
           resources :calls, only: [:index] if ChatwootApp.voice_calls?
 
@@ -551,27 +556,11 @@ Rails.application.routes.draw do
     end
   end
 
-  if ChatwootApp.enterprise?
-    namespace :enterprise, defaults: { format: 'json' } do
-      namespace :api do
-        namespace :v1 do
-          resources :accounts do
-            member do
-              post :checkout
-              post :subscription
-              post :select_billing_currency
-              get :limits
-              post :toggle_deletion
-              post :topup_checkout
-              get :topup_options
-            end
-          end
-        end
-      end
-
-      post 'webhooks/stripe', to: 'webhooks/stripe#process_payload'
-    end
-  end
+  # The Chatwoot Cloud commerce routes — checkout, subscription, billing currency,
+  # top-ups and the Stripe webhook — are gone with Wave J. They pointed at
+  # controllers this product does not have, so hitting one raised rather than
+  # answered. LLA entitlement and quota are internal and need no provider; a
+  # commerce adapter, if one is ever chosen, gets its own routes.
 
   # Webhook crawl tài liệu LLA AI — giữ path/route name enterprise/* của CE,
   # nhưng phải sống cả khi chạy thuần LLA (DISABLE_ENTERPRISE).
