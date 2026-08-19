@@ -47,6 +47,7 @@
         zaloBridgeUrl: <%= raw @global_config['ZALO_BRIDGE_URL'].to_json %>,
         signupEnabled: '<%= @global_config['ENABLE_ACCOUNT_SIGNUP'] %>',
         isEnterprise: '<%= @global_config['IS_ENTERPRISE'] %>',
+        voiceCallsEnabled: '<%= @global_config['VOICE_CALLS_ENABLED'] %>',
         knowledgeOnboardingEnabled: '<%= Lla::Knowledge::ProviderPolicy.capability_enabled?(:onboarding_workspace) %>',
         isMfaEnabled: '<%= Chatwoot.mfa_enabled? %>',
         <% if @global_config['IS_ENTERPRISE'] %>

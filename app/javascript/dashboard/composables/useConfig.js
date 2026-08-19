@@ -28,6 +28,7 @@ export function useConfig() {
    * @type {boolean}
    */
   const isEnterprise = config.isEnterprise === 'true';
+  const voiceCallsEnabled = config.voiceCallsEnabled === 'true';
 
   /** Indicates whether the LLA onboarding workspace capability is enabled. */
   const knowledgeOnboardingEnabled =
@@ -51,6 +52,7 @@ export function useConfig() {
     vapidPublicKey,
     enabledLanguages,
     isEnterprise,
+    voiceCallsEnabled,
     knowledgeOnboardingEnabled,
     enterprisePlanName,
     inboxEventsEnabled,

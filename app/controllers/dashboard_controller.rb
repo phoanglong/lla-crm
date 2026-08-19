@@ -75,6 +75,19 @@ class DashboardController < ActionController::Base
       COMPATIBILITY_VERSION: Lla::ProductVersion.compatibility_version,
       VAPID_PUBLIC_KEY: VapidService.public_key,
       ENABLE_ACCOUNT_SIGNUP: GlobalConfigService.load('ENABLE_ACCOUNT_SIGNUP', 'false'),
+      IS_ENTERPRISE: ChatwootApp.enterprise?,
+      # The capability, not the edition. `ChatwootApp.voice_calls?` is what decides
+      # whether the routes exist; the dashboard has to ask the same question.
+      VOICE_CALLS_ENABLED: ChatwootApp.voice_calls?,
+      AZURE_APP_ID: GlobalConfigService.load('AZURE_APP_ID', ''),
+      GIT_SHA: GIT_HASH,
+      ALLOWED_LOGIN_METHODS: allowed_login_methods,
+      ACTIVE_PLATFORM_BANNERS: active_platform_banners
+    }.merge(channel_app_config)
+  end
+
+  def channel_app_config
+    {
       FB_APP_ID: GlobalConfigService.load('FB_APP_ID', ''),
       INSTAGRAM_APP_ID: GlobalConfigService.load('INSTAGRAM_APP_ID', ''),
       TIKTOK_APP_ID: GlobalConfigService.load('TIKTOK_APP_ID', ''),
@@ -82,12 +95,7 @@ class DashboardController < ActionController::Base
       WHATSAPP_APP_ID: GlobalConfigService.load('WHATSAPP_APP_ID', ''),
       WHATSAPP_CONFIGURATION_ID: GlobalConfigService.load('WHATSAPP_CONFIGURATION_ID', ''),
       WHATSAPP_API_VERSION: GlobalConfigService.load('WHATSAPP_API_VERSION', 'v22.0'),
-      ZALO_BRIDGE_URL: GlobalConfigService.load('ZALO_BRIDGE_URL', 'https://zbridge.llavn.cloud'),
-      IS_ENTERPRISE: ChatwootApp.enterprise?,
-      AZURE_APP_ID: GlobalConfigService.load('AZURE_APP_ID', ''),
-      GIT_SHA: GIT_HASH,
-      ALLOWED_LOGIN_METHODS: allowed_login_methods,
-      ACTIVE_PLATFORM_BANNERS: active_platform_banners
+      ZALO_BRIDGE_URL: GlobalConfigService.load('ZALO_BRIDGE_URL', 'https://zbridge.llavn.cloud')
     }
   end
 

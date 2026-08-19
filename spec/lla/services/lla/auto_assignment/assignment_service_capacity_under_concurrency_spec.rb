@@ -76,39 +76,53 @@ RSpec.describe 'Lla::AutoAssignment::AssignmentService capacity under concurrenc
     inbox_ids = Inbox.where(account_id: account.id).ids
     user_ids = AccountUser.where(account_id: account.id).pluck(:user_id)
 
-    Conversation.where(account_id: account.id).find_each(&:destroy)
+    destroy_inbox_children(account.id, inbox_ids)
+    destroy_account_owners(account.id, inbox_ids, user_ids)
+
+    assert_nothing_left_behind(account.id, inbox_ids, user_ids)
+  end
+
+  def destroy_inbox_children(account_id, inbox_ids)
+    Conversation.where(account_id: account_id).find_each(&:destroy)
     ContactInbox.where(inbox_id: inbox_ids).delete_all
-    Contact.where(account_id: account.id).find_each(&:destroy)
+    Contact.where(account_id: account_id).find_each(&:destroy)
     InboxMember.where(inbox_id: inbox_ids).delete_all
     InboxCapacityLimit.where(inbox_id: inbox_ids).delete_all
     WorkingHour.where(inbox_id: inbox_ids).delete_all
-    Inbox.where(id: inbox_ids).find_each(&:destroy)
-    AgentCapacityPolicy.where(account_id: account.id).delete_all
-    AccountUser.where(account_id: account.id).delete_all
-    User.where(id: user_ids).find_each(&:destroy)
-    Account.where(id: account.id).delete_all
+  end
 
-    assert_nothing_left_behind(account.id, inbox_ids, user_ids)
+  def destroy_account_owners(account_id, inbox_ids, user_ids)
+    Inbox.where(id: inbox_ids).find_each(&:destroy)
+    AgentCapacityPolicy.where(account_id: account_id).delete_all
+    AccountUser.where(account_id: account_id).delete_all
+    User.where(id: user_ids).find_each(&:destroy)
+    Account.where(id: account_id).delete_all
   end
 
   # The self-check. Without it, a table added to the fixture later leaks silently and
   # the failure lands in somebody else's spec file, hours of bisecting away.
   def assert_nothing_left_behind(account_id, inbox_ids, user_ids)
-    leftovers = {
-      accounts: Account.where(id: account_id).count,
-      account_users: AccountUser.where(account_id: account_id).count,
-      users: User.where(id: user_ids).count,
-      inboxes: Inbox.where(id: inbox_ids).count,
-      conversations: Conversation.where(account_id: account_id).count,
-      contacts: Contact.where(account_id: account_id).count,
-      contact_inboxes: ContactInbox.where(inbox_id: inbox_ids).count,
-      inbox_members: InboxMember.where(inbox_id: inbox_ids).count,
-      working_hours: WorkingHour.where(inbox_id: inbox_ids).count,
-      inbox_capacity_limits: InboxCapacityLimit.where(inbox_id: inbox_ids).count,
-      agent_capacity_policies: AgentCapacityPolicy.where(account_id: account_id).count
-    }.reject { |_table, count| count.zero? }
+    leftovers = remaining_rows(account_id, inbox_ids, user_ids)
+                .transform_values(&:count)
+                .reject { |_table, count| count.zero? }
 
     raise "this spec leaked rows into the shared test database: #{leftovers.inspect}" if leftovers.any?
+  end
+
+  def remaining_rows(account_id, inbox_ids, user_ids)
+    {
+      accounts: Account.where(id: account_id),
+      account_users: AccountUser.where(account_id: account_id),
+      conversations: Conversation.where(account_id: account_id),
+      contacts: Contact.where(account_id: account_id),
+      agent_capacity_policies: AgentCapacityPolicy.where(account_id: account_id),
+      inboxes: Inbox.where(id: inbox_ids),
+      contact_inboxes: ContactInbox.where(inbox_id: inbox_ids),
+      inbox_members: InboxMember.where(inbox_id: inbox_ids),
+      working_hours: WorkingHour.where(inbox_id: inbox_ids),
+      inbox_capacity_limits: InboxCapacityLimit.where(inbox_id: inbox_ids),
+      users: User.where(id: user_ids)
+    }
   end
 
   # One worker: reload everything on its own connection, wait for the others, claim.
