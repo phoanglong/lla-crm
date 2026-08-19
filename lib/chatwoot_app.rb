@@ -27,6 +27,19 @@ module ChatwootApp
     # rubocop:enable Rails/NegateInclude
   end
 
+  # Giá trị ENV được coi là "bật" một cách rõ ràng.
+  TRUTHY_ENV_VALUES = %w[true t yes y 1 on enabled].freeze
+
+  # For gates that must fail closed: a capability is on only if the operator wrote
+  # something that unambiguously means on. `env_flag?` answers the opposite question
+  # — "is this not one of the words for off" — so a typo, an unfamiliar spelling, or
+  # a value like "disabled" reads as ON there. That is the right default for a switch
+  # such as DISABLE_ENTERPRISE, where the safe answer is "keep the flag set", and the
+  # wrong one for a switch that opens external egress.
+  def self.enabled_flag?(name)
+    TRUTHY_ENV_VALUES.include?(ENV.fetch(name, nil).to_s.strip.downcase)
+  end
+
   def self.enterprise?
     return false if env_flag?('DISABLE_ENTERPRISE')
 

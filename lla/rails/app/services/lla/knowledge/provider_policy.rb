@@ -22,18 +22,32 @@ class Lla::Knowledge::ProviderPolicy
     article_translation: 'LLA_KNOWLEDGE_ARTICLE_TRANSLATION_ENABLED',
     embedding_search: 'LLA_KNOWLEDGE_EMBEDDING_SEARCH_ENABLED',
     website_enrichment: 'LLA_KNOWLEDGE_WEBSITE_ENRICHMENT_ENABLED',
-    custom_domains: 'LLA_CUSTOM_DOMAINS_ENABLED',
-    geo_restrictions: 'LLA_WIDGET_GEO_RESTRICTIONS_ENABLED'
+    custom_domains: 'LLA_CUSTOM_DOMAINS_ENABLED'
   }.freeze
+  # The widget country policy is deliberately not in the table above. It gates no
+  # external call, and its safe failure runs the other way: if the flag holds
+  # something this cannot parse, the right answer is to keep *enforcing* the
+  # allowlist, not to stop. `Lla::WidgetsController` therefore reads
+  # `LLA_WIDGET_GEOIP_ENABLED` with the permissive `ChatwootApp.env_flag?`.
+  #
+  # A `geo_restrictions` entry naming `LLA_WIDGET_GEO_RESTRICTIONS_ENABLED` used to
+  # sit here. Nothing read it, and no deployment set it, so it described a switch
+  # that did not exist.
 
   PROVIDERS = %i[direct_fetch openai firecrawl context_dev cloudflare geoip].freeze
   CONSENT_ROOT = 'lla_provider_consents'
   GLOBAL_EGRESS_FLAG = 'LLA_KNOWLEDGE_EXTERNAL_EGRESS_ENABLED'
   CONSENT_VERSION_PATTERN = /\A[a-zA-Z0-9_.-]{1,40}\z/
 
+  # `ChatwootApp.enabled_flag?`, not `ActiveModel::Type::Boolean`. The Active Model
+  # cast treats every string it does not recognise as **true**, and its false list
+  # contains neither "no" nor "n" — so `LLA_KNOWLEDGE_ARTICLE_GENERATION_ENABLED=no`
+  # switched the capability ON, as did any typo. In a gate whose whole purpose is to
+  # be fail-closed, the reader has to fail closed too: on only when the operator
+  # wrote a word that means on.
   def self.capability_enabled?(capability)
     flag = CAPABILITY_FLAGS.fetch(capability.to_sym)
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch(flag, false))
+    ChatwootApp.enabled_flag?(flag)
   end
 
   def self.egress_permitted?(account:, provider:, capability:)
@@ -49,7 +63,7 @@ class Lla::Knowledge::ProviderPolicy
 
   def self.consented?(account, provider)
     record = consent_record(account, provider)
-    return false unless ActiveModel::Type::Boolean.new.cast(record['enabled'])
+    return false unless consent_flag?(record['enabled'])
     return false unless CONSENT_VERSION_PATTERN.match?(record['version'].to_s)
 
     accepted_at = Time.zone.parse(record['accepted_at'].to_s)
@@ -66,7 +80,7 @@ class Lla::Knowledge::ProviderPolicy
   end
 
   def self.global_egress_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch(GLOBAL_EGRESS_FLAG, false))
+    ChatwootApp.enabled_flag?(GLOBAL_EGRESS_FLAG)
   end
 
   def self.validate_provider!(provider)
@@ -75,6 +89,14 @@ class Lla::Knowledge::ProviderPolicy
     raise ArgumentError, "unknown LLA Knowledge provider: #{provider}"
   end
   private_class_method :validate_provider!
+
+  # Consent is a legal boundary, so it is granted only by an unambiguous true — the
+  # boolean, or one of the two spellings an operator or an API client would use for
+  # it. Anything else, including any string this does not recognise, is not consent.
+  def self.consent_flag?(value)
+    value == true || %w[true 1].include?(value.to_s.strip.downcase)
+  end
+  private_class_method :consent_flag?
 
   def self.consent_record(account, provider)
     value = account&.custom_attributes&.dig(CONSENT_ROOT, provider.to_s)

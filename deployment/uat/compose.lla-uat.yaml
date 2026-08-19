@@ -36,9 +36,9 @@ x-app: &app
     # is a separate owner decision that also needs a provider sandbox, a data
     # region answer and a retention answer.
     DISABLE_ENTERPRISE: "true"
+    LLA_KNOWLEDGE_EXTERNAL_EGRESS_ENABLED: "false"
+    LLA_CUSTOM_DOMAINS_ENABLED: "false"
     LLA_WIDGET_GEOIP_ENABLED: "false"
-    LLA_CUSTOM_DOMAIN_ENABLED: "false"
-    LLA_EGRESS_ENABLED: "false"
   volumes:
     - uat_storage:/app/storage
   depends_on:
