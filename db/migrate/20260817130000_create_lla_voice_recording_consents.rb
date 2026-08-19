@@ -56,7 +56,7 @@ class CreateLlaVoiceRecordingConsents < ActiveRecord::Migration[7.1]
 
   def add_constraints
     add_check_constraint :lla_voice_recording_consents,
-                         "capture_method IN ('agent_attestation')",
+                         "capture_method::text IN ('agent_attestation'::text)",
                          name: 'chk_lla_recording_consents_method'
     add_check_constraint :lla_voice_recording_consents,
                          "disclosure_version ~ '^[A-Za-z0-9_.:-]{1,64}$'",

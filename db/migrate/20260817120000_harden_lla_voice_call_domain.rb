@@ -110,7 +110,8 @@ class HardenLlaVoiceCallDomain < ActiveRecord::Migration[7.1]
     add_validated_check :calls, 'provider IN (0, 1)', 'chk_lla_calls_provider'
     add_validated_check :calls, 'direction IN (0, 1)', 'chk_lla_calls_direction'
     add_validated_check :calls,
-                        "status IN ('ringing', 'in_progress', 'completed', 'no_answer', 'failed', 'rejected')",
+                        "status::text IN ('ringing'::text, 'in_progress'::text, 'completed'::text, " \
+                        "'no_answer'::text, 'failed'::text, 'rejected'::text)",
                         'chk_lla_calls_status'
     add_validated_check :calls, 'duration_seconds IS NULL OR duration_seconds >= 0', 'chk_lla_calls_duration'
     add_validated_check :calls,
@@ -174,7 +175,7 @@ class HardenLlaVoiceCallDomain < ActiveRecord::Migration[7.1]
                     name: 'fk_lla_call_events_call_tenant', on_delete: :cascade
     add_check_constraint :lla_call_events, 'provider IN (0, 1)', name: 'chk_lla_call_events_provider'
     add_check_constraint :lla_call_events,
-                         "outcome IN ('pending', 'applied', 'duplicate', 'stale', 'rejected')",
+                         "outcome::text IN ('pending'::text, 'applied'::text, 'duplicate'::text, 'stale'::text, 'rejected'::text)",
                          name: 'chk_lla_call_events_outcome'
     add_check_constraint :lla_call_events,
                          'char_length(event_id_digest) = 64 AND char_length(payload_digest) = 64',
@@ -220,7 +221,8 @@ class HardenLlaVoiceCallDomain < ActiveRecord::Migration[7.1]
                     column: %i[account_id call_id], primary_key: %i[account_id id],
                     name: 'fk_lla_call_operations_call_tenant', on_delete: :cascade
     add_check_constraint :lla_call_operations,
-                         "state IN ('pending', 'claimed', 'succeeded', 'failed', 'compensating', 'compensated')",
+                         "state::text IN ('pending'::text, 'claimed'::text, 'succeeded'::text, " \
+                         "'failed'::text, 'compensating'::text, 'compensated'::text)",
                          name: 'chk_lla_call_operations_state'
     add_check_constraint :lla_call_operations,
                          'char_length(idempotency_digest) = 64 AND char_length(request_digest) = 64',

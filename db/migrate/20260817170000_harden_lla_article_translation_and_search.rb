@@ -30,7 +30,7 @@ class HardenLlaArticleTranslationAndSearch < ActiveRecord::Migration[7.1]
     add_check_constraint :lla_knowledge_generation_items, item_result_constraint,
                          name: 'chk_lla_knowledge_items_result_state'
     add_check_constraint :lla_knowledge_generation_items,
-                         "item_type IN ('article_generation', 'translation', 'reindex')",
+                         "item_type::text IN ('article_generation'::text, 'translation'::text, 'reindex'::text)",
                          name: 'chk_lla_knowledge_items_type'
   end
 

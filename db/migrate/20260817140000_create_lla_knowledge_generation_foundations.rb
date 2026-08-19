@@ -74,11 +74,12 @@ class CreateLlaKnowledgeGenerationFoundations < ActiveRecord::Migration[7.1]
                     name: 'fk_lla_knowledge_operations_membership', on_delete: :cascade
 
     add_check_constraint :lla_knowledge_generation_operations,
-                         "operation_type IN ('onboarding', 'translation', 'reindex')",
+                         "operation_type::text IN ('onboarding'::text, 'translation'::text, 'reindex'::text)",
                          name: 'chk_lla_knowledge_operations_type'
     add_check_constraint :lla_knowledge_generation_operations,
-                         "state IN ('pending', 'planning', 'dispatching', 'running', 'completed', " \
-                         "'completed_with_errors', 'skipped', 'failed', 'cancelled')",
+                         "state::text IN ('pending'::text, 'planning'::text, 'dispatching'::text, " \
+                         "'running'::text, 'completed'::text, 'completed_with_errors'::text, " \
+                         "'skipped'::text, 'failed'::text, 'cancelled'::text)",
                          name: 'chk_lla_knowledge_operations_state'
     add_check_constraint :lla_knowledge_generation_operations,
                          'char_length(idempotency_digest) = 64 AND char_length(request_digest) = 64 ' \
@@ -131,7 +132,7 @@ class CreateLlaKnowledgeGenerationFoundations < ActiveRecord::Migration[7.1]
                     name: 'fk_lla_knowledge_items_article', on_delete: :nullify
 
     add_check_constraint :lla_knowledge_generation_items,
-                         "state IN ('pending', 'claimed', 'succeeded', 'failed', 'cancelled')",
+                         "state::text IN ('pending'::text, 'claimed'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text)",
                          name: 'chk_lla_knowledge_items_state'
     add_check_constraint :lla_knowledge_generation_items,
                          'ordinal >= 0 AND attempts BETWEEN 0 AND 5',
@@ -172,7 +173,7 @@ class CreateLlaKnowledgeGenerationFoundations < ActiveRecord::Migration[7.1]
                     primary_key: %i[account_id portal_id id],
                     name: 'fk_lla_knowledge_outboxes_operation_tenant', on_delete: :cascade
     add_check_constraint :lla_knowledge_generation_outboxes,
-                         "state IN ('pending', 'claimed', 'delivered', 'failed', 'cancelled')",
+                         "state::text IN ('pending'::text, 'claimed'::text, 'delivered'::text, 'failed'::text, 'cancelled'::text)",
                          name: 'chk_lla_knowledge_outboxes_state'
     add_check_constraint :lla_knowledge_generation_outboxes,
                          'attempts BETWEEN 0 AND 5', name: 'chk_lla_knowledge_outboxes_attempts'

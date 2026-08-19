@@ -112,8 +112,11 @@ class HardenLlaCaptainOperationsAndFeedback < ActiveRecord::Migration[7.1]
   end
 
   def add_feedback_constraints
-    reasons = REPORT_REASONS.map { |reason| connection.quote(reason) }.join(', ')
-    add_check_constraint :captain_message_reports, "report_reason IN (#{reasons})",
+    # Cast both sides to text. `varchar IN ('a', 'b')` is not a PostgreSQL deparse
+    # fixed point: it comes back as ARRAY[...]::text[], which re-parses to
+    # ARRAY['a'::character varying::text, ...], so `db/schema.rb` never settles.
+    reasons = REPORT_REASONS.map { |reason| "#{connection.quote(reason)}::text" }.join(', ')
+    add_check_constraint :captain_message_reports, "report_reason::text IN (#{reasons})",
                          name: 'chk_lla_message_reports_reason', validate: false, if_not_exists: true
     add_check_constraint :captain_message_reports, 'description IS NULL OR char_length(description) <= 500',
                          name: 'chk_lla_message_reports_description', validate: false, if_not_exists: true
@@ -184,7 +187,7 @@ class HardenLlaCaptainOperationsAndFeedback < ActiveRecord::Migration[7.1]
               name: 'idx_lla_bulk_operations_expiry',
               if_not_exists: true
     add_check_constraint :lla_captain_bulk_operations,
-                         "state IN ('pending', 'processing', 'completed', 'failed')",
+                         "state::text IN ('pending'::text, 'processing'::text, 'completed'::text, 'failed'::text)",
                          name: 'chk_lla_bulk_operations_state',
                          if_not_exists: true
     add_check_constraint :lla_captain_bulk_operations,

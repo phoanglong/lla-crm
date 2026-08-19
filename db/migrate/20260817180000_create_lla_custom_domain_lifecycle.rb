@@ -24,11 +24,12 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   # The portal named is `source_portal_id`, not `portal_id`: the first is the
   # immutable audit fact this evidence is *about*, the second is the live foreign
   # key that is detached if the portal is later deleted.
-  TOMBSTONE_REASON_SHAPE_SQL = "reason NOT IN ('legacy_hostname_unsupported','legacy_hostname_duplicate'," \
-                               "'legacy_hostname_contested','legacy_hostname_unroutable') OR " \
+  TOMBSTONE_REASON_SHAPE_SQL = "reason::text NOT IN ('legacy_hostname_unsupported'::text," \
+                               "'legacy_hostname_duplicate'::text,'legacy_hostname_contested'::text," \
+                               "'legacy_hostname_unroutable'::text) OR " \
                                '(source_portal_id IS NOT NULL AND source_value_digest IS NOT NULL ' \
                                'AND source_value_preview IS NOT NULL)'
-  TOMBSTONE_RESOURCE_SHAPE_SQL = "reason NOT IN ('legacy_provider_resource_unknown','provider_teardown_abandoned') " \
+  TOMBSTONE_RESOURCE_SHAPE_SQL = "reason::text NOT IN ('legacy_provider_resource_unknown'::text,'provider_teardown_abandoned'::text) " \
                                  'OR hostname IS NOT NULL'
   # An abandoned teardown is the one kind of evidence that names a remote object LLA
   # *knows* exists. It is only actionable if it carries that object's identifier and
@@ -108,11 +109,12 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
 
   def add_custom_domain_constraints # rubocop:disable Metrics/MethodLength
     add_check_constraint :lla_custom_domains,
-                         "state IN ('requested','ownership_pending','provisioning','active','failed','removing')",
+                         "state::text IN ('requested'::text,'ownership_pending'::text," \
+                         "'provisioning'::text,'active'::text,'failed'::text,'removing'::text)",
                          name: 'chk_lla_custom_domains_state'
-    add_check_constraint :lla_custom_domains, "provider IN ('none','cloudflare')",
+    add_check_constraint :lla_custom_domains, "provider::text IN ('none'::text,'cloudflare'::text)",
                          name: 'chk_lla_custom_domains_provider'
-    add_check_constraint :lla_custom_domains, "ownership_source IN ('nonce_challenge','legacy_import')",
+    add_check_constraint :lla_custom_domains, "ownership_source::text IN ('nonce_challenge'::text,'legacy_import'::text)",
                          name: 'chk_lla_custom_domains_ownership_source'
     add_check_constraint :lla_custom_domains, HOSTNAME_SQL, name: 'chk_lla_custom_domains_hostname'
     add_check_constraint :lla_custom_domains, 'version >= 1 AND challenge_rotations BETWEEN 0 AND 10',
@@ -191,10 +193,11 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
 
   def add_operation_constraints # rubocop:disable Metrics/MethodLength
     add_check_constraint :lla_custom_domain_operations,
-                         "operation_type IN ('provision','verify','reverify','remove','reconcile')",
+                         "operation_type::text IN ('provision'::text,'verify'::text,'reverify'::text,'remove'::text,'reconcile'::text)",
                          name: 'chk_lla_custom_domain_ops_type'
     add_check_constraint :lla_custom_domain_operations,
-                         "state IN ('pending','deferred','claimed','succeeded','failed','dead_lettered','cancelled')",
+                         "state::text IN ('pending'::text,'deferred'::text,'claimed'::text," \
+                         "'succeeded'::text,'failed'::text,'dead_lettered'::text,'cancelled'::text)",
                          name: 'chk_lla_custom_domain_ops_state'
     add_check_constraint :lla_custom_domain_operations,
                          'char_length(idempotency_digest) = 64 AND char_length(request_digest) = 64 AND ' \
@@ -211,7 +214,7 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
                          '(recovery_attempt = 0 AND predecessor_id IS NULL) OR ' \
                          '(recovery_attempt > 0 AND predecessor_id IS NOT NULL)',
                          name: 'chk_lla_custom_domain_ops_recovery'
-    add_check_constraint :lla_custom_domain_operations, "provider IN ('none','cloudflare')",
+    add_check_constraint :lla_custom_domain_operations, "provider::text IN ('none'::text,'cloudflare'::text)",
                          name: 'chk_lla_custom_domain_ops_provider'
     add_check_constraint :lla_custom_domain_operations, HOSTNAME_SQL,
                          name: 'chk_lla_custom_domain_ops_hostname'
@@ -219,8 +222,8 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
     # row never does, and a finished row is always stamped and unclaimed.
     add_check_constraint :lla_custom_domain_operations,
                          "(state = 'claimed' AND claim_digest IS NOT NULL AND claimed_at IS NOT NULL AND completed_at IS NULL) OR " \
-                         "(state IN ('pending','deferred') AND claim_digest IS NULL AND completed_at IS NULL) OR " \
-                         "(state IN ('succeeded','failed','dead_lettered','cancelled') AND claim_digest IS NULL " \
+                         "(state::text IN ('pending'::text,'deferred'::text) AND claim_digest IS NULL AND completed_at IS NULL) OR " \
+                         "(state::text IN ('succeeded'::text,'failed'::text,'dead_lettered'::text,'cancelled'::text) AND claim_digest IS NULL " \
                          'AND completed_at IS NOT NULL)',
                          name: 'chk_lla_custom_domain_ops_claim_state'
   end
@@ -289,12 +292,13 @@ class CreateLlaCustomDomainLifecycle < ActiveRecord::Migration[7.1] # rubocop:di
   def add_tombstone_constraints
     add_tombstone_shape_constraints
     add_check_constraint :lla_custom_domain_tombstones,
-                         "state IN ('manual_adoption_required','resolved')",
+                         "state::text IN ('manual_adoption_required'::text,'resolved'::text)",
                          name: 'chk_lla_custom_domain_tombstones_state'
     add_check_constraint :lla_custom_domain_tombstones,
-                         "reason IN ('legacy_provider_resource_unknown','provider_teardown_abandoned'," \
-                         "'legacy_hostname_unsupported','legacy_hostname_duplicate'," \
-                         "'legacy_hostname_contested','legacy_hostname_unroutable')",
+                         "reason::text IN ('legacy_provider_resource_unknown'::text," \
+                         "'provider_teardown_abandoned'::text,'legacy_hostname_unsupported'::text," \
+                         "'legacy_hostname_duplicate'::text,'legacy_hostname_contested'::text," \
+                         "'legacy_hostname_unroutable'::text)",
                          name: 'chk_lla_custom_domain_tombstones_reason'
     add_check_constraint :lla_custom_domain_tombstones,
                          "state <> 'resolved' OR resolved_at IS NOT NULL",
