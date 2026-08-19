@@ -38,6 +38,15 @@ module Lla::Api::V1::Accounts::InboxesController
 
   private
 
+  # `auto_assignment_config.max_assignment_limit` is validated by `Lla::Inbox` and
+  # enforced by `Lla::Inbox#member_ids_at_max_assignment_limit`, but the request
+  # never carried it: the only controller that permitted the parameter was an
+  # enterprise extension, so with enterprise off the field was silently dropped by
+  # strong parameters and the limit could not be set at all.
+  def inbox_attributes
+    super + [auto_assignment_config: [:max_assignment_limit]]
+  end
+
   def request_whatsapp_calling(enabled)
     ensure_voice_admin!
     result = Whatsapp::CallingLifecycleRequestService.new(

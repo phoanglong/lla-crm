@@ -14,6 +14,10 @@
 # - Không cấu hình gì → toàn bộ thành viên (hành vi CE).
 # - max_assignment_limit nếu khai phải là số nguyên dương.
 module Lla::Inbox
+  # `to_i` alone accepted anything: "5 agents" became 5, "1e9" became 1, and 10**9
+  # was a valid limit that turns `member_ids_at_max_assignment_limit` into a scan
+  # nothing can satisfy. The value has to actually be an integer, and a bounded one.
+  MAX_ASSIGNMENT_LIMIT = 10_000
   def active_bot?
     super || captain_active?
   end
@@ -49,10 +53,21 @@ module Lla::Inbox
   private
 
   def ensure_valid_max_assignment_limit
-    return if max_assignment_limit.nil?
-    return if max_assignment_limit.to_i.positive?
+    value = max_assignment_limit
+    return if value.nil?
 
-    errors.add(:auto_assignment_config, 'max_assignment_limit must be a positive integer')
+    integer = integer_limit(value)
+    return if integer&.between?(1, MAX_ASSIGNMENT_LIMIT)
+
+    errors.add(:auto_assignment_config,
+               "max_assignment_limit must be an integer between 1 and #{MAX_ASSIGNMENT_LIMIT}")
+  end
+
+  def integer_limit(value)
+    case value
+    when Integer then value
+    when String then value.match?(/\A\d+\z/) ? value.to_i : nil
+    end
   end
 
   def member_ids_at_max_assignment_limit

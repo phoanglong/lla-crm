@@ -12,6 +12,65 @@ module Lla::AutoAssignment::AssignmentService
     super(filter_agents_by_capacity(agents))
   end
 
+  # Chọn selector theo assignment policy của inbox. Chính sách `balanced` chọn agent
+  # đang gánh ít hội thoại mở nhất; mặc định vẫn là round robin. Chính sách của tài
+  # khoản khác hoặc đang tắt thì không được đổi hành vi — rơi về mặc định.
+  def selector
+    policy = inbox.assignment_policy
+    return round_robin_selector if policy.blank?
+    return round_robin_selector unless policy.account_id == inbox.account_id
+    return round_robin_selector unless policy.enabled?
+    return round_robin_selector unless policy.balanced?
+
+    balanced_selector
+  end
+
+  def balanced_selector
+    @balanced_selector ||= Lla::AutoAssignment::BalancedSelector.new(inbox: inbox)
+  end
+
+  def find_available_agent(conversation = nil)
+    agents = filter_agents_by_team(inbox.available_agents, conversation)
+    return nil if agents.nil?
+
+    agents = filter_agents_by_rate_limit(agents)
+    return nil if agents.empty?
+
+    selector.select_agent(agents)
+  end
+
+  # Chốt hội thoại và kiểm tra lại sức chứa TRONG cùng transaction.
+  #
+  # `find_available_agent` lọc theo sức chứa trước khi chọn, nhưng giữa lúc chọn và
+  # lúc ghi, một worker khác có thể đã gán hội thoại khác cho đúng agent đó. Khoá
+  # hàng hội thoại chỉ ngăn hai worker gán cùng một hội thoại; nó không ngăn hai
+  # worker cùng đẩy một agent vượt giới hạn. Đọc lại số hội thoại mở của agent sau
+  # khi đã khoá thì lần đọc đó nằm sau mọi commit trước, nên vượt giới hạn bị từ
+  # chối thay vì được ghi.
+  def claim_and_assign(conversation, agent)
+    Current.executed_by = inbox.assignment_policy || inbox
+
+    Conversation.transaction do
+      locked = inbox.conversations
+                    .where(id: conversation.id, assignee_id: nil)
+                    .lock('FOR UPDATE SKIP LOCKED')
+                    .first
+      next false unless locked
+      next false unless agent_still_has_capacity?(agent)
+
+      locked.update!(assignee: agent)
+      true
+    end
+  ensure
+    Current.executed_by = nil
+  end
+
+  def agent_still_has_capacity?(agent)
+    return true unless inbox.account.feature_enabled?('advanced_assignment')
+
+    Lla::AutoAssignment::CapacityService.new.agent_has_capacity?(agent, inbox)
+  end
+
   # Luật loại trừ của chính sách tải (theo nhãn / theo tuổi hội thoại):
   # hội thoại khớp luật thì auto-assignment bỏ qua, để agent tự nhận.
   def assignable?(conversation)

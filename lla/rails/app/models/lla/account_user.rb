@@ -9,6 +9,7 @@ module Lla::AccountUser
     belongs_to :custom_role, optional: true
     belongs_to :agent_capacity_policy, optional: true
     validate :custom_role_belongs_to_account
+    validate :agent_capacity_policy_belongs_to_account
   end
 
   # Quyền hiệu lực của thành viên. Khi có vai trò tuỳ chỉnh thì trả về danh sách
@@ -34,5 +35,15 @@ module Lla::AccountUser
     return if custom_role&.account_id == account_id
 
     errors.add(:custom_role, 'must belong to the same account as the account user')
+  end
+
+  # Cùng lý do với custom_role: `belongs_to ... optional: true` không ràng buộc tenant,
+  # nên một membership của tài khoản A có thể trỏ sang chính sách sức chứa của tài
+  # khoản B và im lặng đổi hành vi auto-assignment của A.
+  def agent_capacity_policy_belongs_to_account
+    return if agent_capacity_policy_id.blank?
+    return if agent_capacity_policy&.account_id == account_id
+
+    errors.add(:agent_capacity_policy, 'must belong to the same account as the account user')
   end
 end
