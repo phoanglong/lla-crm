@@ -43,6 +43,23 @@ RSpec.describe 'Super Admin accounts API', type: :request do
         expect(response.body).to include('Editor', 'OpenAI', 'openai', 'gpt-4.1', 'Account override', 'Label suggestion', 'Default')
         expect(CaptainModelOverridesField.instance_method(:feature_rows).source_location.first).to include('/lla/rails/')
       end
+
+      # The screen exists to say which capabilities a tenant has. It used to say it
+      # in a 12px tick that rendered as nothing, next to a padlock drawn on every
+      # premium row whether or not the installation was entitled.
+      it 'states each capability as on or off, and locks nothing on an entitled installation' do
+        account.enable_features!('sla')
+        account.disable_features!('companies')
+        sign_in(super_admin, scope: :super_admin)
+
+        get "/super_admin/accounts/#{account.id}"
+        document = Nokogiri::HTML(response.body)
+        states = document.css('.grid span').map { |span| span.text.squish }
+
+        expect(response).to have_http_status(:success)
+        expect(states).to include('Bật', 'Tắt')
+        expect(response.body).not_to include('#icon-lock-line')
+      end
     end
   end
 

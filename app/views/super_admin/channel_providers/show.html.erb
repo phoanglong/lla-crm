@@ -27,7 +27,10 @@
       the inner one. %>
   <div class="rounded-lg outline outline-1 outline-n-container overflow-hidden">
     <div class="overflow-x-auto">
-      <table class="w-full text-sm">
+      <%# `w-full` pinned the table to the container, so the seven columns of
+          Vietnamese text spilled past the edge with nothing to scroll. `min-w-full`
+          lets it grow, which is what gives the box above something to scroll. %>
+      <table class="min-w-full text-sm">
       <thead class="bg-slate-50 text-left text-n-slate-11">
         <tr>
           <th class="px-4 py-3 font-medium">Kênh</th>
