@@ -54,7 +54,7 @@
         "KEY": {
           "LABEL": "Khoá",
           "PLACEHOLDER": "Nhập khoá của thuộc tính tuỳ chỉnh",
-          "ERROR": "C\u001dần có khoá",
+          "ERROR": "Cần có khoá",
           "IN_VALID": "Khoá không hợp lệ"
         },
         "REGEX_PATTERN": {
@@ -103,7 +103,7 @@
       },
       "API": {
         "SUCCESS_MESSAGE": "Thuộc tính tuỳ chỉnh được sửa thành công",
-        "ERROR_MESSAGE": "Đã xảy ra lỗi khi cập nhật \bthuộc tính tuỳ chỉnh, vui lòng thử lại"
+        "ERROR_MESSAGE": "Đã xảy ra lỗi khi cập nhật thuộc tính tuỳ chỉnh, vui lòng thử lại"
       }
     },
     "TABS": {

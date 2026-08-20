@@ -244,12 +244,12 @@
         "ADD_BCC": "Thêm bcc",
         "CC": {
           "LABEL": "CC",
-          "PLACEHOLDER": "Các e\u001dmail phân biệt bởi dấu phẩy",
+          "PLACEHOLDER": "Các email phân biệt bởi dấu phẩy",
           "ERROR": "Vui lòng điền địa chỉ email hợp lệ"
         },
         "BCC": {
           "LABEL": "BCC",
-          "PLACEHOLDER": "Các e\u001dmail phân biệt bởi dấu phẩy",
+          "PLACEHOLDER": "Các email phân biệt bởi dấu phẩy",
           "ERROR": "Vui lòng điền địa chỉ email hợp lệ"
         }
       },
@@ -384,7 +384,7 @@
     },
     "LABELS": {
       "TITLE": "Tổ chức hội thoại theo nhãn",
-      "DESCRIPTION": "Nhãn cung cấp một cách để phân loại các hội thoại của bạn dễ dàng hơn. Tạo một số nhãn như #ho-tro, #\byeu-cau-bao-gia, v. v. để bạn có thể sử dụng chúng trong hội thoại sau này.",
+      "DESCRIPTION": "Nhãn cung cấp một cách để phân loại các hội thoại của bạn dễ dàng hơn. Tạo một số nhãn như #ho-tro, #yeu-cau-bao-gia, v. v. để bạn có thể sử dụng chúng trong hội thoại sau này.",
       "NEW_LINK": "Bấm vào đây để tạo nhãn"
     },
     "CANNED_RESPONSES": {
@@ -402,7 +402,7 @@
     },
     "ACCORDION": {
       "CONTACT_DETAILS": "Chi tiết liên hệ",
-      "CONVERSATION_ACTIONS": "Hành động của \bhội thoại",
+      "CONVERSATION_ACTIONS": "Hành động của hội thoại",
       "CONVERSATION_LABELS": "Nhãn hội thoại",
       "CONVERSATION_INFO": "Thông tin hội thoại",
       "CONTACT_NOTES": "Ghi chú liên hệ",

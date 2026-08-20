@@ -1,13 +1,13 @@
 {
   "AUTOMATION": {
     "HEADER": "Tự động hoá",
-    "DESCRIPTION": "Automation can replace and streamline existing processes that require manual effort, such as adding labels and assigning conversations to the most suitable agent. This allows the team to focus on their strengths while reducing time spent on routine tasks.",
-    "LEARN_MORE": "Learn more about automation",
-    "COUNT": "{n} automation | {n} automations",
-    "HEADER_BTN_TXT": "Create Automation",
+    "DESCRIPTION": "Tự động hoá có thể thay thế và tinh gọn các quy trình hiện có vốn đòi hỏi thao tác thủ công, chẳng hạn như gắn nhãn và phân công cuộc trò chuyện cho nhân viên phù hợp nhất. Điều này giúp đội ngũ tập trung vào thế mạnh của mình trong khi giảm thời gian cho các công việc lặp lại.",
+    "LEARN_MORE": "Tìm hiểu thêm về tự động hoá",
+    "COUNT": "{n} tự động hoá | {n} tự động hoá",
+    "HEADER_BTN_TXT": "Tạo Tự động hoá",
     "LOADING": "Đang lấy luật tự động hoá",
-    "SEARCH_PLACEHOLDER": "Search automation rules...",
-    "NO_RESULTS": "No automation rules found matching your search",
+    "SEARCH_PLACEHOLDER": "Tìm kiếm luật tự động hoá...",
+    "NO_RESULTS": "Không tìm thấy luật tự động hoá nào khớp với tìm kiếm của bạn",
     "ADD": {
       "TITLE": "Thêm Quy tắc Tự động hoá",
       "SUBMIT": "Tạo",
@@ -21,12 +21,12 @@
         "DESC": {
           "LABEL": "Mô tả",
           "PLACEHOLDER": "Nhập mô tả luật",
-          "ERROR": "Cần phải có \u001dmô tả"
+          "ERROR": "Cần phải có mô tả"
         },
         "EVENT": {
           "LABEL": "Sự kiện",
           "PLACEHOLDER": "Vui lòng chọn một",
-          "ERROR": "Cần phải có \u001dsự kiện"
+          "ERROR": "Cần phải có sự kiện"
         },
         "CONDITIONS": {
           "LABEL": "Điều kiện"
@@ -62,7 +62,7 @@
         "NO": "Không, giữ "
       },
       "API": {
-        "SUCCESS_MESSAGE": "Luật\u001d tự động hoá được xoá thành công",
+        "SUCCESS_MESSAGE": "Luật tự động hoá được xoá thành công",
         "ERROR_MESSAGE": "Không thể xoá luật tự động hoá, Vui lòng thử lại sau"
       }
     },
@@ -71,8 +71,8 @@
       "SUBMIT": "Cập nhật",
       "CANCEL_BUTTON_TEXT": "Huỷ",
       "API": {
-        "SUCCESS_MESSAGE": "Luật\u001d tự động hoá được thêm thành công",
-        "ERROR_MESSAGE": "Không thể cập nhật \bluật tự động hoá, Vui lòng thử lại sau"
+        "SUCCESS_MESSAGE": "Luật tự động hoá được thêm thành công",
+        "ERROR_MESSAGE": "Không thể cập nhật luật tự động hoá, Vui lòng thử lại sau"
       }
     },
     "CLONE": {
@@ -98,12 +98,12 @@
       "DELETE_MESSAGE": "Bạn cần có ít nhất một hành động để lưu",
       "TEAM_MESSAGE_INPUT_PLACEHOLDER": "Viết tin nhắn ở đây",
       "TEAM_DROPDOWN_PLACEHOLDER": "Chọn nhóm",
-      "EMAIL_INPUT_PLACEHOLDER": "Enter email",
-      "URL_INPUT_PLACEHOLDER": "Enter URL"
+      "EMAIL_INPUT_PLACEHOLDER": "Nhập email",
+      "URL_INPUT_PLACEHOLDER": "Nhập URL"
     },
     "TOGGLE": {
       "ACTIVATION_TITLE": "Kích hoạt Luật Tự động hoá",
-      "DEACTIVATION_TITLE": "Vô hiệu hoá \bLuật Tự động hoá",
+      "DEACTIVATION_TITLE": "Vô hiệu hoá Luật Tự động hoá",
       "ACTIVATION_DESCRIPTION": "Thao tác này sẽ kích hoạt luật tự động hoá tên '{automationName}'. Bạn có chắc là muốn tiếp tục?",
       "DEACTIVATION_DESCRIPTION": "Thao tác này sẽ vô hiệu hoá luật tự động hoá tên '{automationName}'. Bạn có chắc là muốn tiếp tục?",
       "ACTIVATION_SUCCESFUL": "Luật tự động hoá đã được kích hoạt thành công",
@@ -121,47 +121,47 @@
       "LABEL_UPLOAD_FAILED": "Không tải lên được"
     },
     "ERRORS": {
-      "ATTRIBUTE_KEY_REQUIRED": "Attribute key is required",
-      "FILTER_OPERATOR_REQUIRED": "Filter operator is required",
+      "ATTRIBUTE_KEY_REQUIRED": "Khoá thuộc tính là bắt buộc",
+      "FILTER_OPERATOR_REQUIRED": "Toán tử lọc là bắt buộc",
       "VALUE_REQUIRED": "Giá trị bắt buộc có",
-      "VALUE_MUST_BE_BETWEEN_1_AND_998": "Value must be between 1 and 998",
-      "ACTION_PARAMETERS_REQUIRED": "Action parameters are required",
-      "ATLEAST_ONE_CONDITION_REQUIRED": "At least one condition is required",
-      "ATLEAST_ONE_ACTION_REQUIRED": "At least one action is required"
+      "VALUE_MUST_BE_BETWEEN_1_AND_998": "Giá trị phải nằm trong khoảng 1 đến 998",
+      "ACTION_PARAMETERS_REQUIRED": "Tham số hành động là bắt buộc",
+      "ATLEAST_ONE_CONDITION_REQUIRED": "Cần ít nhất một điều kiện",
+      "ATLEAST_ONE_ACTION_REQUIRED": "Cần ít nhất một hành động"
     },
     "NONE_OPTION": "Không có",
-    "LAST_RESPONDING_AGENT": "Last Responding Agent",
+    "LAST_RESPONDING_AGENT": "Nhân viên phản hồi cuối cùng",
     "EVENTS": {
       "CONVERSATION_CREATED": "Cuộc trò chuyện đã được tạo",
       "CONVERSATION_UPDATED": "Cuộc trò chuyện đã được cập nhật",
-      "MESSAGE_CREATED": "Message Created",
-      "CONVERSATION_RESOLVED": "Conversation Resolved",
-      "CONVERSATION_OPENED": "Conversation Opened"
+      "MESSAGE_CREATED": "Đã tạo tin nhắn",
+      "CONVERSATION_RESOLVED": "Đã giải quyết cuộc trò chuyện",
+      "CONVERSATION_OPENED": "Đã mở cuộc trò chuyện"
     },
     "ACTIONS": {
-      "ASSIGN_AGENT": "Assign to Agent",
-      "ASSIGN_TEAM": "Assign a Team",
-      "REMOVE_ASSIGNED_AGENT": "Remove Assigned Agent",
-      "REMOVE_ASSIGNED_TEAM": "Remove Assigned Team",
-      "ADD_LABEL": "Add a Label",
-      "REMOVE_LABEL": "Remove a Label",
-      "SEND_EMAIL_TO_TEAM": "Send an Email to Team",
-      "SEND_EMAIL_TRANSCRIPT": "Send an Email Transcript",
+      "ASSIGN_AGENT": "Gán cho Nhân viên",
+      "ASSIGN_TEAM": "Gán một Nhóm",
+      "REMOVE_ASSIGNED_AGENT": "Xoá Nhân viên được gán",
+      "REMOVE_ASSIGNED_TEAM": "Xoá Nhóm được gán",
+      "ADD_LABEL": "Thêm một Nhãn",
+      "REMOVE_LABEL": "Xoá một Nhãn",
+      "SEND_EMAIL_TO_TEAM": "Gửi Email cho Nhóm",
+      "SEND_EMAIL_TRANSCRIPT": "Gửi Bản ghi Email",
       "MUTE_CONVERSATION": "Tắt tiếng cuộc trò chuyện",
-      "SNOOZE_CONVERSATION": "Tạm dừng \bhội thoại",
+      "SNOOZE_CONVERSATION": "Tạm dừng hội thoại",
       "RESOLVE_CONVERSATION": "Giải quyết cuộc trò chuyện",
-      "SEND_WEBHOOK_EVENT": "Send Webhook Event",
-      "SEND_ATTACHMENT": "Send Attachment",
-      "SEND_MESSAGE": "Send a Message",
-      "ADD_PRIVATE_NOTE": "Add a Private Note",
-      "CHANGE_PRIORITY": "Change Priority",
-      "ADD_SLA": "Add SLA",
+      "SEND_WEBHOOK_EVENT": "Gửi Sự kiện Webhook",
+      "SEND_ATTACHMENT": "Gửi Tệp đính kèm",
+      "SEND_MESSAGE": "Gửi Tin nhắn",
+      "ADD_PRIVATE_NOTE": "Thêm Ghi chú riêng tư",
+      "CHANGE_PRIORITY": "Thay đổi Mức ưu tiên",
+      "ADD_SLA": "Thêm SLA",
       "OPEN_CONVERSATION": "Mở cuộc trò chuyện",
-      "PENDING_CONVERSATION": "Mark conversation as pending"
+      "PENDING_CONVERSATION": "Đánh dấu cuộc trò chuyện là đang chờ"
     },
     "MESSAGE_TYPES": {
-      "INCOMING": "Incoming Message",
-      "OUTGOING": "Outgoing Message"
+      "INCOMING": "Tin nhắn đến",
+      "OUTGOING": "Tin nhắn đi"
     },
     "PRIORITY_TYPES": {
       "NONE": "Không có",
@@ -171,20 +171,20 @@
       "URGENT": "Cấp bách"
     },
     "ATTRIBUTES": {
-      "MESSAGE_TYPE": "Message Type",
+      "MESSAGE_TYPE": "Loại tin nhắn",
       "PRIVATE_NOTE": "Lưu ý riêng",
-      "MESSAGE_CONTAINS": "Message Contains",
+      "MESSAGE_CONTAINS": "Tin nhắn chứa",
       "EMAIL": "Email",
       "INBOX": "Hộp thư đến",
-      "CONVERSATION_LANGUAGE": "Conversation Language",
+      "CONVERSATION_LANGUAGE": "Ngôn ngữ cuộc trò chuyện",
       "PHONE_NUMBER": "Số điện thoại",
       "STATUS": "Trạng thái",
       "BROWSER_LANGUAGE": "Ngôn ngữ của Trình duyệt",
-      "MAIL_SUBJECT": "Email Subject",
+      "MAIL_SUBJECT": "Chủ đề Email",
       "COUNTRY_NAME": "Quốc gia",
       "COMPANY_NAME": "Công ty",
-      "REFERER_LINK": "Referrer Link",
-      "ASSIGNEE_NAME": "Assignee",
+      "REFERER_LINK": "Liên kết giới thiệu",
+      "ASSIGNEE_NAME": "Người được giao",
       "TEAM_NAME": "Nhóm",
       "PRIORITY": "Mức độ ưu tiên",
       "LABELS": "Nhãn"

@@ -2,45 +2,45 @@
   "BULK_ACTION": {
     "CONVERSATIONS_SELECTED": "{conversationCount} cuộc hội thoại đã được chọn",
     "NONE": "Không có",
-    "CLEAR_SELECTION": "Clear",
-    "ASSIGN_AGENT_CONFIRMATION_LABEL": "Are you sure you want to assign {n} conversation to {agentName}? | Are you sure you want to assign {n} conversations to {agentName}?",
-    "UNASSIGN_AGENT_CONFIRMATION_LABEL": "Are you sure you want to unassign {n} conversation? | Are you sure you want to unassign {n} conversations?",
+    "CLEAR_SELECTION": "Xoá lựa chọn",
+    "ASSIGN_AGENT_CONFIRMATION_LABEL": "Bạn có chắc muốn phân công {n} cuộc hội thoại cho {agentName}? | Bạn có chắc muốn phân công {n} cuộc hội thoại cho {agentName}?",
+    "UNASSIGN_AGENT_CONFIRMATION_LABEL": "Bạn có chắc muốn huỷ phân công {n} cuộc hội thoại? | Bạn có chắc muốn huỷ phân công {n} cuộc hội thoại?",
     "YES": "Có",
     "CANCEL": "Huỷ",
     "SEARCH_INPUT_PLACEHOLDER": "Tìm kiếm",
     "ASSIGN_AGENT_TOOLTIP": "Gán tổng đài viên",
     "ASSIGN_TEAM_TOOLTIP": "Gán nhóm",
     "ASSIGN_SUCCESFUL": "Cuộc hội thoại đã được phân công thành công.",
-    "ASSIGN_FAILED": "Failed to assign conversations. Please try again.",
+    "ASSIGN_FAILED": "Không thể phân công cuộc hội thoại. Vui lòng thử lại.",
     "RESOLVE_SUCCESFUL": "Cuộc hội thoại đã được giải quyết thành công.",
-    "RESOLVE_FAILED": "Failed to resolve conversations. Please try again.",
+    "RESOLVE_FAILED": "Không thể giải quyết cuộc hội thoại. Vui lòng thử lại.",
     "ALL_CONVERSATIONS_SELECTED_ALERT": "Chỉ những cuộc hội thoại hiển thị trên trang này mới có thể được chọn.",
     "UPDATE": {
       "CHANGE_STATUS": "Thay đổi trạng thái",
-      "SNOOZE_UNTIL": "Báo lại",
+      "SNOOZE_UNTIL": "Tạm dừng đến",
       "UPDATE_SUCCESFUL": "Đã cập nhật trạng thái cuộc hội thoại thành công.",
-      "UPDATE_FAILED": "Failed to update conversations. Please try again."
+      "UPDATE_FAILED": "Không thể cập nhật cuộc hội thoại. Vui lòng thử lại."
     },
     "RESOLVE": {
-      "ALL_MISSING_ATTRIBUTES": "Cannot resolve conversations due to missing required attributes",
-      "PARTIAL_SUCCESS": "Some conversations need required attributes before resolving and were skipped"
+      "ALL_MISSING_ATTRIBUTES": "Không thể giải quyết cuộc hội thoại do thiếu thuộc tính bắt buộc",
+      "PARTIAL_SUCCESS": "Một số cuộc hội thoại cần thuộc tính bắt buộc trước khi giải quyết và đã bị bỏ qua"
     },
     "LABELS": {
-      "ASSIGN_LABELS": "Assign labels",
-      "REMOVE_LABELS": "Remove labels",
+      "ASSIGN_LABELS": "Gán nhãn",
+      "REMOVE_LABELS": "Xoá nhãn",
       "ASSIGN_SELECTED_LABELS": "Gán các nhãn đã chọn",
-      "REMOVE_SELECTED_LABELS": "Remove selected labels",
+      "REMOVE_SELECTED_LABELS": "Xoá các nhãn đã chọn",
       "ASSIGN_SUCCESFUL": "Các nhãn được gán thành công.",
-      "ASSIGN_FAILED": "Failed to assign labels. Please try again.",
-      "REMOVE_SUCCESFUL": "Labels removed successfully.",
-      "REMOVE_FAILED": "Failed to remove labels. Please try again."
+      "ASSIGN_FAILED": "Không thể gán nhãn. Vui lòng thử lại.",
+      "REMOVE_SUCCESFUL": "Đã xoá nhãn thành công.",
+      "REMOVE_FAILED": "Không thể xoá nhãn. Vui lòng thử lại."
     },
     "TEAMS": {
       "NONE": "Không có",
-      "ASSIGN_TEAM_CONFIRMATION_LABEL": "Are you sure you want to assign {n} conversation to {teamName}? | Are you sure you want to assign {n} conversations to {teamName}?",
-      "UNASSIGN_TEAM_CONFIRMATION_LABEL": "Are you sure you want to unassign {n} conversation? | Are you sure you want to unassign {n} conversations?",
-      "ASSIGN_SUCCESFUL": "Teams assigned successfully.",
-      "ASSIGN_FAILED": "Failed to assign team. Please try again."
+      "ASSIGN_TEAM_CONFIRMATION_LABEL": "Bạn có chắc muốn phân công {n} cuộc hội thoại cho {teamName}? | Bạn có chắc muốn phân công {n} cuộc hội thoại cho {teamName}?",
+      "UNASSIGN_TEAM_CONFIRMATION_LABEL": "Bạn có chắc muốn huỷ phân công {n} cuộc hội thoại? | Bạn có chắc muốn huỷ phân công {n} cuộc hội thoại?",
+      "ASSIGN_SUCCESFUL": "Đã gán nhóm thành công.",
+      "ASSIGN_FAILED": "Không thể gán nhóm. Vui lòng thử lại."
     }
   }
 }

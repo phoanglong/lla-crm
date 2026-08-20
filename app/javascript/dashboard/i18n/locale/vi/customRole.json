@@ -1,93 +1,93 @@
 {
   "CUSTOM_ROLE": {
-    "HEADER": "Custom Roles",
-    "LEARN_MORE": "Learn more about custom roles",
-    "DESCRIPTION": "Custom roles are roles that are created by the account owner or admin. These roles can be assigned to agents to define their access and permissions within the account. Custom roles can be created with specific permissions and access levels to suit the requirements of the organization.",
-    "COUNT": "{n} custom role | {n} custom roles",
-    "HEADER_BTN_TXT": "Add custom role",
-    "LOADING": "Fetching custom roles...",
-    "SEARCH_PLACEHOLDER": "Search custom roles...",
-    "NO_RESULTS": "No custom roles found matching your search",
+    "HEADER": "Vai trò tùy chỉnh",
+    "LEARN_MORE": "Tìm hiểu thêm về vai trò tùy chỉnh",
+    "DESCRIPTION": "Vai trò tùy chỉnh là các vai trò do chủ tài khoản hoặc quản trị viên tạo ra. Những vai trò này có thể được gán cho nhân viên để xác định quyền truy cập và quyền hạn của họ trong tài khoản. Vai trò tùy chỉnh có thể được tạo với các quyền và cấp độ truy cập cụ thể phù hợp với yêu cầu của tổ chức.",
+    "COUNT": "{n} vai trò tùy chỉnh | {n} vai trò tùy chỉnh",
+    "HEADER_BTN_TXT": "Thêm vai trò tùy chỉnh",
+    "LOADING": "Đang tải vai trò tùy chỉnh...",
+    "SEARCH_PLACEHOLDER": "Tìm vai trò tùy chỉnh...",
+    "NO_RESULTS": "Không tìm thấy vai trò tùy chỉnh nào khớp với tìm kiếm của bạn",
     "SEARCH_404": "Không có kết quả nào phù hợp.",
     "PAYWALL": {
-      "TITLE": "Upgrade to create custom roles",
-      "AVAILABLE_ON": "The custom role feature is only available in the Business and Enterprise plans.",
-      "UPGRADE_PROMPT": "Upgrade your plan to get access to advanced features like team management, automations, custom attributes, and more.",
-      "UPGRADE_NOW": "Upgrade now",
-      "CANCEL_ANYTIME": "You can change or cancel your plan anytime"
+      "TITLE": "Nâng cấp để tạo vai trò tùy chỉnh",
+      "AVAILABLE_ON": "Tính năng vai trò tùy chỉnh chỉ có trong gói Business và Enterprise.",
+      "UPGRADE_PROMPT": "Nâng cấp gói của bạn để truy cập các tính năng nâng cao như quản lý nhóm, tự động hóa, thuộc tính tùy chỉnh và nhiều hơn nữa.",
+      "UPGRADE_NOW": "Nâng cấp ngay",
+      "CANCEL_ANYTIME": "Bạn có thể thay đổi hoặc hủy gói bất cứ lúc nào"
     },
     "ENTERPRISE_PAYWALL": {
-      "AVAILABLE_ON": "The custom role feature is only available in the paid plans.",
-      "UPGRADE_PROMPT": "Upgrade to a paid plan to access advanced features like audit logs, agent capacity, and more.",
-      "ASK_ADMIN": "Please reach out to your administrator for the upgrade."
+      "AVAILABLE_ON": "Tính năng vai trò tùy chỉnh chỉ có trong các gói trả phí.",
+      "UPGRADE_PROMPT": "Nâng cấp lên gói trả phí để truy cập các tính năng nâng cao như nhật ký kiểm toán, sức chứa nhân viên và nhiều hơn nữa.",
+      "ASK_ADMIN": "Vui lòng liên hệ quản trị viên của bạn để nâng cấp."
     },
     "LIST": {
-      "404": "There are no custom roles available in this account.",
-      "TITLE": "Manage custom roles",
-      "DESC": "Custom roles are roles that are created by the account owner or admin. These roles can be assigned to agents to define their access and permissions within the account. Custom roles can be created with specific permissions and access levels to suit the requirements of the organization.",
+      "404": "Chưa có vai trò tùy chỉnh nào trong tài khoản này.",
+      "TITLE": "Quản lý vai trò tùy chỉnh",
+      "DESC": "Vai trò tùy chỉnh là các vai trò do chủ tài khoản hoặc quản trị viên tạo ra. Những vai trò này có thể được gán cho nhân viên để xác định quyền truy cập và quyền hạn của họ trong tài khoản. Vai trò tùy chỉnh có thể được tạo với các quyền và cấp độ truy cập cụ thể phù hợp với yêu cầu của tổ chức.",
       "TABLE_HEADER": {
         "NAME": "Tên",
         "DESCRIPTION": "Mô tả",
-        "PERMISSIONS": "Permissions",
+        "PERMISSIONS": "Quyền hạn",
         "ACTIONS": "Hành động"
       }
     },
     "PERMISSIONS": {
-      "CONVERSATION_MANAGE": "Manage all conversations",
-      "CONVERSATION_UNASSIGNED_MANAGE": "Manage unassigned conversations and those assigned to them",
-      "CONVERSATION_PARTICIPATING_MANAGE": "Manage participating conversations and those assigned to them",
-      "CONTACT_MANAGE": "Manage contacts",
-      "REPORT_MANAGE": "Manage reports",
-      "KNOWLEDGE_BASE_MANAGE": "Manage knowledge base"
+      "CONVERSATION_MANAGE": "Quản lý tất cả cuộc trò chuyện",
+      "CONVERSATION_UNASSIGNED_MANAGE": "Quản lý cuộc trò chuyện chưa được gán và những cuộc được gán cho họ",
+      "CONVERSATION_PARTICIPATING_MANAGE": "Quản lý cuộc trò chuyện đang tham gia và những cuộc được gán cho họ",
+      "CONTACT_MANAGE": "Quản lý liên hệ",
+      "REPORT_MANAGE": "Quản lý báo cáo",
+      "KNOWLEDGE_BASE_MANAGE": "Quản lý cơ sở tri thức"
     },
     "FORM": {
       "NAME": {
         "LABEL": "Tên",
-        "PLACEHOLDER": "Please enter a name.",
+        "PLACEHOLDER": "Vui lòng nhập tên.",
         "ERROR": "Cần phải có tên."
       },
       "DESCRIPTION": {
         "LABEL": "Mô tả",
-        "PLACEHOLDER": "Please enter a description.",
-        "ERROR": "Cần phải có \u001dmô tả."
+        "PLACEHOLDER": "Vui lòng nhập mô tả.",
+        "ERROR": "Cần phải có mô tả."
       },
       "PERMISSIONS": {
-        "LABEL": "Permissions",
-        "ERROR": "Permissions are required."
+        "LABEL": "Quyền hạn",
+        "ERROR": "Cần phải có quyền hạn."
       },
       "CANCEL_BUTTON_TEXT": "Huỷ",
       "API": {
-        "ERROR_MESSAGE": "Could not connect to Woot server. Please try again."
+        "ERROR_MESSAGE": "Không thể kết nối với máy chủ Woot. Vui lòng thử lại."
       }
     },
     "ADD": {
-      "TITLE": "Add custom role",
-      "DESC": " Custom roles allows you to create roles with specific permissions and access levels to suit the requirements of the organization.",
+      "TITLE": "Thêm vai trò tùy chỉnh",
+      "DESC": " Vai trò tùy chỉnh cho phép bạn tạo các vai trò với quyền và cấp độ truy cập cụ thể phù hợp với yêu cầu của tổ chức.",
       "SUBMIT": "Gửi",
       "API": {
-        "SUCCESS_MESSAGE": "Custom role added successfully."
+        "SUCCESS_MESSAGE": "Đã thêm vai trò tùy chỉnh thành công."
       }
     },
     "EDIT": {
       "BUTTON_TEXT": "Chỉnh sửa",
-      "TITLE": "Edit custom role",
-      "DESC": " Custom roles allows you to create roles with specific permissions and access levels to suit the requirements of the organization.",
+      "TITLE": "Chỉnh sửa vai trò tùy chỉnh",
+      "DESC": " Vai trò tùy chỉnh cho phép bạn tạo các vai trò với quyền và cấp độ truy cập cụ thể phù hợp với yêu cầu của tổ chức.",
       "SUBMIT": "Cập nhật",
       "API": {
-        "SUCCESS_MESSAGE": "Custom role updated successfully."
+        "SUCCESS_MESSAGE": "Đã cập nhật vai trò tùy chỉnh thành công."
       }
     },
     "DELETE": {
       "BUTTON_TEXT": "Xoá",
       "API": {
-        "SUCCESS_MESSAGE": "Custom role deleted successfully.",
-        "ERROR_MESSAGE": "Could not connect to Woot server. Please try again."
+        "SUCCESS_MESSAGE": "Đã xóa vai trò tùy chỉnh thành công.",
+        "ERROR_MESSAGE": "Không thể kết nối với máy chủ Woot. Vui lòng thử lại."
       },
       "CONFIRM": {
         "TITLE": "Xác nhận xoá",
         "MESSAGE": "Bạn có muốn xoá? ",
         "YES": "Có, xoá ",
-        "NO": "No, keep "
+        "NO": "Không, giữ lại "
       }
     }
   }

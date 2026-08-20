@@ -28,7 +28,7 @@ class SuperAdmin::Devise::SessionsController < Devise::SessionsController
     true
   rescue StandardError => e
     Rails.logger.error e.message
-    @error_message = 'Invalid credentials. Please try again.'
+    @error_message = I18n.t('super_admin.sessions.invalid_credentials', locale: :vi, default: 'Invalid credentials. Please try again.')
     false
   end
 end

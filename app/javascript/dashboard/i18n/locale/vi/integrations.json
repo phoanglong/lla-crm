@@ -250,7 +250,7 @@
       "SEARCH_PLACEHOLDER": "Search dashboard apps...",
       "NO_RESULTS": "No dashboard apps found matching your search",
       "LIST": {
-        "404": "Chưa có ứng dụng trang \u001dđiều khiển nào được định cấu hình trên tài khoản này",
+        "404": "Chưa có ứng dụng trang điều khiển nào được định cấu hình trên tài khoản này",
         "LOADING": "Đang tìm nạp ứng dụng bảng điều khiển...",
         "TABLE_HEADER": {
           "NAME": "Tên",

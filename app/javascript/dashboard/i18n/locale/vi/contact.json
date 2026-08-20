@@ -272,7 +272,7 @@
     "SUMMARY": {
       "TITLE": "Tóm tắt",
       "DELETE_WARNING": "Liên hệ của <strong>{primaryContactName}</strong> sẽ bị xoá.",
-      "ATTRIBUTE_WARNING": "\bChi tiết liên hệ của <strong>{primaryContactName}</strong> \bsẽ được sao chép đến <strong>{parentContactName}</strong>."
+      "ATTRIBUTE_WARNING": "Chi tiết liên hệ của <strong>{primaryContactName}</strong> sẽ được sao chép đến <strong>{parentContactName}</strong>."
     },
     "SEARCH": {
       "ERROR_MESSAGE": "Something went wrong. Please try again later."
