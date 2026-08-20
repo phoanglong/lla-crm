@@ -3,9 +3,9 @@
     "FETCHING": "Đang lấy Tích hợp",
     "NO_HOOK_CONFIGURED": "Không có tích hợp {integrationId} được cấu hình đối với tài khoản này.",
     "HEADER": "Ứng dụng",
-    "COUNT": "{n} integration | {n} integrations",
-    "SEARCH_PLACEHOLDER": "Search...",
-    "NO_RESULTS": "No results found matching your search",
+    "COUNT": "{n} tích hợp | {n} tích hợp",
+    "SEARCH_PLACEHOLDER": "Tìm kiếm...",
+    "NO_RESULTS": "Không tìm thấy kết quả nào khớp với tìm kiếm của bạn",
     "STATUS": {
       "ENABLED": "Bật",
       "DISABLED": "Không bật"
@@ -28,7 +28,7 @@
       "CANCEL_BUTTON_TEXT": "Huỷ",
       "API": {
         "SUCCESS_MESSAGE": "Hook đã được xoá thành công",
-        "ERROR_MESSAGE": "Không thể kết nối với Máy chủ Woot, Vui lòng thử lại sau"
+        "ERROR_MESSAGE": "Không thể kết nối với máy chủ, Vui lòng thử lại sau"
       }
     },
     "LIST": {
@@ -46,12 +46,12 @@
           "PLACEHOLDER": "Chọn Hộp thư đến"
         },
         "SUBMIT": "Tạo",
-        "VALIDATING_OPENAI": "Validating with OpenAI...",
+        "VALIDATING_OPENAI": "Đang xác thực với OpenAI...",
         "CANCEL": "Huỷ"
       },
       "API": {
         "SUCCESS_MESSAGE": "Hook tích hợp đã được thêm thành công",
-        "ERROR_MESSAGE": "Không thể kết nối với Máy chủ Woot, Vui lòng thử lại sau"
+        "ERROR_MESSAGE": "Không thể kết nối với máy chủ, Vui lòng thử lại sau"
       }
     },
     "CONNECT": {
@@ -61,7 +61,7 @@
       "BUTTON_TEXT": "Ngắt kết nối"
     },
     "SIDEBAR_DESCRIPTION": {
-      "DIALOGFLOW": "Dialogflow is a natural language processing platform for building conversational interfaces. Integrating it with {installationName} lets bots handle queries first and transfer them to agents when needed. It helps qualify leads and reduce agent workload by answering FAQs. To add Dialogflow, create a Service Account in Google Console and share the credentials. Refer to the docs for details"
+      "DIALOGFLOW": "Dialogflow là nền tảng xử lý ngôn ngữ tự nhiên để xây dựng giao diện hội thoại. Tích hợp nó với {installationName} cho phép bot xử lý các câu hỏi trước và chuyển cho nhân viên khi cần. Nó giúp sàng lọc khách hàng tiềm năng và giảm tải công việc cho nhân viên bằng cách trả lời các câu hỏi thường gặp. Để thêm Dialogflow, hãy tạo một Service Account trong Google Console và chia sẻ thông tin xác thực. Xem tài liệu để biết chi tiết"
     }
   }
 }

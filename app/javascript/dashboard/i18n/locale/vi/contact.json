@@ -17,7 +17,7 @@
     "IP_ADDRESS": "Địa chỉ IP",
     "CREATED_AT_LABEL": "Đã tạo",
     "NEW_MESSAGE": "Tin nhắn mới",
-    "CALL": "Call",
+    "CALL": "Gọi",
     "CALL_INITIATED": "Calling the contact…",
     "CALL_FAILED": "Unable to start the call. Please try again.",
     "WHATSAPP_CALL_PERMISSION_REQUESTED": "Sent a call permission request to the contact. Try again once they accept.",
@@ -48,8 +48,8 @@
     },
     "MERGE_CONTACT": "Hợp nhất liên hệ",
     "CONTACT_ACTIONS": "Hành động với liên hệ",
-    "MUTE_CONTACT": "Block Contact",
-    "UNMUTE_CONTACT": "Unblock Contact",
+    "MUTE_CONTACT": "Chặn liên hệ",
+    "UNMUTE_CONTACT": "Bỏ chặn liên hệ",
     "MUTED_SUCCESS": "This contact is blocked successfully. You will not be notified of any future conversations.",
     "UNMUTED_SUCCESS": "This contact is unblocked successfully.",
     "SEND_TRANSCRIPT": "Gửi bản ghi",
@@ -123,7 +123,7 @@
         "LABEL": "Tên nước",
         "SELECT_PLACEHOLDER": "Chọn",
         "REMOVE": "Xoá",
-        "SELECT_COUNTRY": "Select Country"
+        "SELECT_COUNTRY": "Chọn quốc gia"
       },
       "CITY": {
         "PLACEHOLDER": "Enter the city name",
@@ -298,17 +298,17 @@
       "SEARCH_PLACEHOLDER": "Tìm kiếm...",
       "MESSAGE_BUTTON": "Tin nhắn",
       "SEND_MESSAGE": "Gửi tin nhắn",
-      "BLOCK_CONTACT": "Block contact",
-      "UNBLOCK_CONTACT": "Unblock contact",
+      "BLOCK_CONTACT": "Chặn liên hệ",
+      "UNBLOCK_CONTACT": "Bỏ chặn liên hệ",
       "BREADCRUMB": {
         "CONTACTS": "Liên hệ"
       },
       "ACTIONS": {
         "CONTACT_CREATION": {
-          "ADD_CONTACT": "Add contact",
-          "EXPORT_CONTACT": "Export contacts",
+          "ADD_CONTACT": "Thêm liên hệ",
+          "EXPORT_CONTACT": "Xuất liên hệ",
           "IMPORT_CONTACT": "Import contacts",
-          "SAVE_CONTACT": "Save contact",
+          "SAVE_CONTACT": "Lưu liên hệ",
           "EMAIL_ADDRESS_DUPLICATE": "Địa chỉ email này đang được sử dụng cho một liên hệ khác.",
           "PHONE_NUMBER_DUPLICATE": "Số điện thoại này đang được dùng cho một liên hệ khác.",
           "SUCCESS_MESSAGE": "Liên hệ được lưu thành công",
@@ -331,9 +331,9 @@
           "ERROR_MESSAGE": "Đã có lỗi, vui lòng thử lại"
         },
         "EXPORT_CONTACT": {
-          "TITLE": "Export contacts",
+          "TITLE": "Xuất liên hệ",
           "DESCRIPTION": "Quickly export a csv file with comprehensive details of your contacts",
-          "CONFIRM": "Export",
+          "CONFIRM": "Xuất",
           "SUCCESS_MESSAGE": "Export is in progress, You will be notified via email when export file is ready to dowanlod.",
           "ERROR_MESSAGE": "Đã có lỗi, vui lòng thử lại"
         },
@@ -371,7 +371,7 @@
             "TITLE": "Xác nhận xoá",
             "DESCRIPTION": "Are you sure you want to delete this filter?",
             "CONFIRM": "Có, Xoá",
-            "CANCEL": "No, Cancel",
+            "CANCEL": "Không, Huỷ",
             "SUCCESS_MESSAGE": "Filter deleted successfully",
             "ERROR_MESSAGE": "Unable to delete filter. Please try again later."
           }
@@ -392,20 +392,20 @@
       "CREATED_AT": "Tạo vào lúc",
       "LAST_ACTIVITY": "Hành động cuối cùng",
       "REFERER_LINK": "Liên kết người giới thiệu",
-      "BLOCKED": "Blocked",
+      "BLOCKED": "Đã chặn",
       "BLOCKED_TRUE": "Đúng",
       "BLOCKED_FALSE": "Sai",
       "BUTTONS": {
         "CLEAR_FILTERS": "Xóa các bộ lọc",
-        "UPDATE_SEGMENT": "Update segment",
+        "UPDATE_SEGMENT": "Cập nhật phân khúc",
         "APPLY_FILTERS": "Áp dụng bộ lọc",
         "ADD_FILTER": "Thêm bộ lọc"
       },
       "TITLE": "Lọc liên hệ",
       "EDIT_SEGMENT": "Sửa bộ lọc",
       "SEGMENT": {
-        "LABEL": "Segment name",
-        "INPUT_PLACEHOLDER": "Enter the name of the segment"
+        "LABEL": "Tên phân khúc",
+        "INPUT_PLACEHOLDER": "Nhập tên phân khúc"
       },
       "ACTIVE_FILTERS": {
         "MORE_FILTERS": "+ {count} more filters",
@@ -422,21 +422,21 @@
             "PLACEHOLDER": "Enter the first name"
           },
           "LAST_NAME": {
-            "PLACEHOLDER": "Enter the last name"
+            "PLACEHOLDER": "Nhập họ"
           },
           "EMAIL_ADDRESS": {
             "PLACEHOLDER": "Enter the email address",
             "DUPLICATE": "Địa chỉ email này đang được sử dụng cho một liên hệ khác."
           },
           "PHONE_NUMBER": {
-            "PLACEHOLDER": "Enter the phone number",
+            "PLACEHOLDER": "Nhập số điện thoại",
             "DUPLICATE": "Số điện thoại này đang được dùng cho một liên hệ khác."
           },
           "CITY": {
             "PLACEHOLDER": "Enter the city name"
           },
           "COUNTRY": {
-            "PLACEHOLDER": "Select country"
+            "PLACEHOLDER": "Chọn quốc gia"
           },
           "BIO": {
             "PLACEHOLDER": "Enter the bio"
@@ -445,15 +445,15 @@
             "PLACEHOLDER": "Nhập tên công ty"
           }
         },
-        "UPDATE_BUTTON": "Update contact",
-        "SUCCESS_MESSAGE": "Contact updated successfully",
+        "UPDATE_BUTTON": "Cập nhật liên hệ",
+        "SUCCESS_MESSAGE": "Đã cập nhật liên hệ thành công",
         "ERROR_MESSAGE": "Unable to update contact. Please try again later."
       },
       "SOCIAL_MEDIA": {
         "TITLE": "Edit social links",
         "FORM": {
           "FACEBOOK": {
-            "PLACEHOLDER": "Add Facebook"
+            "PLACEHOLDER": "Thêm Facebook"
           },
           "GITHUB": {
             "PLACEHOLDER": "Add Github"
@@ -462,7 +462,7 @@
             "PLACEHOLDER": "Add Instagram"
           },
           "TELEGRAM": {
-            "PLACEHOLDER": "Add Telegram"
+            "PLACEHOLDER": "Thêm Telegram"
           },
           "TIKTOK": {
             "PLACEHOLDER": "Add TikTok"
@@ -477,11 +477,11 @@
       },
       "DELETE_CONTACT": {
         "MESSAGE": "This action is permanent and irreversible.",
-        "BUTTON": "Delete now"
+        "BUTTON": "Xoá ngay"
       }
     },
     "DETAILS": {
-      "CREATED_AT": "Created {date}",
+      "CREATED_AT": "Đã tạo {date}",
       "LAST_ACTIVITY": "Last active {date}",
       "DELETE_CONTACT_DESCRIPTION": "Permanently delete this contact. This action is irreversible",
       "DELETE_CONTACT": "Xoá liên hệ",
@@ -497,7 +497,7 @@
       "AVATAR": {
         "UPLOAD": {
           "ERROR_MESSAGE": "Could not upload avatar. Please try again later.",
-          "SUCCESS_MESSAGE": "Avatar uploaded successfully"
+          "SUCCESS_MESSAGE": "Đã tải lên ảnh đại diện thành công"
         },
         "DELETE": {
           "SUCCESS_MESSAGE": "Hình đại diện đã được xóa thành công",
@@ -511,7 +511,7 @@
         "HISTORY": "History",
         "NOTES": "Ghi chú",
         "MEDIA": "Media",
-        "MERGE": "Merge"
+        "MERGE": "Hợp nhất"
       },
       "HISTORY": {
         "EMPTY_STATE": "Không có cuộc trò chuyện trước đó được liên kết với liên hệ này"
@@ -524,7 +524,7 @@
         "NO": "Không",
         "TRIGGER": {
           "SELECT": "Chọn giá trị",
-          "INPUT": "Enter value"
+          "INPUT": "Nhập giá trị"
         },
         "VALIDATIONS": {
           "INVALID_NUMBER": "Invalid number",
@@ -545,11 +545,11 @@
         "TITLE": "Hợp nhất liên hệ",
         "DESCRIPTION": "Combine two profiles into one, including all attributes and conversations. In case of conflict, the primary contact’s attributes will take precedence.",
         "PRIMARY": "Liên hệ chính",
-        "PRIMARY_HELP_LABEL": "To be saved",
+        "PRIMARY_HELP_LABEL": "Sẽ được lưu",
         "PRIMARY_REQUIRED_ERROR": "Please select a contact to merge with before proceeding",
-        "PARENT": "To be merged",
+        "PARENT": "Sẽ được hợp nhất",
         "PARENT_HELP_LABEL": "Sẽ được xoá",
-        "EMPTY_STATE": "No contacts found",
+        "EMPTY_STATE": "Không tìm thấy liên hệ nào",
         "PLACEHOLDER": "Search for primary contact",
         "SEARCH_PLACEHOLDER": "Tìm kiếm liên hệ",
         "SEARCH_ERROR_MESSAGE": "Could not search for contacts. Please try again later.",
@@ -563,48 +563,48 @@
       },
       "NOTES": {
         "PLACEHOLDER": "Thêm ghi chú",
-        "WROTE": "wrote",
-        "YOU": "You",
-        "SAVE": "Save note",
-        "ADD_NOTE": "Add contact note",
-        "EXPAND": "Expand",
-        "COLLAPSE": "Collapse",
+        "WROTE": "đã viết",
+        "YOU": "Bạn",
+        "SAVE": "Lưu ghi chú",
+        "ADD_NOTE": "Thêm ghi chú liên hệ",
+        "EXPAND": "Mở rộng",
+        "COLLAPSE": "Thu gọn",
         "NO_NOTES": "No notes, you can add notes from the contact details page.",
         "EMPTY_STATE": "There are no notes associated to this contact. You can add a note by typing in the box above.",
-        "CONVERSATION_EMPTY_STATE": "There are no notes yet. Use the Add note button to create one."
+        "CONVERSATION_EMPTY_STATE": "Chưa có ghi chú nào. Dùng nút Thêm ghi chú để tạo một ghi chú."
       }
     },
     "EMPTY_STATE": {
       "TITLE": "No contacts found in this account",
       "SUBTITLE": "Start adding new contacts by clicking on the button below",
-      "BUTTON_LABEL": "Add contact",
+      "BUTTON_LABEL": "Thêm liên hệ",
       "SEARCH_EMPTY_STATE_TITLE": "Không có liên hệ nào khớp với tìm kiếm của bạn 🔍",
       "LIST_EMPTY_STATE_TITLE": "No contacts available in this view 📋",
       "ACTIVE_EMPTY_STATE_TITLE": "No contacts are active at the moment 🌙"
     },
-    "LOAD_MORE": "Load more"
+    "LOAD_MORE": "Tải thêm"
   },
   "CONTACTS_BULK_ACTIONS": {
     "ASSIGN_LABELS": "Gán nhãn",
-    "REMOVE_LABELS": "Remove Labels",
+    "REMOVE_LABELS": "Xoá nhãn",
     "ASSIGN_LABELS_SUCCESS": "Các nhãn được gán thành công.",
     "ASSIGN_LABELS_FAILED": "Failed to assign labels",
-    "REMOVE_LABELS_SUCCESS": "Labels removed successfully.",
+    "REMOVE_LABELS_SUCCESS": "Đã xoá nhãn thành công.",
     "REMOVE_LABELS_FAILED": "Failed to remove labels",
-    "DESCRIPTION": "Select the labels you want to add to the selected contacts.",
+    "DESCRIPTION": "Chọn các nhãn bạn muốn thêm vào các liên hệ đã chọn.",
     "NO_LABELS_FOUND": "No labels available yet.",
-    "SELECTED_COUNT": "{count} selected",
+    "SELECTED_COUNT": "Đã chọn {count}",
     "CLEAR_SELECTION": "Clear selection",
-    "SELECT_ALL": "Select all ({count})",
+    "SELECT_ALL": "Chọn tất cả ({count})",
     "DELETE_CONTACTS": "Xoá",
-    "DELETE_SUCCESS": "Contacts deleted successfully.",
+    "DELETE_SUCCESS": "Đã xoá liên hệ thành công.",
     "DELETE_FAILED": "Failed to delete contacts.",
     "DELETE_DIALOG": {
-      "TITLE": "Delete selected contacts",
-      "SINGULAR_TITLE": "Delete selected contact",
+      "TITLE": "Xoá các liên hệ đã chọn",
+      "SINGULAR_TITLE": "Xoá liên hệ đã chọn",
       "DESCRIPTION": "This will permanently delete {count} selected contacts. This action cannot be undone.",
       "SINGULAR_DESCRIPTION": "This will permanently delete the selected contact. This action cannot be undone.",
-      "CONFIRM_MULTIPLE": "Delete contacts",
+      "CONFIRM_MULTIPLE": "Xoá liên hệ",
       "CONFIRM_SINGLE": "Xoá liên hệ"
     }
   },
@@ -614,7 +614,7 @@
     },
     "FORM": {
       "GO_TO_CONVERSATION": "Xem",
-      "SUCCESS_MESSAGE": "The message was sent successfully!",
+      "SUCCESS_MESSAGE": "Tin nhắn đã được gửi thành công!",
       "ERROR_MESSAGE": "An error occurred while creating the conversation. Please try again later.",
       "NO_INBOX_ALERT": "There are no available inboxes to start a conversation with this contact.",
       "CONTACT_SELECTOR": {
@@ -639,20 +639,20 @@
         "PLACEHOLDER": "Viết tin nhắn ở đây..."
       },
       "WHATSAPP_OPTIONS": {
-        "LABEL": "Select template",
-        "SEARCH_PLACEHOLDER": "Search templates",
-        "EMPTY_STATE": "No templates found",
+        "LABEL": "Chọn mẫu",
+        "SEARCH_PLACEHOLDER": "Tìm kiếm mẫu",
+        "EMPTY_STATE": "Không tìm thấy mẫu nào",
         "TEMPLATE_PARSER": {
-          "TEMPLATE_NAME": "WhatsApp template: {templateName}",
+          "TEMPLATE_NAME": "Mẫu WhatsApp: {templateName}",
           "VARIABLES": "Biến",
           "BACK": "Trở về",
           "SEND_MESSAGE": "Gửi tin nhắn"
         }
       },
       "TWILIO_OPTIONS": {
-        "LABEL": "Select template",
-        "SEARCH_PLACEHOLDER": "Search templates",
-        "EMPTY_STATE": "No templates found",
+        "LABEL": "Chọn mẫu",
+        "SEARCH_PLACEHOLDER": "Tìm kiếm mẫu",
+        "EMPTY_STATE": "Không tìm thấy mẫu nào",
         "TEMPLATE_PARSER": {
           "BACK": "Trở về",
           "SEND_MESSAGE": "Gửi tin nhắn"
@@ -660,7 +660,7 @@
       },
       "ACTION_BUTTONS": {
         "DISCARD": "Discard",
-        "SEND": "Send ({keyCode})"
+        "SEND": "Gửi ({keyCode})"
       }
     }
   }

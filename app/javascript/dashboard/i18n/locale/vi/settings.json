@@ -44,20 +44,20 @@
           "UPDATE_SUCCESS": "Your font settings have been updated successfully",
           "UPDATE_ERROR": "There is an error while updating the font settings, please try again",
           "OPTIONS": {
-            "SMALLER": "Smaller",
-            "SMALL": "Small",
+            "SMALLER": "Nhỏ hơn",
+            "SMALL": "Nhỏ",
             "DEFAULT": "Mặc định",
-            "LARGE": "Large",
-            "LARGER": "Larger",
-            "EXTRA_LARGE": "Extra Large"
+            "LARGE": "Lớn",
+            "LARGER": "Lớn hơn",
+            "EXTRA_LARGE": "Rất lớn"
           }
         },
         "LANGUAGE": {
-          "TITLE": "Preferred Language",
-          "NOTE": "Choose the language you want to use.",
+          "TITLE": "Ngôn ngữ ưu tiên",
+          "NOTE": "Chọn ngôn ngữ bạn muốn sử dụng.",
           "UPDATE_SUCCESS": "Your Language settings have been updated successfully",
           "UPDATE_ERROR": "There is an error while updating the language settings, please try again",
-          "USE_ACCOUNT_DEFAULT": "Use account default"
+          "USE_ACCOUNT_DEFAULT": "Dùng mặc định của tài khoản"
         }
       },
       "MESSAGE_SIGNATURE_SECTION": {
@@ -90,7 +90,7 @@
         "TITLE": "Active Sessions",
         "NOTE": "These are the devices currently logged in to your account.",
         "CURRENT": "Current session",
-        "REVOKE": "Revoke",
+        "REVOKE": "Thu hồi",
         "REVOKE_SUCCESS": "Session revoked successfully",
         "REVOKE_ERROR": "Unable to revoke session. Please try again.",
         "FETCH_ERROR": "Unable to fetch sessions. Please try again.",
@@ -102,16 +102,16 @@
         "NOTE": "Có thể sử dụng Token này nếu bạn đang xây dựng tích hợp dựa trên API",
         "PAID_PLAN_NOTE": "API access tokens are available on paid plans.",
         "COPY": "Sao Chép",
-        "RESET": "Reset",
-        "CONFIRM_RESET": "Are you sure?",
+        "RESET": "Đặt lại",
+        "CONFIRM_RESET": "Bạn có chắc không?",
         "CONFIRM_HINT": "Click again to confirm",
-        "RESET_SUCCESS": "Access token regenerated successfully",
+        "RESET_SUCCESS": "Đã tạo lại token truy cập thành công",
         "RESET_ERROR": "Unable to regenerate access token. Please try again"
       },
       "AUDIO_NOTIFICATIONS_SECTION": {
         "TITLE": "Audio Alerts",
         "NOTE": "Enable audio alerts in dashboard for new messages and conversations.",
-        "PLAY": "Play sound",
+        "PLAY": "Phát âm thanh",
         "ALERT_TYPES": {
           "NONE": "Không có",
           "MINE": "Assigned",
@@ -266,10 +266,10 @@
       "MESSAGE": "Tài khoản của bạn bị tạm ngưng. Vui lòng liên hệ với nhóm hỗ trợ để biết thêm thông tin."
     },
     "NO_ACCOUNTS": {
-      "TITLE": "No account found",
+      "TITLE": "Không tìm thấy tài khoản nào",
       "MESSAGE_CLOUD": "You are not part of any accounts right now. If you think this is a mistake, please reach out to our support team.",
       "MESSAGE_SELF_HOSTED": "You are not part of any accounts right now. Please reach out to your administrator.",
-      "LOGOUT": "Log out"
+      "LOGOUT": "Đăng xuất"
     }
   },
   "COMPONENTS": {
@@ -414,13 +414,13 @@
     "CALLS": "Cuộc gọi"
   },
   "DATA_IMPORTS": {
-    "HEADER": "Data",
+    "HEADER": "Dữ liệu",
     "DESCRIPTION": "Bring your existing contacts and past conversations into this account from another support tool. Each import runs in the background, so you can keep working while it finishes, track its progress, and review anything that was skipped along the way.",
     "LOADING": "Fetching imports",
     "DEFAULT_IMPORT_NAME": "Intercom import",
     "TABS": {
       "IMPORT": "Nhập",
-      "EXPORT": "Export"
+      "EXPORT": "Xuất"
     },
     "TYPES": {
       "CONTACTS": "Liên hệ",
@@ -429,7 +429,7 @@
     },
     "DRAWER": {
       "TITLE": "New import",
-      "SOURCE": "Source",
+      "SOURCE": "Nguồn",
       "NAME": "Import name",
       "NAME_PLACEHOLDER": "July Intercom migration",
       "ACCESS_KEY": "Intercom access key",
@@ -443,7 +443,7 @@
       "IMPORT": "Nhập"
     },
     "EXPORT": {
-      "TITLE": "Exports are on the way",
+      "TITLE": "Bản xuất đang được tạo",
       "DESCRIPTION": "Export your contacts and conversations out of this account. This workflow is coming soon.",
       "COMING_SOON": "Coming soon"
     },
@@ -461,17 +461,17 @@
       "STATUS": "Trạng thái",
       "IMPORTED": "Imported",
       "CREATED": "Đã tạo",
-      "ABANDON": "Abandon"
+      "ABANDON": "Bỏ dở"
     },
     "DETAIL": {
       "BACK": "Back to imports",
-      "ERRORS": "Errors",
+      "ERRORS": "Lỗi",
       "SKIP_LOGS": "Skip logs",
-      "SOURCE": "Source",
+      "SOURCE": "Nguồn",
       "IMPORT_TYPES": "Import types",
       "CREATED": "Đã tạo",
       "DURATION": "Thời lượng",
-      "INITIATED_BY": "Started by",
+      "INITIATED_BY": "Bắt đầu bởi",
       "PROGRESS": "Import progress",
       "PROGRESS_WITH_TOTAL": "{imported} of {total} imported",
       "PROGRESS_WITHOUT_TOTAL": "{imported} imported",
@@ -479,13 +479,13 @@
       "PROGRESS_IMPORTED": "imported",
       "LAST_UPDATED_TOOLTIP": "Last updated {time}",
       "NO_SKIP_LOGS": "No skipped or failed records recorded.",
-      "DOWNLOAD_SKIP_LOGS": "Download CSV",
-      "DOWNLOAD_ERROR_LOGS": "Download CSV",
+      "DOWNLOAD_SKIP_LOGS": "Tải xuống CSV",
+      "DOWNLOAD_ERROR_LOGS": "Tải xuống CSV",
       "ALL_SKIP_LOGS": "Tất cả",
       "KIND": "Kind",
-      "NO_ERRORS": "No errors recorded.",
-      "ERROR_CODE": "Code",
-      "SOURCE_OBJECT": "Source object",
+      "NO_ERRORS": "Không có lỗi nào được ghi nhận.",
+      "ERROR_CODE": "Mã",
+      "SOURCE_OBJECT": "Đối tượng nguồn",
       "MESSAGE": "Tin nhắn"
     },
     "MONITOR": {
@@ -495,14 +495,14 @@
       "REFRESHING": "Refreshing",
       "STAGES": {
         "unknown": "Waiting for update",
-        "queued": "Queued",
+        "queued": "Đang chờ",
         "contacts": "Importing contacts",
         "conversations": "Importing conversations",
         "finalizing": "Finalizing import",
         "completed": "Hoàn tất",
         "completed_with_errors": "Completed with errors",
         "failed": "Failed",
-        "abandoned": "Abandoned"
+        "abandoned": "Đã bỏ dở"
       }
     },
     "ALERTS": {
@@ -520,7 +520,7 @@
     "MODEL_CONFIG": {
       "TITLE": "Model Configuration",
       "DESCRIPTION": "Select AI models for different features.",
-      "SELECT_MODEL": "Select model",
+      "SELECT_MODEL": "Chọn mô hình",
       "CREDITS_PER_MESSAGE": "{credits} credit/message",
       "COMING_SOON": "Coming soon",
       "EDITOR": {
@@ -567,9 +567,9 @@
     "CURRENT_PLAN": {
       "TITLE": "Gói hiện tại",
       "PLAN_NOTE": "Bạn hiện đã đăng ký gói **{plan}** với **{quantity}** giấy phép",
-      "SEAT_COUNT": "Number of seats",
-      "RENEWS_ON": "Renews on",
-      "CURRENCY": "Currency"
+      "SEAT_COUNT": "Số ghế",
+      "RENEWS_ON": "Gia hạn vào",
+      "CURRENCY": "Tiền tệ"
     },
     "CURRENCY": {
       "SELECT": {
@@ -577,7 +577,7 @@
         "DESCRIPTION": "Select the currency you'd like to be billed in. This can't be changed once your subscription is created."
       },
       "OPTIONS": {
-        "USD": "US Dollar (USD)",
+        "USD": "Đô la Mỹ (USD)",
         "BRL": "Brazilian Real (BRL)"
       }
     },
@@ -591,8 +591,8 @@
       "TITLE": "Captain",
       "DESCRIPTION": "Manage usage and credits for Captain AI.",
       "BUTTON_TXT": "Buy more credits",
-      "DOCUMENTS": "Documents",
-      "RESPONSES": "Responses",
+      "DOCUMENTS": "Tài liệu",
+      "RESPONSES": "Phản hồi",
       "UPGRADE": "Captain is not available on the free plan, upgrade now to get access to assistants, copilot and more.",
       "REFRESH_CREDITS": "Làm mới"
     },
@@ -608,14 +608,14 @@
       "MODAL_DESCRIPTION": "Purchase additional credits for Captain AI.",
       "CREDITS": "CREDITS",
       "ONE_TIME": "one-time",
-      "POPULAR": "Most Popular",
+      "POPULAR": "Phổ biến nhất",
       "NOTE_TITLE": "Ghi chú:",
       "NOTE_DESCRIPTION": "Credits are added immediately and expire in 6 months. An active subscription is required to use credits. Purchased credits are consumed after your monthly plan credits.",
       "CANCEL": "Huỷ",
       "PURCHASE": "Purchase Credits",
       "LOADING": "Loading options...",
       "FETCH_ERROR": "Failed to load credit options. Please try again.",
-      "RETRY": "Retry",
+      "RETRY": "Thử lại",
       "PURCHASE_ERROR": "Failed to process purchase. Please try again.",
       "PURCHASE_SUCCESS": "Successfully added {credits} credits to your account",
       "CONFIRM": {
@@ -727,7 +727,7 @@
         },
         "PLACEHOLDERS": {
           "TEXT": "Write a note...",
-          "NUMBER": "Enter a number",
+          "NUMBER": "Nhập một số",
           "LINK": "Add a link",
           "DATE": "Pick a date",
           "LIST": "Select an option"
@@ -741,7 +741,7 @@
         "TITLE": "Upgrade to use required attributes",
         "AVAILABLE_ON": "The required conversation attributes feature is available on the Business and Enterprise plans.",
         "UPGRADE_PROMPT": "Upgrade your plan to prompt agents to fill required attributes before conversation resolution.",
-        "UPGRADE_NOW": "Upgrade now",
+        "UPGRADE_NOW": "Nâng cấp ngay",
         "CANCEL_ANYTIME": "You can change or cancel your plan anytime"
       },
       "ENTERPRISE_PAYWALL": {
@@ -805,7 +805,7 @@
       },
       "AGENT_CAPACITY_POLICY": {
         "TITLE": "Agent capacity policy",
-        "DESCRIPTION": "Manage workload for agents.",
+        "DESCRIPTION": "Quản lý khối lượng công việc cho nhân viên.",
         "FEATURES": [
           "Define maximum conversations per inbox",
           "Create exceptions based on labels and time",
@@ -820,7 +820,7 @@
           "CREATE_POLICY": "New policy"
         },
         "CARD": {
-          "ORDER": "Order",
+          "ORDER": "Đơn hàng",
           "PRIORITY": "Mức độ ưu tiên",
           "ACTIVE": "Có hiệu lực",
           "INACTIVE": "Inactive",
@@ -883,7 +883,7 @@
         },
         "STATUS": {
           "LABEL": "Trạng thái:",
-          "PLACEHOLDER": "Select status",
+          "PLACEHOLDER": "Chọn trạng thái",
           "ACTIVE": "Policy is active",
           "INACTIVE": "Policy is inactive"
         },
@@ -894,7 +894,7 @@
             "DESCRIPTION": "Assign conversations evenly among agents."
           },
           "BALANCED": {
-            "LABEL": "Balanced",
+            "LABEL": "Cân bằng",
             "DESCRIPTION": "Assign conversations based on available capacity.",
             "PREMIUM_MESSAGE": "Upgrade to access balanced assignment and agent capacity management.",
             "PREMIUM_BADGE": "Premium"
@@ -948,7 +948,7 @@
           "CREATE_POLICY": "New policy"
         },
         "CARD": {
-          "POPOVER": "Added agents",
+          "POPOVER": "Nhân viên đã thêm",
           "EDIT": "Chỉnh sửa"
         },
         "NO_RECORDS_FOUND": "No agent capacity policies found"
@@ -969,7 +969,7 @@
         },
         "EDIT_BUTTON": "Update policy",
         "CONFIRM_ADD_AGENT_DIALOG": {
-          "TITLE": "Add agent",
+          "TITLE": "Thêm nhân viên",
           "DESCRIPTION": "{agentName} is already linked to another policy. Are you sure you want to link it to this policy? It will be unlinked from the other policy.",
           "CONFIRM_BUTTON_LABEL": "Continue",
           "CANCEL_BUTTON_LABEL": "Huỷ"
@@ -1027,9 +1027,9 @@
           "DESCRIPTION": "Conversations that satisfy the following conditions would not count towards agent capacity",
           "TAGS": {
             "LABEL": "Exclude conversations tagged with specific labels",
-            "ADD_TAG": "add tag",
+            "ADD_TAG": "thêm thẻ",
             "DROPDOWN": {
-              "SEARCH_PLACEHOLDER": "Search and select tags to add"
+              "SEARCH_PLACEHOLDER": "Tìm và chọn thẻ để thêm"
             },
             "EMPTY_STATE": "No tags added to this policy."
           },
@@ -1041,12 +1041,12 @@
         "USERS": {
           "LABEL": "Assigned agents",
           "DESCRIPTION": "Add agents for which this policy will be applicable.",
-          "ADD_BUTTON": "Add agent",
+          "ADD_BUTTON": "Thêm nhân viên",
           "DROPDOWN": {
-            "SEARCH_PLACEHOLDER": "Search and select agents to add",
+            "SEARCH_PLACEHOLDER": "Tìm và chọn nhân viên để thêm",
             "ADD_BUTTON": "Thêm"
           },
-          "EMPTY_STATE": "No agents added",
+          "EMPTY_STATE": "Chưa thêm nhân viên nào",
           "API": {
             "SUCCESS_MESSAGE": "Agent successfully added to policy",
             "ERROR_MESSAGE": "Failed to add agent to policy"

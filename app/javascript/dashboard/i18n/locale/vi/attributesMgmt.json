@@ -3,11 +3,11 @@
     "HEADER": "Thuộc tính tùy chỉnh",
     "HEADER_BTN_TXT": "Thêm thuộc tính Tùy chỉnh",
     "LOADING": "Đang lấy thuộc tính tuỳ chỉnh",
-    "DESCRIPTION": "A custom attribute tracks additional details about your contacts or conversations—such as the subscription plan or the date of their first purchase. You can add different types of custom attributes, such as text, lists, or numbers, to capture the specific information you need.",
-    "LEARN_MORE": "Learn more about custom attributes",
-    "COUNT": "{n} attribute | {n} attributes",
+    "DESCRIPTION": "Thuộc tính tuỳ chỉnh theo dõi các chi tiết bổ sung về liên hệ hoặc cuộc trò chuyện của bạn — như gói thuê bao hoặc ngày mua hàng đầu tiên. Bạn có thể thêm nhiều loại thuộc tính tuỳ chỉnh khác nhau, như văn bản, danh sách hoặc số, để thu thập thông tin cụ thể bạn cần.",
+    "LEARN_MORE": "Tìm hiểu thêm về thuộc tính tuỳ chỉnh",
+    "COUNT": "{n} thuộc tính | {n} thuộc tính",
     "SEARCH_PLACEHOLDER": "Tìm kiếm nhiều thuộc tính...",
-    "NO_RESULTS": "No attributes found matching your search",
+    "NO_RESULTS": "Không tìm thấy thuộc tính nào khớp với tìm kiếm của bạn",
     "ATTRIBUTE_MODELS": {
       "CONVERSATION": "Cuộc hội thoại",
       "CONTACT": "Liên hệ",
@@ -17,7 +17,7 @@
       "TEXT": "Văn bản",
       "NUMBER": "Số",
       "LINK": "Liên kết",
-      "DATE": "Date",
+      "DATE": "Ngày",
       "LIST": "Danh sách",
       "CHECKBOX": "Hộp kiểm"
     },
@@ -58,24 +58,24 @@
           "IN_VALID": "Khoá không hợp lệ"
         },
         "REGEX_PATTERN": {
-          "LABEL": "Regex Pattern",
-          "PLACEHOLDER": "Please enter custom attribute regex pattern. (Optional)"
+          "LABEL": "Mẫu Regex",
+          "PLACEHOLDER": "Vui lòng nhập mẫu regex cho thuộc tính tuỳ chỉnh. (Không bắt buộc)"
         },
         "REGEX_CUE": {
-          "LABEL": "Regex Cue",
-          "PLACEHOLDER": "Please enter regex pattern hint. (Optional)"
+          "LABEL": "Gợi ý Regex",
+          "PLACEHOLDER": "Vui lòng nhập gợi ý mẫu regex. (Không bắt buộc)"
         },
         "ENABLE_REGEX": {
-          "LABEL": "Enable regex validation"
+          "LABEL": "Bật kiểm tra regex"
         },
         "BADGES": {
-          "PRE_CHAT": "Pre-chat",
-          "RESOLUTION": "Resolution"
+          "PRE_CHAT": "Trước trò chuyện",
+          "RESOLUTION": "Giải quyết"
         }
       },
       "API": {
         "SUCCESS_MESSAGE": "Thuộc tính tuỳ chỉnh được thêm thành công!",
-        "ERROR_MESSAGE": "Could not create a Custom Attribute. Please try again later."
+        "ERROR_MESSAGE": "Không thể tạo thuộc tính tuỳ chỉnh. Vui lòng thử lại sau."
       }
     },
     "DELETE": {
@@ -128,20 +128,20 @@
         "NOT_FOUND": "Không có thuộc tính tuỳ chỉnh nào được cấu hình"
       },
       "REGEX_PATTERN": {
-        "LABEL": "Regex Pattern",
-        "PLACEHOLDER": "Please enter custom attribute regex pattern. (Optional)"
+        "LABEL": "Mẫu Regex",
+        "PLACEHOLDER": "Vui lòng nhập mẫu regex cho thuộc tính tuỳ chỉnh. (Không bắt buộc)"
       },
       "REGEX_CUE": {
-        "LABEL": "Regex Cue",
-        "PLACEHOLDER": "Please enter regex pattern hint. (Optional)"
+        "LABEL": "Gợi ý Regex",
+        "PLACEHOLDER": "Vui lòng nhập gợi ý mẫu regex. (Không bắt buộc)"
       },
       "ENABLE_REGEX": {
-        "LABEL": "Enable regex validation"
+        "LABEL": "Bật kiểm tra regex"
       }
     },
     "BADGES": {
-      "PRE_CHAT": "Pre-chat",
-      "RESOLUTION": "Resolution"
+      "PRE_CHAT": "Trước trò chuyện",
+      "RESOLUTION": "Giải quyết"
     }
   }
 }

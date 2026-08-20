@@ -3,11 +3,11 @@
     "HEADER": "Nhãn",
     "HEADER_BTN_TXT": "Thêm nhãn",
     "LOADING": "Tải về các nhãn",
-    "DESCRIPTION": "Labels help you categorize and prioritize conversations and leads. You can assign a label to a conversation or contact using the side panel.",
-    "LEARN_MORE": "Learn more about labels",
-    "COUNT": "{n} label | {n} labels",
+    "DESCRIPTION": "Nhãn giúp bạn phân loại và ưu tiên các cuộc trò chuyện và khách hàng tiềm năng. Bạn có thể gán nhãn cho một cuộc trò chuyện hoặc liên hệ bằng bảng bên.",
+    "LEARN_MORE": "Tìm hiểu thêm về nhãn",
+    "COUNT": "{n} nhãn | {n} nhãn",
     "SEARCH_PLACEHOLDER": "Tìm nhãn...",
-    "NO_RESULTS": "No labels found matching your search",
+    "NO_RESULTS": "Không tìm thấy nhãn nào khớp với tìm kiếm của bạn",
     "SEARCH_404": "Không có kết quả nào phù hợp",
     "LIST": {
       "404": "Không có nhãn nào có sẵn trong tài khoản này.",
@@ -45,17 +45,17 @@
     },
     "SUGGESTIONS": {
       "TOOLTIP": {
-        "SINGLE_SUGGESTION": "Add label to conversation",
-        "MULTIPLE_SUGGESTION": "Select this label",
-        "DESELECT": "Deselect label",
-        "DISMISS": "Dismiss suggestion"
+        "SINGLE_SUGGESTION": "Thêm nhãn vào cuộc trò chuyện",
+        "MULTIPLE_SUGGESTION": "Chọn nhãn này",
+        "DESELECT": "Bỏ chọn nhãn",
+        "DISMISS": "Bỏ qua gợi ý"
       },
-      "POWERED_BY": "Chatwoot AI",
-      "DISMISS": "Dismiss",
-      "ADD_SELECTED_LABELS": "Add selected labels",
-      "ADD_SELECTED_LABEL": "Add selected label",
-      "ADD_ALL_LABELS": "Add all labels",
-      "SUGGESTED_LABELS": "Suggested labels"
+      "POWERED_BY": "Mochi.CRM AI",
+      "DISMISS": "Bỏ qua",
+      "ADD_SELECTED_LABELS": "Thêm các nhãn đã chọn",
+      "ADD_SELECTED_LABEL": "Thêm nhãn đã chọn",
+      "ADD_ALL_LABELS": "Thêm tất cả nhãn",
+      "SUGGESTED_LABELS": "Nhãn gợi ý"
     },
     "ADD": {
       "TITLE": "Thêm nhãn",
