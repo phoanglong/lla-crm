@@ -57,7 +57,7 @@
       },
       "CANCEL_BUTTON_TEXT": "Huỷ",
       "API": {
-        "ERROR_MESSAGE": "Không thể kết nối với máy chủ Woot. Vui lòng thử lại."
+        "ERROR_MESSAGE": "Không thể kết nối với máy chủ. Vui lòng thử lại."
       }
     },
     "ADD": {
@@ -81,7 +81,7 @@
       "BUTTON_TEXT": "Xoá",
       "API": {
         "SUCCESS_MESSAGE": "Đã xóa vai trò tùy chỉnh thành công.",
-        "ERROR_MESSAGE": "Không thể kết nối với máy chủ Woot. Vui lòng thử lại."
+        "ERROR_MESSAGE": "Không thể kết nối với máy chủ. Vui lòng thử lại."
       },
       "CONFIRM": {
         "TITLE": "Xác nhận xoá",

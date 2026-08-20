@@ -19,7 +19,7 @@
     },
     "API": {
       "SUCCESS_MESSAGE": "Đã tải nhật ký kiểm toán thành công",
-      "ERROR_MESSAGE": "Không thể kết nối với máy chủ Woot, vui lòng thử lại sau"
+      "ERROR_MESSAGE": "Không thể kết nối với máy chủ, vui lòng thử lại sau"
     },
     "DEFAULT_USER": "Hệ thống",
     "AUTOMATION_RULE": {

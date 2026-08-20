@@ -285,7 +285,7 @@
     "SENT_BY": "Gửi bởi:",
     "BOT": "Bot",
     "NATIVE_APP": "Native app",
-    "NATIVE_APP_ADVISORY": "This message was sent from the native app. Reply from Chatwoot to maintain the message window.",
+    "NATIVE_APP_ADVISORY": "This message was sent from the native app. Reply from Mochi.CRM to maintain the message window.",
     "SEND_FAILED": "Không thể gửi tin nhắn! Thử lại",
     "TRY_AGAIN": "thử lại",
     "ASSIGNMENT": {

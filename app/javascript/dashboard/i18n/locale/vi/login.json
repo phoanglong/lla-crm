@@ -12,7 +12,7 @@
     },
     "API": {
       "SUCCESS_MESSAGE": "Đăng nhập thành công",
-      "ERROR_MESSAGE": "Không thể kết nối với máy chủ Woot. Vui lòng thử lại.",
+      "ERROR_MESSAGE": "Không thể kết nối với máy chủ. Vui lòng thử lại.",
       "UNAUTH": "Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng thử lại."
     },
     "OAUTH": {

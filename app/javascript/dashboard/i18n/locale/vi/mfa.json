@@ -102,7 +102,7 @@
       "BACKUP_TITLE": "Sử dụng mã dự phòng",
       "BACKUP_DESC": "Nếu bạn không còn truy cập được ứng dụng xác thực, bạn có thể dùng một trong các mã dự phòng đã lưu khi thiết lập 2FA. Mỗi mã chỉ dùng được một lần.",
       "CONTACT_TITLE": "Cần thêm trợ giúp?",
-      "CONTACT_DESC_CLOUD": "Nếu bạn đã mất quyền truy cập cả ứng dụng xác thực lẫn mã dự phòng, vui lòng liên hệ bộ phận hỗ trợ Chatwoot để được trợ giúp.",
+      "CONTACT_DESC_CLOUD": "Nếu bạn đã mất quyền truy cập cả ứng dụng xác thực lẫn mã dự phòng, vui lòng liên hệ bộ phận hỗ trợ Mochi.CRM để được trợ giúp.",
       "CONTACT_DESC_SELF_HOSTED": "Nếu bạn đã mất quyền truy cập cả ứng dụng xác thực lẫn mã dự phòng, vui lòng liên hệ quản trị viên để được trợ giúp."
     },
     "VERIFICATION_FAILED": "Xác minh thất bại. Vui lòng thử lại."
