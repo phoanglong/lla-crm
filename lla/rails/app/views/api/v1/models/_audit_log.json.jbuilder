@@ -8,7 +8,11 @@ json.associated_type resource.associated_type
 json.user_id resource.user_id
 json.username resource.username
 json.remote_address resource.remote_address
-json.created_at resource.created_at
+# Unix seconds, not an ISO string. `auditlogs/Index.vue` renders this through
+# `messageTimestamp`, which is `fromUnixTime` — handed a string it produces an
+# Invalid Date and `format` throws `RangeError: Invalid time value`, taking the
+# whole table render with it.
+json.created_at resource.created_at.to_i
 
 # Giao diện đọc auditLogItem.auditable?.user_id để phân biệt "sửa chính mình" và
 # "sửa người khác" — xem handleAccountUserUpdate trong auditlogHelper.js.

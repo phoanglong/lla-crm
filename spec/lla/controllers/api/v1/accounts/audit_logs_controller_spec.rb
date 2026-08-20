@@ -61,4 +61,23 @@ RSpec.describe 'Enterprise Audit API', type: :request do
       end
     end
   end
+
+  # `auditlogs/Index.vue` renders this through `messageTimestamp`, which is
+  # `fromUnixTime`. An ISO string there becomes an Invalid Date and `format`
+  # raises `RangeError: Invalid time value`, taking the whole table with it.
+  describe 'the created_at contract the audit log table reads' do
+    it 'serialises created_at as unix seconds' do
+      account.enable_features!(:audit_logs)
+      inbox.update!(name: 'renamed so there is something to audit')
+
+      get "/api/v1/accounts/#{account.id}/audit_logs",
+          headers: admin.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      logs = JSON.parse(response.body)['audit_logs']
+      expect(logs).not_to be_empty
+      expect(logs.first['created_at']).to be_a(Integer)
+    end
+  end
 end

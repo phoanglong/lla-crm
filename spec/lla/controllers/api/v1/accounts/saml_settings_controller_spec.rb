@@ -262,4 +262,17 @@ RSpec.describe 'Api::V1::Accounts::SamlSettings', type: :request do
       end
     end
   end
+
+  # Turning the switch off is the same request whether SAML was ever set up or
+  # not — the screen disables by saving an empty form, which is a DELETE.
+  describe 'DELETE /api/v1/accounts/{account.id}/saml_settings when nothing is configured' do
+    it 'answers no content rather than not found' do
+      expect(AccountSamlSettings.where(account_id: account.id)).to be_empty
+
+      delete "/api/v1/accounts/#{account.id}/saml_settings",
+             headers: administrator.create_new_auth_token
+
+      expect(response).to have_http_status(:no_content)
+    end
+  end
 end

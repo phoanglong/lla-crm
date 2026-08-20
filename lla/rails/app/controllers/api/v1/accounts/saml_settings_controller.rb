@@ -6,8 +6,8 @@
 class Api::V1::Accounts::SamlSettingsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
   before_action :ensure_saml_feature
-  before_action :fetch_saml_settings, only: [:show]
-  before_action :fetch_saml_settings!, only: [:update, :destroy]
+  before_action :fetch_saml_settings, only: [:show, :destroy]
+  before_action :fetch_saml_settings!, only: [:update]
 
   def show; end
 
@@ -20,8 +20,12 @@ class Api::V1::Accounts::SamlSettingsController < Api::V1::Accounts::BaseControl
     @saml_settings.update!(saml_settings_params)
   end
 
+  # Turning SAML off is the same request whether it was ever configured or not:
+  # `SamlSettings.vue` disables by saving an empty form, which is a DELETE. With
+  # `find_by!` that answered 404 for the ordinary case of a tenant that never set
+  # SAML up, and the screen reported an error for doing nothing wrong.
   def destroy
-    @saml_settings.destroy!
+    @saml_settings.destroy! if @saml_settings.persisted?
     head :no_content
   end
 
