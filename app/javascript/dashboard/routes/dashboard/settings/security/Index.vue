@@ -6,7 +6,6 @@ import SamlSettings from './components/SamlSettings.vue';
 import SamlPaywall from './components/SamlPaywall.vue';
 
 import { usePolicy } from 'dashboard/composables/usePolicy';
-import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 const { shouldShow, shouldShowPaywall } = usePolicy();
 
@@ -18,12 +17,12 @@ const isSamlSsoEnabled = computed(() =>
   allowedLoginMethods.value.includes('saml')
 );
 
+// The route stopped asking which edition this is; the panel behind it has to
+// stop asking too. Gated on `[CLOUD, ENTERPRISE]` it was false on every LLA
+// installation, so an administrator who opened Settings → Security was told to
+// "contact your administrator" — while the server had SAML switched on.
 const shouldShowSaml = computed(() => {
-  const hasPermission = shouldShow(
-    FEATURE_FLAGS.SAML,
-    ['administrator'],
-    [INSTALLATION_TYPES.CLOUD, INSTALLATION_TYPES.ENTERPRISE]
-  );
+  const hasPermission = shouldShow(FEATURE_FLAGS.SAML, ['administrator']);
   return hasPermission && isSamlSsoEnabled.value;
 });
 

@@ -1,5 +1,4 @@
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
-import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
 import {
   CONVERSATION_PERMISSIONS,
   ROLES,
@@ -22,10 +21,13 @@ import ResponsesIndex from './responses/Index.vue';
 import FaqSuggestionsIndex from './responses/FaqSuggestions.vue';
 import CustomToolsIndex from './tools/Index.vue';
 
+// Captain stays behind its own capability flag, not behind an edition. LLA is
+// reshaping it into a bring-your-own-AI hub, so an operator who has connected
+// their own provider turns `captain_integration` on and the screens appear;
+// until then the flag is off and they stay hidden — for the reason that is true.
 const meta = {
   permissions: ['administrator', 'agent'],
   featureFlag: FEATURE_FLAGS.CAPTAIN,
-  installationTypes: [INSTALLATION_TYPES.CLOUD, INSTALLATION_TYPES.ENTERPRISE],
 };
 
 const faqSuggestionsMeta = {
@@ -36,13 +38,11 @@ const faqSuggestionsMeta = {
 const metaCustomTools = {
   permissions: ['administrator', 'agent'],
   featureFlag: FEATURE_FLAGS.CAPTAIN_CUSTOM_TOOLS,
-  installationTypes: [INSTALLATION_TYPES.CLOUD, INSTALLATION_TYPES.ENTERPRISE],
 };
 
 const metaV2 = {
   permissions: ['administrator', 'agent'],
   featureFlag: FEATURE_FLAGS.CAPTAIN_V2,
-  installationTypes: [INSTALLATION_TYPES.CLOUD, INSTALLATION_TYPES.ENTERPRISE],
 };
 
 const assistantRoutes = [
@@ -131,13 +131,10 @@ const assistantRoutes = [
     path: frontendURL('accounts/:accountId/captain/assistants'),
     component: AssistantEmptyStateIndex,
     name: 'captain_assistants_create_index',
-    meta: {
-      permissions: ['administrator', 'agent'],
-      installationTypes: [
-        INSTALLATION_TYPES.CLOUD,
-        INSTALLATION_TYPES.ENTERPRISE,
-      ],
-    },
+    // The edition gate was the only thing hiding this one — it carried no
+    // feature flag, so removing the gate without adding one would have published
+    // the assistant-creation screen on every installation.
+    meta,
   },
   {
     path: frontendURL('accounts/:accountId/captain/:navigationPath'),

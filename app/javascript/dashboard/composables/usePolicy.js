@@ -8,8 +8,6 @@ import {
 } from 'dashboard/helper/permissionsHelper';
 import { PREMIUM_FEATURES } from 'dashboard/featureFlags';
 
-import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
-
 export function usePolicy() {
   const user = useMapGetter('getCurrentUser');
   const isFeatureEnabled = useMapGetter('accounts/isFeatureEnabledonAccount');
@@ -36,20 +34,6 @@ export function usePolicy() {
     return hasPermissions(requiredPermissions, userPermissions);
   };
 
-  const checkInstallationType = config => {
-    if (Array.isArray(config) && config.length > 0) {
-      const installationCheck = {
-        [INSTALLATION_TYPES.ENTERPRISE]: isEnterprise,
-        [INSTALLATION_TYPES.CLOUD]: isOnChatwootCloud.value,
-        [INSTALLATION_TYPES.COMMUNITY]: true,
-      };
-
-      return config.some(type => installationCheck[type]);
-    }
-
-    return true;
-  };
-
   const isPremiumFeature = featureFlag => {
     if (!featureFlag) return true;
     return PREMIUM_FEATURES.includes(featureFlag);
@@ -61,16 +45,20 @@ export function usePolicy() {
     return true;
   });
 
-  const shouldShow = (featureFlag, permissions, installationTypes) => {
+  // A capability is visible when the installation has it, not when the
+  // installation is of a particular edition.
+  //
+  // The `installationTypes` argument this used to take was an edition gate:
+  // `[CLOUD, ENTERPRISE]` on a product that is neither meant "never", so six
+  // shipped capabilities were reachable only by typing their URL. It is gone —
+  // the feature flag is the whole answer, and a route with no flag stays visible.
+  const shouldShow = (featureFlag, permissions) => {
     const flag = unref(featureFlag);
     const perms = unref(permissions);
-    const installation = unref(installationTypes);
 
-    // if the user does not have permissions or installation type is not supported
-    // return false;
+    // if the user does not have permissions, return false.
     // This supersedes everything
     if (!checkPermissions(perms)) return false;
-    if (!checkInstallationType(installation)) return false;
 
     if (isACustomBrandedInstance.value) {
       // if this is a custom branded instance, we just use the feature flag as a reference
@@ -100,8 +88,11 @@ export function usePolicy() {
       );
     }
 
-    // default to true
-    return true;
+    // Anything else — a plain self-hosted installation that has not been
+    // rebranded — answers with the capability too. This used to `return true`,
+    // which ignored the feature flag entirely: with the edition gate removed,
+    // that would have published every gated screen on such an installation.
+    return isFeatureFlagEnabled(flag);
   };
 
   const shouldShowPaywall = featureFlag => {
