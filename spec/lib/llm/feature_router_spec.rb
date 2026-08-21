@@ -9,7 +9,7 @@ RSpec.describe Llm::FeatureRouter do
     it 'returns the feature default without an account' do
       resolved = described_class.resolve(feature: 'editor')
 
-      expect(resolved).to eq(
+      expect(resolved.except(:credential)).to eq(
         feature: 'editor',
         provider: 'openai',
         model: 'gpt-4.1-mini',
@@ -81,6 +81,30 @@ RSpec.describe Llm::FeatureRouter do
     it 'raises for unknown features' do
       expect { described_class.resolve(feature: 'unknown_feature') }
         .to raise_error(described_class::UnknownFeatureError, 'Unknown LLM feature: unknown_feature')
+    end
+
+    # Danh mục mô hình của bản cài đặt không thể biết trước mọi mô hình khách sẽ chạy. Mô hình
+    # `<nhà cung cấp>/<mô hình>` trỏ tới kết nối AI của chính tenant — và đó mới là điều làm
+    # cho "mang AI của mình" có nghĩa.
+    context 'when the account brought its own AI provider' do
+      before do
+        skip('encryption keys missing') unless Chatwoot.encryption_configured?
+        account.lla_ai_providers.create!(kind: 'openai_compatible', name: 'noi-bo',
+                                         api_base: 'https://llm.noi-bo.vn/v1', api_key: 'khoa-cua-khach')
+        account.update!(captain_models: { 'editor' => 'noi-bo/llama-3.1-70b' })
+      end
+
+      it 'routes the feature to that connection' do
+        resolved = described_class.resolve(feature: 'editor', account: account)
+
+        aggregate_failures do
+          expect(resolved[:model]).to eq('noi-bo/llama-3.1-70b')
+          expect(resolved[:provider]).to eq('noi-bo')
+          expect(resolved[:source]).to eq(:account_override)
+          expect(resolved[:credential].api_key).to eq('khoa-cua-khach')
+          expect(resolved[:credential].model).to eq('llama-3.1-70b')
+        end
+      end
     end
   end
 end

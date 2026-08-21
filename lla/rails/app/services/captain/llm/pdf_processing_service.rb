@@ -25,7 +25,13 @@ class Captain::Llm::PdfProcessingService
     end
   end
 
+  # Endpoint của bản cài đặt bị bỏ qua ở đây: máy khách này luôn bắn thẳng tới api.openai.com
+  # kể cả khi bản cài đặt trỏ sang một gateway riêng (OpenRouter, LiteLLM, máy chủ nội bộ).
+  # Đó là một lỗi thật, không chỉ là rào cản của việc mang AI riêng.
   def client
-    @client ||= OpenAI::Client.new(access_token: InstallationConfig.find_by!(name: 'CAPTAIN_OPEN_AI_API_KEY').value)
+    @client ||= OpenAI::Client.new(
+      access_token: InstallationConfig.find_by!(name: 'CAPTAIN_OPEN_AI_API_KEY').value,
+      uri_base: Lla::Ai::OpenaiEndpoint.resolve
+    )
   end
 end

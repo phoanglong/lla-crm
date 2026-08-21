@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# LLA-owned base for RubyLLM services. Model selection is tenant-aware but API
-# credentials remain centralized in Llm::Config/InstallationConfig.
+# LLA-owned base for RubyLLM services. Cả mô hình lẫn credential đều theo tenant: mô hình
+# viết dạng `<nhà cung cấp>/<mô hình>` sẽ được gọi bằng khoá và endpoint của kết nối do chính
+# tenant khai, thay vì cấu hình chung của tiến trình.
 class Llm::BaseAiService
   DEFAULT_MODEL = Llm::Config::DEFAULT_MODEL
   DEFAULT_TEMPERATURE = 1.0
@@ -19,7 +20,11 @@ class Llm::BaseAiService
   end
 
   def chat(model: @model, temperature: @temperature)
-    RubyLLM.chat(model: model).with_temperature(temperature)
+    credential = Lla::Ai::CredentialResolver.resolve(account: @llm_account, model: model)
+
+    Llm::Config.with_credential(credential) do |context|
+      context.chat(model: credential.model).with_temperature(temperature)
+    end
   end
 
   private

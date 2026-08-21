@@ -53,10 +53,21 @@ module CaptainFeaturable
       end
 
       next if Llm::Models.valid_model_for?(feature_key, model_name)
+      next if tenant_ai_model?(model_name)
 
       allowed_models = Llm::Models.models_for(feature_key)
       errors.add(:captain_models, "'#{model_name}' is not a valid model for #{feature_key}. Allowed: #{allowed_models.join(', ')}")
     end
+  end
+
+  # `<nhà cung cấp>/<mô hình>` trỏ tới một kết nối AI do chính tài khoản này khai. Danh mục
+  # mô hình của bản cài đặt không thể biết trước mọi mô hình khách sẽ chạy, nên nó không phải
+  # là thước đo duy nhất cho tính hợp lệ.
+  def tenant_ai_model?(model_name)
+    provider_name, = Lla::Ai::CredentialResolver.split(model_name)
+    return false if provider_name.blank?
+
+    lla_ai_providers.enabled.exists?(name: provider_name)
   end
 
   def normalize_captain_models

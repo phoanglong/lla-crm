@@ -21,7 +21,7 @@ RSpec.describe Captain::ReplySuggestionService do
     allow(account).to receive(:feature_enabled?).and_call_original
     allow(account).to receive(:feature_enabled?).with('captain_tasks').and_return(true)
 
-    allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
+    allow(Llm::Config).to receive(:with_credential).and_yield(mock_context)
     allow(mock_chat).to receive(:with_tool).and_return(mock_chat)
     allow(mock_chat).to receive(:on_end_message).and_return(mock_chat)
     allow(mock_chat).to receive(:with_instructions) { |msg| captured_messages << { role: 'system', content: msg } }

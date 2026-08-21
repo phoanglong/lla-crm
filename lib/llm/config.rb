@@ -19,17 +19,31 @@ module Llm::Config
       @initialized = false
     end
 
-    def with_api_key(api_key, api_base: nil)
+    # Một ngữ cảnh cho **một** lệnh gọi, dựng từ credential của đúng tenant đó. Cấu hình toàn
+    # cục của tiến trình không bị chạm tới, nên hai tenant dùng hai nhà cung cấp khác nhau
+    # trong cùng một tiến trình không đè lên nhau.
+    def with_credential(credential)
       initialize!
-      context = RubyLLM.context do |config|
-        config.openai_api_key = api_key
-        config.openai_api_base = api_base
-      end
+      context = RubyLLM.context { |config| apply_credential(config, credential) }
 
       yield context
     end
 
     private
+
+    # Mỗi nhà cung cấp có một cặp khoá cấu hình riêng trong ruby_llm; `openai_compatible` và
+    # `azure_openai` nói giao thức OpenAI nên đi chung đường với OpenAI, chỉ khác endpoint.
+    def apply_credential(config, credential)
+      case credential.kind
+      when 'anthropic'
+        config.anthropic_api_key = credential.api_key
+      when 'gemini'
+        config.gemini_api_key = credential.api_key
+      else
+        config.openai_api_key = credential.api_key
+        config.openai_api_base = credential.api_base.presence&.chomp('/')
+      end
+    end
 
     def configure_ruby_llm
       RubyLLM.configure do |config|

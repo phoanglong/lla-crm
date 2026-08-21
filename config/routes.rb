@@ -106,6 +106,11 @@ Rails.application.routes.draw do
           end
           resource :saml_settings, only: [:show, :create, :update, :destroy]
           resources :platform_apps, only: [:index, :show, :create, :update, :destroy], param: :platform
+          namespace :ai do
+            resources :providers, only: [:index, :show, :create, :update, :destroy] do
+              post :verify, on: :member
+            end
+          end
           namespace :zalo do
             resources :connections, only: [:create, :show] do
               get :domain_check, on: :collection

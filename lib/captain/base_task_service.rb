@@ -32,9 +32,7 @@ class Captain::BaseTaskService
   end
 
   def api_base
-    endpoint = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence || 'https://api.openai.com/'
-    endpoint = endpoint.chomp('/')
-    "#{endpoint}/v1"
+    "#{Lla::Ai::OpenaiEndpoint.resolve.chomp('/')}/v1"
   end
 
   def make_api_call(messages:, model: nil, feature: nil, schema: nil, tools: [])
@@ -66,9 +64,9 @@ class Captain::BaseTaskService
   end
 
   def execute_ruby_llm_request(model:, messages:, schema: nil, tools: [])
-    credential = llm_credential
+    credential = llm_credential_for(model)
 
-    Llm::Config.with_api_key(credential[:api_key], api_base: api_base) do |context|
+    Llm::Config.with_credential(credential) do |context|
       chat = build_chat(context, model: model, messages: messages, schema: schema, tools: tools)
 
       conversation_messages = messages.reject { |m| m[:role] == 'system' }
@@ -174,6 +172,15 @@ class Captain::BaseTaskService
 
   def api_key
     llm_credential&.dig(:api_key)
+  end
+
+  # Mô hình viết dạng `<nhà cung cấp>/<mô hình>` là mô hình của một kết nối do tenant khai:
+  # khoá, endpoint và giao thức đều lấy từ kết nối ấy. Mọi trường hợp còn lại đi đúng đường
+  # cũ — hook OpenAI của tài khoản nếu có, rồi khoá của bản cài đặt.
+  def llm_credential_for(model)
+    Lla::Ai::CredentialResolver.resolve_with_fallback(
+      account: account, model: model, fallback: llm_credential, api_base: api_base
+    )
   end
 
   def llm_credential

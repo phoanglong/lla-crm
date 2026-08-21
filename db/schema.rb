@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_21_010000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_020000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1187,6 +1187,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_21_010000) do
     t.index ["user_id"], name: "index_leaves_on_user_id"
   end
 
+  create_table "lla_ai_providers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "kind", limit: 32, null: false
+    t.string "name", limit: 64, null: false
+    t.string "api_base", limit: 512
+    t.text "api_key"
+    t.jsonb "config", default: {}, null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "verified_at"
+    t.string "last_error", limit: 512
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "enabled"], name: "idx_lla_ai_providers_tenant_enabled"
+    t.index ["account_id", "name"], name: "idx_lla_ai_providers_tenant_name", unique: true
+    t.check_constraint "kind::text = ANY (ARRAY['openai'::character varying, 'anthropic'::character varying, 'gemini'::character varying, 'azure_openai'::character varying, 'openai_compatible'::character varying]::text[])", name: "chk_lla_ai_providers_kind"
+    t.check_constraint "name::text ~ '^[a-z0-9][a-z0-9_-]{0,63}$'::text", name: "chk_lla_ai_providers_name_format"
+  end
+
   create_table "lla_call_events", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "inbox_id", null: false
@@ -1535,8 +1553,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_21_010000) do
     t.index ["platform", "app_id"], name: "idx_lla_platform_apps_platform_app"
     t.index ["webhook_token"], name: "idx_lla_platform_apps_webhook_token", unique: true
     t.check_constraint "char_length(webhook_token::text) >= 24", name: "chk_lla_platform_apps_webhook_token_length"
-    t.check_constraint "platform::text = ANY (ARRAY['facebook'::character varying, 'instagram'::character varying, 'whatsapp'::character varying, 'tiktok'::character varying]::text[])", name: "chk_lla_platform_apps_platform"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'active'::character varying, 'disabled'::character varying, 'error'::character varying]::text[])", name: "chk_lla_platform_apps_status"
+    t.check_constraint "platform::text = ANY (ARRAY['facebook'::character varying::text, 'instagram'::character varying::text, 'whatsapp'::character varying::text, 'tiktok'::character varying::text])", name: "chk_lla_platform_apps_platform"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'active'::character varying::text, 'disabled'::character varying::text, 'error'::character varying::text])", name: "chk_lla_platform_apps_status"
   end
 
   create_table "lla_voice_recording_consents", force: :cascade do |t|
@@ -1976,6 +1994,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_21_010000) do
   add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"
   add_foreign_key "copilot_threads", "users", name: "fk_lla_copilot_threads_user"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "lla_ai_providers", "accounts", on_delete: :cascade
   add_foreign_key "lla_call_events", "accounts", on_delete: :cascade
   add_foreign_key "lla_call_events", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_events_call_tenant", on_delete: :cascade
   add_foreign_key "lla_call_events", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_events_inbox_tenant", on_delete: :cascade
