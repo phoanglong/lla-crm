@@ -64,6 +64,7 @@ class Api::V1::Accounts::Captain::PreferencesController < Api::V1::Accounts::Bas
     Llm::Models.feature_keys.index_with do |feature_key|
       config = Llm::Models.feature_config(feature_key)
       route = Llm::FeatureRouter.resolve(feature: feature_key, account: Current.account)
+      config = config.merge(models: config[:models] + tenant_models)
       config.merge(
         default: default_model_for(feature_key),
         enabled: account_features[feature_key] == true,
@@ -72,6 +73,17 @@ class Api::V1::Accounts::Captain::PreferencesController < Api::V1::Accounts::Bas
         provider: route[:provider],
         source: route[:source]
       )
+    end
+  end
+
+  # Mô hình của các kết nối AI do chính tenant khai. Danh mục của bản cài đặt không thể biết
+  # trước khách sẽ chạy mô hình gì, nên nó không phải là toàn bộ danh sách để chọn.
+  def tenant_models
+    @tenant_models ||= Current.account.lla_ai_providers.enabled.flat_map do |provider|
+      provider.model_names.map do |model|
+        { id: "#{provider.name}/#{model}", display_name: "#{model} · #{provider.name}",
+          provider: provider.name, coming_soon: false, credit_multiplier: nil }
+      end
     end
   end
 

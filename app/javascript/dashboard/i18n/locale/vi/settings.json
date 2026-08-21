@@ -559,6 +559,31 @@
     "API": {
       "SUCCESS": "Captain settings updated successfully.",
       "ERROR": "Failed to update Captain settings. Please try again."
+    },
+    "AI_PROVIDERS": {
+      "TITLE": "Nhà cung cấp AI của bạn",
+      "DESCRIPTION": "Kết nối AI bạn muốn dùng — khoá của bạn, endpoint của bạn, mô hình của bạn. Mô hình của một kết nối được gọi theo dạng tên-kết-nối/tên-mô-hình khi chọn ở trên.",
+      "EMPTY": "Chưa có kết nối nào. Các tính năng vẫn dùng AI của nền tảng cho tới khi bạn thêm.",
+      "ADD": "Thêm kết nối",
+      "NAME_LABEL": "Tên kết nối",
+      "NAME_PLACEHOLDER": "ví dụ: noi-bo",
+      "NAME_HELP": "Chữ thường, số, gạch ngang và gạch dưới. Mô hình sẽ được gọi theo dạng tên/mô-hình.",
+      "KIND_LABEL": "Nhà cung cấp",
+      "BASE_LABEL": "Endpoint",
+      "BASE_PLACEHOLDER": "https://openrouter.ai/api/v1",
+      "BASE_HELP": "Địa chỉ gốc đầy đủ, kèm /v1 nếu nhà cung cấp yêu cầu. Chỉ chấp nhận HTTPS.",
+      "KEY_LABEL": "Khoá API",
+      "KEY_PLACEHOLDER": "Khoá của nhà cung cấp này",
+      "SAVE": "Lưu",
+      "CANCEL": "Huỷ",
+      "VERIFY": "Kiểm tra",
+      "VERIFY_OK": "Nhà cung cấp đã trả lời. Mô hình của họ nay chọn được ở trên.",
+      "VERIFY_FAILED": "Nhà cung cấp không trả lời.",
+      "VERIFIED": "Đang chạy",
+      "UNVERIFIED": "Chưa kiểm tra",
+      "REMOVE": "Xoá",
+      "DEFAULT_ENDPOINT": "Endpoint mặc định của nhà cung cấp",
+      "MODELS_SUFFIX": "mô hình"
     }
   },
   "BILLING_SETTINGS": {

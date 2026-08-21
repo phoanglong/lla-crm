@@ -12,6 +12,7 @@ import BaseSettingsHeader from '../components/BaseSettingsHeader.vue';
 import SectionLayout from '../account/components/SectionLayout.vue';
 import ModelSelector from './components/ModelSelector.vue';
 import FeatureToggle from './components/FeatureToggle.vue';
+import AiProviders from './components/AiProviders.vue';
 import CaptainPaywall from 'next/captain/pageComponents/Paywall.vue';
 
 const { t } = useI18n();
@@ -113,6 +114,14 @@ onMounted(() => {
     </template>
     <template #body>
       <div v-if="captainEnabled" class="flex flex-col gap-1">
+        <!-- Tenant-owned AI connections -->
+        <SectionLayout
+          :title="t('CAPTAIN_SETTINGS.AI_PROVIDERS.TITLE')"
+          :description="t('CAPTAIN_SETTINGS.AI_PROVIDERS.DESCRIPTION')"
+        >
+          <AiProviders />
+        </SectionLayout>
+
         <!-- Model Configuration Section -->
         <SectionLayout
           :title="t('CAPTAIN_SETTINGS.MODEL_CONFIG.TITLE')"
