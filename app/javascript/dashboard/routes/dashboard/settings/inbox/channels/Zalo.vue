@@ -382,7 +382,7 @@ const finish = () => {
           <li
             v-for="check in checks"
             :key="check.key"
-            class="flex items-center justify-between gap-2 bg-white rounded-md outline outline-1 outline-n-container px-3 py-2"
+            class="flex items-center justify-between gap-2 bg-n-solid-2 rounded-md outline outline-1 outline-n-container px-3 py-2"
           >
             <span class="text-sm text-n-slate-12">
               {{ $t(`INBOX_MGMT.ADD.ZALO_CHANNEL.CHECKS.${check.key}`) }}
@@ -391,8 +391,8 @@ const finish = () => {
               class="rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
               :class="
                 check.ok
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-slate-100 text-slate-600'
+                  ? 'bg-n-teal-3 text-n-teal-11'
+                  : 'bg-n-alpha-2 text-n-slate-11'
               "
             >
               {{
@@ -417,7 +417,7 @@ const finish = () => {
           :label="$t('INBOX_MGMT.ADD.ZALO_CHANNEL.FINISH_BUTTON')"
           @click="finish"
         />
-        <span v-if="isLive" class="ml-2 text-sm text-green-700">
+        <span v-if="isLive" class="ml-2 text-sm text-n-teal-11">
           {{ $t('INBOX_MGMT.ADD.ZALO_CHANNEL.CHECKS.DONE') }}
         </span>
       </div>
