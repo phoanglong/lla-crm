@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_21_020000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_060000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1201,7 +1201,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_21_020000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "enabled"], name: "idx_lla_ai_providers_tenant_enabled"
     t.index ["account_id", "name"], name: "idx_lla_ai_providers_tenant_name", unique: true
-    t.check_constraint "kind::text = ANY (ARRAY['openai'::character varying, 'anthropic'::character varying, 'gemini'::character varying, 'azure_openai'::character varying, 'openai_compatible'::character varying]::text[])", name: "chk_lla_ai_providers_kind"
+    t.check_constraint "kind::text = ANY (ARRAY['openai'::character varying::text, 'anthropic'::character varying::text, 'gemini'::character varying::text, 'azure_openai'::character varying::text, 'openai_compatible'::character varying::text])", name: "chk_lla_ai_providers_kind"
     t.check_constraint "name::text ~ '^[a-z0-9][a-z0-9_-]{0,63}$'::text", name: "chk_lla_ai_providers_name_format"
   end
 

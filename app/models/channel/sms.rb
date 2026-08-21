@@ -19,6 +19,8 @@ class Channel::Sms < ApplicationRecord
   include Channelable
 
   self.table_name = 'channel_sms'
+  # Khoá của khách ở Bandwidth, kèm mật khẩu Basic mà webhook gọi ngược về dùng để tự xưng.
+  attribute :provider_config, Lla::EncryptedProviderConfig.new(:api_key, :api_secret, :callback_password)
   EDITABLE_ATTRS = [:phone_number, { provider_config: {} }].freeze
 
   validates :phone_number, presence: true, uniqueness: true

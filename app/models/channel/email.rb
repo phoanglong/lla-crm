@@ -41,6 +41,10 @@ class Channel::Email < ApplicationRecord
 
   AUTHORIZATION_ERROR_THRESHOLD = 10
 
+  # Mật khẩu IMAP/SMTP đã được mã hoá ở cột riêng bên dưới, nhưng token OAuth của Gmail và
+  # Outlook thì nằm trong `provider_config` — cũng là quyền truy cập hộp thư của khách.
+  attribute :provider_config, Lla::EncryptedProviderConfig.new(:access_token, :refresh_token)
+
   # TODO: Remove guard once encryption keys become mandatory (target 3-4 releases out).
   if Chatwoot.encryption_configured?
     encrypts :imap_password
