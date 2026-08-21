@@ -32,11 +32,22 @@ class SuperAdmin::ChannelProvidersController < SuperAdmin::ApplicationController
       key: 'instagram',
       name: 'Instagram',
       config_key: 'instagram',
+      platform: 'instagram',
       account_feature: 'channel_instagram',
       channel_class: Channel::Instagram,
       required_configs: %w[INSTAGRAM_APP_ID INSTAGRAM_APP_SECRET INSTAGRAM_VERIFY_TOKEN],
       approval: 'Meta App Review / Instagram Messaging',
       description: 'Có sẵn adapter native; không suy diễn trạng thái kết nối từ cấu hình.'
+    },
+    {
+      key: 'tiktok',
+      name: 'TikTok',
+      config_key: 'tiktok',
+      platform: 'tiktok',
+      channel_class: Channel::Tiktok,
+      required_configs: %w[TIKTOK_APP_ID TIKTOK_APP_SECRET],
+      approval: 'TikTok App Review / Direct Messaging',
+      description: 'Có sẵn kênh native; tenant tự mang app thì webhook đăng ký về URL của chính họ.'
     },
     {
       key: 'whatsapp',

@@ -31,11 +31,13 @@ const label = key =>
 
 const isConfigured = computed(() => Boolean(app.value));
 
+// Không tự nhảy qua bước này khi đã khai: URL webhook và verify token chỉ hiện ở đây, và
+// tenant còn phải dán chúng sang trang quản trị ứng dụng của mình. Nhảy qua nghĩa là họ
+// không còn đường nào để đọc lại hai giá trị ấy.
 onMounted(async () => {
   try {
     const { data } = await PlatformAppsAPI.show(props.platform);
     app.value = data;
-    emit('ready', data);
   } catch {
     // Chưa khai — đó là trạng thái bình thường của lần đầu.
   } finally {
@@ -53,9 +55,12 @@ const save = async () => {
     });
     app.value = data;
     form.value.appSecret = '';
-    emit('ready', data);
   } catch (error) {
-    useAlert(error.response?.data?.error || error.message);
+    useAlert(
+      error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message
+    );
   } finally {
     isSaving.value = false;
   }

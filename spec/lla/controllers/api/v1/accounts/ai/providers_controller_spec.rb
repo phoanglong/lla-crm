@@ -90,6 +90,23 @@ RSpec.describe 'Tenant AI providers API', type: :request do
       end
     end
 
+    # Mô hình của cổng LLM mang sẵn dấu `/` trong tên (`z-ai/glm-5.3`). Nếu danh sách ấy bị từ
+    # chối thì kết nối hiện là "đã kiểm tra" nhưng không có mô hình nào chọn được — nghĩa là
+    # "mang AI của mình" hỏng đúng ở trường hợp phổ biến nhất.
+    it 'keeps gateway model ids that contain a slash, and stores them' do
+      stub_request(:get, 'https://llm.noi-bo.vn/v1/models')
+        .to_return(status: 200, body: { data: [{ id: 'z-ai/glm-5.3' }, { id: 'meta-llama/llama-3.1-70b' }] }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      post "/api/v1/accounts/#{account.id}/ai/providers/noi-bo/verify", headers: administrator.create_new_auth_token
+
+      aggregate_failures do
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['models']).to eq(['z-ai/glm-5.3', 'meta-llama/llama-3.1-70b'])
+        expect(provider.reload.model_names).to eq(['z-ai/glm-5.3', 'meta-llama/llama-3.1-70b'])
+      end
+    end
+
     it 'reports a refused key instead of pretending the connection works' do
       stub_request(:get, 'https://llm.noi-bo.vn/v1/models').to_return(status: 401, body: '{}')
 

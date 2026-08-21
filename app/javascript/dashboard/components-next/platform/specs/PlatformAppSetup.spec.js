@@ -90,12 +90,24 @@ describe('PlatformAppSetup', () => {
     expect(withShared.findAll('button').length).toBe(2);
   });
 
-  it('goes straight to the paste step for a tenant that already registered', async () => {
+  // URL webhook và verify token chỉ xuất hiện ở màn hình này. Nhảy thẳng sang bước sau nghĩa
+  // là tenant đã khai ứng dụng rồi thì không còn đường nào đọc lại hai giá trị họ phải dán
+  // sang trang quản trị ứng dụng của mình.
+  it('shows the webhook url and verify token again to a tenant that already registered', async () => {
     PlatformAppsAPI.show.mockResolvedValue({ data: app });
     const wrapper = mountSetup();
     await flushPromises();
 
-    expect(wrapper.emitted('ready')[0]).toEqual([app]);
+    expect(wrapper.emitted('ready')).toBeUndefined();
     expect(wrapper.findAll('input').length).toBe(0);
+    expect(wrapper.text()).toContain(app.webhook_url);
+    expect(wrapper.text()).toContain(app.verify_token);
+
+    await wrapper
+      .findAll('button')
+      .find(b => b.text() === 'INBOX_MGMT.PLATFORM_APP.CONTINUE_BUTTON')
+      .trigger('click');
+
+    expect(wrapper.emitted('ready')[0]).toEqual([app]);
   });
 });

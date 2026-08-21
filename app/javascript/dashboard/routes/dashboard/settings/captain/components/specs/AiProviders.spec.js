@@ -78,7 +78,9 @@ describe('AiProviders', () => {
     expect(save.attributes('disabled')).toBeDefined();
   });
 
-  it('writes back the models the provider actually reported', async () => {
+  // Danh sách mô hình do máy chủ ghi ngay trong lệnh kiểm tra. Màn hình gọi thêm một lệnh cập
+  // nhật nữa là thừa, và lệnh thừa ấy hỏng thì kết nối hiện "đã kiểm tra" mà không mô hình nào.
+  it('lets the verify call store the models, and reloads the list', async () => {
     AiProvidersAPI.get.mockResolvedValue({
       data: {
         providers: [
@@ -96,9 +98,24 @@ describe('AiProviders', () => {
     AiProvidersAPI.verify.mockResolvedValue({
       data: { ok: true, models: ['llama-3.1-70b'] },
     });
-    AiProvidersAPI.update.mockResolvedValue({ data: {} });
     const wrapper = mountProviders();
     await flushPromises();
+
+    // Sau khi kiểm tra, máy chủ đã có mô hình; màn hình chỉ việc đọc lại.
+    AiProvidersAPI.get.mockResolvedValue({
+      data: {
+        providers: [
+          {
+            name: 'noi-bo',
+            kind: 'openai_compatible',
+            api_base: 'https://x/v1',
+            models: ['llama-3.1-70b'],
+            verified_at: '2026-08-21T00:00:00Z',
+            last_error: null,
+          },
+        ],
+      },
+    });
 
     await wrapper
       .findAll('button')
@@ -107,8 +124,10 @@ describe('AiProviders', () => {
     await flushPromises();
 
     expect(AiProvidersAPI.verify).toHaveBeenCalledWith('noi-bo');
-    expect(AiProvidersAPI.update).toHaveBeenCalledWith('noi-bo', {
-      models: ['llama-3.1-70b'],
-    });
+    expect(AiProvidersAPI.update).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('CAPTAIN_SETTINGS.AI_PROVIDERS.VERIFIED');
+    expect(wrapper.text()).toContain(
+      '1 CAPTAIN_SETTINGS.AI_PROVIDERS.MODELS_SUFFIX'
+    );
   });
 });

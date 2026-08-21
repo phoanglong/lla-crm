@@ -64,7 +64,13 @@ const save = async () => {
     showForm.value = false;
     await load();
   } catch (error) {
-    useAlert(error.response?.data?.error || error.message);
+    // Rails trả lỗi validation dưới khoá `message`; `error` chỉ có ở đường kiểm tra kết nối.
+    // Đọc thiếu một trong hai thì người dùng chỉ thấy "Request failed with status code 422".
+    useAlert(
+      error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message
+    );
   } finally {
     isSaving.value = false;
   }
@@ -74,13 +80,16 @@ const save = async () => {
 const verify = async provider => {
   verifying.value = provider.name;
   try {
-    const { data } = await AiProvidersAPI.verify(provider.name);
-    await AiProvidersAPI.update(provider.name, { models: data.models });
+    await AiProvidersAPI.verify(provider.name);
     await load();
     useAlert(label('VERIFY_OK'));
   } catch (error) {
     await load();
-    useAlert(error.response?.data?.error || label('VERIFY_FAILED'));
+    useAlert(
+      error.response?.data?.error ||
+        error.response?.data?.message ||
+        label('VERIFY_FAILED')
+    );
   } finally {
     verifying.value = '';
   }

@@ -13,7 +13,9 @@ class Lla::Ai::Provider < ApplicationRecord
   # cố định của nhà cung cấp.
   KINDS_REQUIRING_BASE = %w[azure_openai openai_compatible].freeze
   NAME_FORMAT = /\A[a-z0-9][a-z0-9_-]{0,63}\z/
-  MAX_MODELS = 50
+  # Cổng LLM kiểu OpenRouter đã liệt kê hơn hai trăm mô hình; một trần thấp hơn số ấy là một
+  # trần chặn đúng trường hợp phổ biến nhất của "mang AI của mình".
+  MAX_MODELS = 200
 
   belongs_to :account, class_name: '::Account'
 
@@ -63,13 +65,14 @@ class Lla::Ai::Provider < ApplicationRecord
     return errors.add(:models, "cannot list more than #{MAX_MODELS} models") if models.length > MAX_MODELS
     return if models.all? { |model| model_name?(model) }
 
-    errors.add(:models, 'must be non-empty names without a slash')
+    errors.add(:models, 'must be non-empty names')
   end
 
-  # Dấu `/` là ký tự ngăn cách trong `<nhà cung cấp>/<mô hình>`, nên tên mô hình khai ở đây
-  # không được chứa nó.
+  # Tên mô hình được phép chứa dấu `/` (`z-ai/glm-5.3`, `meta-llama/llama-3.1-70b`): trong
+  # `<nhà cung cấp>/<mô hình>` chỉ dấu `/` **đầu tiên** là ký tự ngăn cách, và tên nhà cung cấp
+  # thì đã bị CSDL cấm chứa `/`, nên phần còn lại luôn là tên mô hình nguyên vẹn.
   def model_name?(model)
-    model.is_a?(String) && model.present? && model.exclude?('/')
+    model.is_a?(String) && model.present?
   end
 
   # Endpoint là địa chỉ máy chủ sẽ nhận khoá của khách; chấp nhận một URL không rõ hình thù

@@ -9,7 +9,7 @@ class Lla::Ai::ProviderVerifier
   Result = Struct.new(:ok, :error, :models, keyword_init: true)
 
   TIMEOUT = 10
-  MAX_MODELS_RETURNED = 200
+  MAX_MODELS_RETURNED = Lla::Ai::Provider::MAX_MODELS
   # Đường liệt kê mô hình theo từng giao thức.
   LIST_PATHS = {
     'openai' => '/v1/models',
@@ -32,9 +32,11 @@ class Lla::Ai::ProviderVerifier
     response = HTTParty.get(list_url, headers: headers, timeout: TIMEOUT, follow_redirects: false)
     return failure("HTTP #{response.code}") unless response.code.to_i.between?(200, 299)
 
-    models = extract_models(response)
-    @provider.update!(verified_at: Time.current, last_error: nil)
-    Result.new(ok: true, error: nil, models: models)
+    # Danh sách mô hình được ghi ngay tại đây. Trước đó màn hình phải gọi thêm một lệnh cập
+    # nhật để lưu lại, và lệnh ấy hỏng trong im lặng thì kết nối hiện là "đã kiểm tra" nhưng
+    # không có mô hình nào — đúng trạng thái vô nghĩa nhất.
+    @provider.update!(models: extract_models(response), verified_at: Time.current, last_error: nil)
+    Result.new(ok: true, error: nil, models: @provider.model_names)
   rescue Timeout::Error, Errno::ETIMEDOUT
     failure('timeout')
   rescue SocketError, Errno::ECONNREFUSED, Errno::ECONNRESET, OpenSSL::SSL::SSLError, HTTParty::Error, JSON::ParserError
