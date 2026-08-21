@@ -21,6 +21,7 @@ class SuperAdmin::ChannelProvidersController < SuperAdmin::ApplicationController
       key: 'facebook',
       name: 'Facebook Messenger',
       config_key: 'facebook',
+      platform: 'facebook',
       account_feature: 'channel_facebook',
       channel_class: Channel::FacebookPage,
       required_configs: %w[FB_APP_ID FB_APP_SECRET FB_VERIFY_TOKEN],
@@ -54,12 +55,15 @@ class SuperAdmin::ChannelProvidersController < SuperAdmin::ApplicationController
       configured_count = provider[:required_configs].count { |key| configured?(key) }
       inbox_count = inbox_count_for(provider)
 
+      tenant_app_count = tenant_app_count_for(provider)
+
       provider.merge(
         configured_count: configured_count,
         required_count: provider[:required_configs].length,
         enabled_account_count: enabled_account_count_for(provider),
         inbox_count: inbox_count,
-        status: status_for(provider, configured_count, inbox_count)
+        tenant_app_count: tenant_app_count,
+        status: status_for(provider, configured_count, inbox_count, tenant_app_count)
       )
     end
   end
@@ -91,9 +95,19 @@ class SuperAdmin::ChannelProvidersController < SuperAdmin::ApplicationController
     scope.or(Channel::Api.where(webhook_url: webhook_url)).count
   end
 
-  def status_for(provider, configured_count, inbox_count)
+  # Số tenant đã tự khai ứng dụng nền tảng của mình. Đây là con số làm cho bảng này thôi nói
+  # về bản cài đặt và bắt đầu nói về khách: một kênh có thể chưa cấu hình ở cấp cài đặt mà
+  # vẫn đang chạy, vì tenant mang ứng dụng của chính họ.
+  def tenant_app_count_for(provider)
+    return 0 if provider[:platform].blank?
+
+    Lla::PlatformApp.where(platform: provider[:platform]).count
+  end
+
+  def status_for(provider, configured_count, inbox_count, tenant_app_count = 0)
     return :inbox_present if inbox_count.positive?
     return :configuration_not_required if provider[:required_configs].empty?
+    return :tenant_configured if tenant_app_count.positive?
     return :configured if configured_count == provider[:required_configs].length
 
     :needs_configuration
