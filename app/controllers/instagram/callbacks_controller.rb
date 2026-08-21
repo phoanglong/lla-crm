@@ -173,6 +173,14 @@ class Instagram::CallbacksController < ApplicationController
     @account ||= Account.find(account_id)
   end
 
+  # Ứng dụng dùng để đổi mã uỷ quyền là ứng dụng của tài khoản đọc ra từ `state` — chưa đọc
+  # được `state` thì chưa có tài khoản nào, và cũng chưa có gì để đổi.
+  def instagram_oauth_account
+    return if account_id.blank?
+
+    account
+  end
+
   def provider_name
     'instagram'
   end

@@ -20,4 +20,10 @@ class Api::V1::Accounts::Instagram::AuthorizationsController < Api::V1::Accounts
       render json: { success: false }, status: :unprocessable_entity
     end
   end
+
+  private
+
+  def instagram_oauth_account
+    Current.account
+  end
 end

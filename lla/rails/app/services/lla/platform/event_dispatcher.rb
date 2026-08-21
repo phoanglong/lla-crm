@@ -14,6 +14,7 @@ class Lla::Platform::EventDispatcher
   def call
     case @app.platform
     when 'facebook' then dispatch_facebook
+    when 'instagram' then dispatch_instagram
     end
   end
 
@@ -37,6 +38,18 @@ class Lla::Platform::EventDispatcher
       else
         Webhooks::FacebookEventsJob.perform_later(event, account_id)
       end
+    end
+  end
+
+  # Instagram gửi cả mảng `entry` một lượt và job tự tách; giữ nguyên hình dạng đó.
+  def dispatch_instagram
+    entries = Array(@payload['entry'])
+    return if entries.blank?
+
+    if entries.any? { |entry| Array(entry['messaging']).any? { |m| m.dig('message', 'is_echo') } }
+      Webhooks::InstagramEventsJob.set(wait: 2.seconds).perform_later(entries, account_id)
+    else
+      Webhooks::InstagramEventsJob.perform_later(entries, account_id)
     end
   end
 

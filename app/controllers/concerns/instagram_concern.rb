@@ -17,12 +17,23 @@ module InstagramConcern
 
   private
 
+  # Tenant tự mang ứng dụng Instagram thì mọi bước OAuth phải dùng ứng dụng ấy: mã uỷ quyền
+  # do ứng dụng nào cấp thì chỉ ứng dụng đó đổi được ra token.
+  # `instagram_oauth_account` do lớp con cung cấp — phía tenant là `Current.account`, phía
+  # callback là tài khoản đọc ra từ `state`.
+  def tenant_instagram_app
+    account = respond_to?(:instagram_oauth_account, true) ? instagram_oauth_account : nil
+    return if account.blank?
+
+    account.lla_platform_apps.find_by(platform: 'instagram')
+  end
+
   def client_id
-    GlobalConfigService.load('INSTAGRAM_APP_ID', nil)
+    tenant_instagram_app&.app_id.presence || GlobalConfigService.load('INSTAGRAM_APP_ID', nil)
   end
 
   def client_secret
-    GlobalConfigService.load('INSTAGRAM_APP_SECRET', nil)
+    tenant_instagram_app&.app_secret.presence || GlobalConfigService.load('INSTAGRAM_APP_SECRET', nil)
   end
 
   def exchange_for_long_lived_token(short_lived_token)

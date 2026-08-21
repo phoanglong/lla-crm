@@ -125,4 +125,42 @@ RSpec.describe 'Tenant platform webhooks', type: :request do
       end
     end
   end
+
+  describe 'Instagram trên cùng khuôn webhook' do
+    let(:secret) { 'secret-instagram-cua-tenant' }
+    let(:ig_payload) do
+      { object: 'instagram',
+        entry: [{ id: 'ig-1', messaging: [{ sender: { id: 'u-9' }, recipient: { id: 'ig-1' }, message: { mid: 'm1', text: 'chào' } }] }] }.to_json
+    end
+
+    it 'hands the account down to the events job' do
+      skip_without_encryption
+      app = Lla::PlatformApp.create!(account: account, platform: 'instagram', app_id: 'ig-app', app_secret: secret)
+
+      expect do
+        post "/webhooks/tenant/instagram/#{app.webhook_token}",
+             params: ig_payload,
+             headers: {
+               'CONTENT_TYPE' => 'application/json',
+               'X-Hub-Signature-256' => "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', secret, ig_payload)}"
+             }
+      end.to have_enqueued_job(Webhooks::InstagramEventsJob).with(anything, account.id)
+
+      expect(response).to have_http_status(:success)
+    end
+
+    it 'refuses a signature made with another secret' do
+      skip_without_encryption
+      app = Lla::PlatformApp.create!(account: account, platform: 'instagram', app_id: 'ig-app', app_secret: secret)
+
+      post "/webhooks/tenant/instagram/#{app.webhook_token}",
+           params: ig_payload,
+           headers: {
+             'CONTENT_TYPE' => 'application/json',
+             'X-Hub-Signature-256' => "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', 'secret-khac', ig_payload)}"
+           }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

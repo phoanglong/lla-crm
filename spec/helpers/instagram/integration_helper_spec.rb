@@ -3,6 +3,11 @@ require 'rails_helper'
 RSpec.describe Instagram::IntegrationHelper do
   include described_class
 
+  # `state` nay ký bằng khoá của máy chủ chứ không bằng app secret của Instagram: mỗi tenant
+  # mang ứng dụng riêng thì app secret mỗi nơi một khác, và lúc quay về từ Instagram thì
+  # chưa biết tenant nào để chọn khoá giải mã.
+  let(:signing_key) { Rails.application.key_generator.generate_key('instagram oauth state', 32) }
+
   describe '#generate_instagram_token' do
     let(:account_id) { 1 }
     let(:client_secret) { 'test_secret' }
@@ -15,17 +20,19 @@ RSpec.describe Instagram::IntegrationHelper do
 
     it 'generates a valid JWT token with correct payload' do
       token = generate_instagram_token(account_id)
-      decoded_token = JWT.decode(token, client_secret, true, algorithm: 'HS256').first
+      decoded_token = JWT.decode(token, signing_key, true, algorithm: 'HS256').first
 
       expect(decoded_token['sub']).to eq(account_id)
       expect(decoded_token['iat']).to eq(current_time.to_i)
     end
 
-    context 'when client secret is not configured' do
+    context 'when the Instagram app secret is not configured' do
       let(:client_secret) { nil }
 
-      it 'returns nil' do
-        expect(generate_instagram_token(account_id)).to be_nil
+      # Không còn phụ thuộc app secret nữa: một tenant tự mang ứng dụng vẫn phải qua được
+      # vòng OAuth kể cả khi bản cài đặt chưa khai ứng dụng nào.
+      it 'still signs the state' do
+        expect(generate_instagram_token(account_id)).to be_present
       end
     end
 
@@ -62,7 +69,7 @@ RSpec.describe Instagram::IntegrationHelper do
     let(:account_id) { 1 }
     let(:client_secret) { 'test_secret' }
     let(:valid_token) do
-      JWT.encode({ sub: account_id, iat: Time.current.to_i }, client_secret, 'HS256')
+      JWT.encode({ sub: account_id, iat: Time.current.to_i }, signing_key, 'HS256')
     end
 
     before do
@@ -80,9 +87,8 @@ RSpec.describe Instagram::IntegrationHelper do
       end
     end
 
-    context 'when client secret is not configured' do
-      let(:client_secret) { nil }
-      let(:valid_token) { 'any-token' }
+    context 'when the token was signed with something else' do
+      let(:valid_token) { JWT.encode({ sub: account_id }, 'khoa-khac', 'HS256') }
 
       it 'returns nil' do
         expect(verify_instagram_token(valid_token)).to be_nil
