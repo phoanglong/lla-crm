@@ -11,9 +11,9 @@
 //
 // ENV bắt buộc: ZALO_APP_ID, ZALO_APP_SECRET, CHATWOOT_URL, CHATWOOT_API_TOKEN,
 //               CHATWOOT_ACCOUNT_ID, CHATWOOT_INBOX_ID, BRIDGE_PUBLIC_URL,
-//               CHATWOOT_WEBHOOK_SECRET (= `secret` của inbox API; xem Cài đặt hộp thư)
+//               CHATWOOT_WEBHOOK_SECRET (= `secret` của inbox API trong LLA CRM)
 // ENV tuỳ chọn: PORT (8787), DATA_DIR (/data), ZALO_VERIFY_SIGNATURE (true),
-//               ZALO_HTTP_PROXY, CHATWOOT_VERIFY_SIGNATURE (true, chỉ tắt khi chạy local)
+//               ZALO_HTTP_PROXY
 
 import { createServer } from "node:http";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
@@ -286,6 +286,95 @@ async function handleChatwootEvent(payload) {
   else log("zalo.send.ok", { convId, sendId });
 }
 
+// ---------- v2: multi-connection (SaaS self-service onboarding) ----------
+const ADMIN_TOKEN = ENV("BRIDGE_ADMIN_TOKEN");
+function connOf(id) { return (state.connections || {})[id] || null; }
+function saveConn(id, patch) {
+  state.connections = state.connections || {};
+  state.connections[id] = { ...(state.connections[id] || {}), ...patch };
+  saveState();
+  return state.connections[id];
+}
+function randToken(n = 24) {
+  const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let r = ""; for (let i = 0; i < n; i++) r += abc[Math.floor(Math.random() * abc.length)];
+  return r;
+}
+async function connZaloFetch(conn, path, { method = "GET", body, headers = {} } = {}) {
+  const doFetch = (useProxy) => fetch("https://openapi.zalo.me" + path, {
+    method,
+    headers: { "Content-Type": "application/json", access_token: conn.tokens?.access || "", ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(useProxy && zaloDispatcher ? { dispatcher: zaloDispatcher } : {}),
+  }).then((r) => r.json());
+  let mode = conn.egress || "auto";
+  if (mode === "proxy") return doFetch(true);
+  const direct = await doFetch(false).catch(() => null);
+  if (direct && direct.error === -501 && zaloDispatcher) {
+    saveConn(conn.id, { egress: "proxy" });
+    log("conn.egress.switch", { conn: conn.id, to: "proxy" });
+    return doFetch(true);
+  }
+  if (mode === "auto" && direct && direct.error !== -501) saveConn(conn.id, { egress: "direct" });
+  return direct;
+}
+async function connExchangeToken(conn, params) {
+  const doPost = (useProxy) => fetch("https://oauth.zaloapp.com/v4/oa/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", secret_key: conn.appSecret },
+    body: new URLSearchParams({ app_id: conn.appId, ...params }).toString(),
+    ...(useProxy && zaloDispatcher ? { dispatcher: zaloDispatcher } : {}),
+  }).then((r) => r.json());
+  let data = await doPost(conn.egress === "proxy").catch(() => null);
+  if ((!data || data.error) && zaloDispatcher && conn.egress !== "proxy") {
+    data = await doPost(true);
+    if (data && !data.error) saveConn(conn.id, { egress: "proxy" });
+  }
+  if (!data || data.error || !data.access_token) throw new Error("oauth_exchange_failed " + JSON.stringify(data || {}));
+  saveConn(conn.id, { tokens: { access: data.access_token, refresh: data.refresh_token, expiresAt: Date.now() + (Number(data.expires_in || 3600) - 300) * 1000 } });
+  return true;
+}
+function connPublicView(conn) {
+  return {
+    id: conn.id, name: conn.name, app_id: conn.appId,
+    webhook_url: `${PUBLIC_URL}/webhook/zalo/c/${conn.id}/${conn.webhookToken}`,
+    oauth_callback_url: `${PUBLIC_URL}/oauth/callback`,
+    oauth_url: `${PUBLIC_URL}/oauth/start?conn=${conn.id}`,
+    status: {
+      authorized: Boolean(conn.tokens?.access),
+      webhook_received: Boolean(conn.lastEventAt),
+      last_event_at: conn.lastEventAt || null,
+      egress: conn.egress || "auto",
+      oa: conn.oa || null,
+    },
+  };
+}
+async function handleConnApi(req, url, send, readBodyFn) {
+  if (!ADMIN_TOKEN) return send(503, JSON.stringify({ error: "admin_token_not_configured" }));
+  if ((req.headers["x-bridge-admin-token"] || "") !== ADMIN_TOKEN) return send(401, JSON.stringify({ error: "unauthorized" }));
+  if (url.pathname === "/api/connections" && req.method === "POST") {
+    const b = JSON.parse((await readBodyFn(req)) || "{}");
+    const appId = String(b.app_id || "").trim();
+    const appSecret = String(b.app_secret || "").trim();
+    if (!/^[0-9]{5,25}$/.test(appId) || appSecret.length < 8) return send(422, JSON.stringify({ error: "invalid_app_credentials" }));
+    const id = randToken(10);
+    const conn = saveConn(id, { id, name: String(b.name || "Zalo OA").slice(0, 80), appId, appSecret, webhookToken: randToken(28), egress: "auto", createdAt: Date.now() });
+    log("conn.created", { conn: id, app: appId });
+    return send(201, JSON.stringify(connPublicView(conn)));
+  }
+  const m = url.pathname.match(/^\/api\/connections\/([a-z0-9]+)$/);
+  if (m && req.method === "GET") {
+    const conn = connOf(m[1]);
+    if (!conn) return send(404, JSON.stringify({ error: "not_found" }));
+    if (conn.tokens?.access && !conn.oa) {
+      const info = await connZaloFetch(conn, "/v2.0/oa/getoa").catch(() => null);
+      if (info && info.error === 0 && info.data) saveConn(conn.id, { oa: { id: String(info.data.oa_id || ""), name: info.data.name || "" } });
+    }
+    return send(200, JSON.stringify(connPublicView(connOf(m[1]))));
+  }
+  return send(404, JSON.stringify({ error: "unknown_api" }));
+}
+
 // ---------- HTTP server ----------
 function readBody(req) {
   return new Promise((resolve) => {
@@ -308,15 +397,39 @@ const server = createServer(async (req, res) => {
       }));
     }
     if (url.pathname === "/oauth/start") {
-      const target = `https://oauth.zaloapp.com/v4/oa/permission?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(PUBLIC_URL + "/oauth/callback")}&state=llacrm`;
+      const cid = url.searchParams.get("conn");
+      const appId = cid && connOf(cid) ? connOf(cid).appId : APP_ID;
+      const st = cid ? `conn:${cid}` : "llacrm";
+      const target = `https://oauth.zaloapp.com/v4/oa/permission?app_id=${appId}&redirect_uri=${encodeURIComponent(PUBLIC_URL + "/oauth/callback")}&state=${encodeURIComponent(st)}`;
       res.writeHead(302, { Location: target }); return res.end();
     }
     if (url.pathname === "/oauth/callback") {
       const code = url.searchParams.get("code");
       if (!code) return send(400, "Thiếu code", "text/plain");
+      const st = url.searchParams.get("state") || "";
+      if (st.startsWith("conn:")) {
+        const conn = connOf(st.slice(5));
+        if (!conn) return send(404, "Connection không tồn tại", "text/plain");
+        await connExchangeToken(conn, { grant_type: "authorization_code", code });
+        log("conn.oauth.ok", { conn: conn.id });
+        return send(200, "<h2>✅ Đã uỷ quyền OA cho kết nối riêng. Quay lại phần mềm để tiếp tục.</h2>", "text/html");
+      }
       await exchangeToken({ grant_type: "authorization_code", code });
       log("oauth.ok", {});
       return send(200, "<h2>✅ Đã uỷ quyền Zalo OA cho LLA CRM. Bạn có thể đóng tab này.</h2>", "text/html");
+    }
+    if (url.pathname.startsWith("/api/connections")) {
+      return await handleConnApi(req, url, send, readBody);
+    }
+    if (url.pathname.startsWith("/webhook/zalo/c/") && req.method === "POST") {
+      const raw = await readBody(req);
+      send(200, JSON.stringify({ ok: true }));
+      const mm = url.pathname.match(/^\/webhook\/zalo\/c\/([a-z0-9]+)\/([a-z0-9]+)$/);
+      const conn = mm && connOf(mm[1]);
+      if (!conn || conn.webhookToken !== mm[2]) { log("conn.webhook.bad", {}); return; }
+      saveConn(conn.id, { lastEventAt: Date.now() });
+      log("conn.webhook.received", { conn: conn.id, name: (JSON.parse(raw || "{}").event_name) || "" });
+      return;
     }
     if (url.pathname.startsWith("/webhook/zalo") && req.method === "POST") {
       const raw = await readBody(req);
