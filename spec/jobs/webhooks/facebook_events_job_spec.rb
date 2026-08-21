@@ -25,14 +25,14 @@ RSpec.describe Webhooks::FacebookEventsJob do
 
     before do
       allow(Integrations::Facebook::MessageParser).to receive(:new).and_return(parsed_response)
-      allow(Integrations::Facebook::MessageCreator).to receive(:new).with(parsed_response).and_return(message_creator)
+      allow(Integrations::Facebook::MessageCreator).to receive(:new).with(parsed_response, account_id: nil).and_return(message_creator)
       allow(message_creator).to receive(:perform)
     end
 
     # ensures that the response is built
     it 'invokes the message parser and creator' do
       expect(Integrations::Facebook::MessageParser).to receive(:new).with(params)
-      expect(Integrations::Facebook::MessageCreator).to receive(:new).with(parsed_response)
+      expect(Integrations::Facebook::MessageCreator).to receive(:new).with(parsed_response, account_id: nil)
       expect(message_creator).to receive(:perform)
 
       described_class.perform_now(params)
@@ -41,11 +41,11 @@ RSpec.describe Webhooks::FacebookEventsJob do
     # this test ensures that the process message function is indeed called
     it 'attempts to acquire a lock and then processes the message' do
       job_instance = described_class.new
-      allow(job_instance).to receive(:process_message).with(parsed_response)
+      allow(job_instance).to receive(:process_message).with(parsed_response, nil)
 
       job_instance.perform(params)
 
-      expect(job_instance).to have_received(:process_message).with(parsed_response)
+      expect(job_instance).to have_received(:process_message).with(parsed_response, nil)
     end
   end
 end

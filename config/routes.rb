@@ -105,6 +105,7 @@ Rails.application.routes.draw do
             end
           end
           resource :saml_settings, only: [:show, :create, :update, :destroy]
+          resources :platform_apps, only: [:index, :show, :create, :update, :destroy], param: :platform
           namespace :zalo do
             resources :connections, only: [:create, :show] do
               get :domain_check, on: :collection
@@ -650,6 +651,11 @@ Rails.application.routes.draw do
 
   # ----------------------------------------------------------------------
   # Routes for channel integrations
+  # Webhook riêng của từng tenant. Token trong đường dẫn chỉ ra đúng một `Lla::PlatformApp`,
+  # nên verify token và app secret dùng để kiểm là của chính tenant đó. Đường `/bot` phía dưới
+  # giữ nguyên cho các tenant còn dùng ứng dụng của LLA.
+  get 'webhooks/tenant/:platform/:webhook_token', to: 'webhooks/tenant#verify'
+  post 'webhooks/tenant/:platform/:webhook_token', to: 'webhooks/tenant#events'
   mount Facebook::Messenger::Server, at: 'bot'
   get 'webhooks/twitter', to: 'api/v1/webhooks#twitter_crc'
   post 'webhooks/twitter', to: 'api/v1/webhooks#twitter_events'

@@ -24,6 +24,7 @@ module Lla::Account
     has_many :lla_knowledge_generation_operations,
              class_name: 'Lla::Knowledge::GenerationOperation', dependent: :delete_all
     has_many :calls, dependent: :destroy_async
+    has_many :lla_platform_apps, class_name: 'Lla::PlatformApp', dependent: :destroy_async
 
     # Every custom-domain table cascades with `accounts`, and portals are destroyed
     # asynchronously *after* the account row is gone, so a plain delete drops queued

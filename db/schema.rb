@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_010000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1517,6 +1517,28 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
     t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'claimed'::text, 'delivered'::text, 'failed'::text, 'cancelled'::text])", name: "chk_lla_knowledge_outboxes_state"
   end
 
+  create_table "lla_platform_apps", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "platform", limit: 32, null: false
+    t.string "app_id", limit: 128, null: false
+    t.text "app_secret"
+    t.string "verify_token", limit: 128
+    t.string "webhook_token", limit: 64, null: false
+    t.jsonb "config", default: {}, null: false
+    t.string "status", limit: 32, default: "pending", null: false
+    t.datetime "verified_at"
+    t.datetime "last_event_at"
+    t.string "last_error", limit: 512
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "platform"], name: "idx_lla_platform_apps_tenant_platform", unique: true
+    t.index ["platform", "app_id"], name: "idx_lla_platform_apps_platform_app"
+    t.index ["webhook_token"], name: "idx_lla_platform_apps_webhook_token", unique: true
+    t.check_constraint "char_length(webhook_token::text) >= 24", name: "chk_lla_platform_apps_webhook_token_length"
+    t.check_constraint "platform::text = ANY (ARRAY['facebook'::character varying, 'instagram'::character varying, 'whatsapp'::character varying, 'tiktok'::character varying]::text[])", name: "chk_lla_platform_apps_platform"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'active'::character varying, 'disabled'::character varying, 'error'::character varying]::text[])", name: "chk_lla_platform_apps_status"
+  end
+
   create_table "lla_voice_recording_consents", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "inbox_id", null: false
@@ -1980,6 +2002,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_180000) do
   add_foreign_key "lla_knowledge_generation_operations", "accounts", on_delete: :cascade
   add_foreign_key "lla_knowledge_generation_operations", "portals", column: ["account_id", "portal_id"], primary_key: ["account_id", "id"], name: "fk_lla_knowledge_operations_portal_tenant", on_delete: :cascade
   add_foreign_key "lla_knowledge_generation_outboxes", "lla_knowledge_generation_operations", column: ["account_id", "portal_id", "generation_operation_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_knowledge_outboxes_operation_tenant", on_delete: :cascade
+  add_foreign_key "lla_platform_apps", "accounts", on_delete: :cascade
   add_foreign_key "lla_voice_recording_consents", "accounts", on_delete: :cascade
   add_foreign_key "lla_voice_recording_consents", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_call_tenant", on_delete: :cascade
   add_foreign_key "lla_voice_recording_consents", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_inbox_tenant", on_delete: :cascade
