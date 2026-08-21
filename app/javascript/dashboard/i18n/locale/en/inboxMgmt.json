@@ -324,6 +324,11 @@
         },
         "API": {
           "ERROR_MESSAGE": "We were not able to save the WhatsApp channel"
+        },
+        "APP_SECRET": {
+          "LABEL": "App Secret (optional)",
+          "PLACEHOLDER": "App Secret of your Meta app",
+          "SUBTITLE": "Fill this in to have inbound messages verified against your own Meta app's signature instead of the platform's. Leave it blank to keep using the platform app."
         }
       },
       "VOICE": {

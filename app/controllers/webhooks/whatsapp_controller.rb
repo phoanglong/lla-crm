@@ -31,11 +31,14 @@ class Webhooks::WhatsappController < ActionController::API
     token == whatsapp_webhook_verify_token if whatsapp_webhook_verify_token.present?
   end
 
+  # Kênh mang app secret của chính tenant thì **chỉ** chữ ký của app đó được chấp nhận. Nếu
+  # vẫn nhận thêm secret của bản cài đặt thì một tenant tự mang app vẫn tin vào chữ ký do
+  # ứng dụng của LLA ký — đúng cái ranh giới mà việc tự mang app dựng lên.
   def meta_app_secrets
-    [
-      *channel_meta_app_secrets(whatsapp_channel),
-      GlobalConfigService.load('WHATSAPP_APP_SECRET', nil)
-    ]
+    channel_secrets = channel_meta_app_secrets(whatsapp_channel)
+    return channel_secrets if channel_secrets.present?
+
+    [GlobalConfigService.load('WHATSAPP_APP_SECRET', nil)]
   end
 
   def whatsapp_channel

@@ -29,6 +29,7 @@ export default {
       apiKey: '',
       phoneNumberId: '',
       businessAccountId: '',
+      appSecret: '',
     };
   },
   computed: {
@@ -61,6 +62,11 @@ export default {
                 api_key: this.apiKey,
                 phone_number_id: this.phoneNumberId,
                 business_account_id: this.businessAccountId,
+                // Không bắt buộc, nhưng khai vào thì tin đến được kiểm chữ ký bằng app của
+                // chính tenant thay vì tin vào app của LLA.
+                ...(this.appSecret.trim()
+                  ? { app_secret: this.appSecret.trim() }
+                  : {}),
               },
             },
           }
@@ -176,6 +182,21 @@ export default {
           {{ $t('INBOX_MGMT.ADD.WHATSAPP.API_KEY.ERROR') }}
         </span>
       </label>
+    </div>
+
+    <div class="flex-shrink-0 flex-grow-0">
+      <label>
+        {{ $t('INBOX_MGMT.ADD.WHATSAPP.APP_SECRET.LABEL') }}
+        <input
+          v-model="appSecret"
+          type="password"
+          autocomplete="off"
+          :placeholder="$t('INBOX_MGMT.ADD.WHATSAPP.APP_SECRET.PLACEHOLDER')"
+        />
+      </label>
+      <p class="help-text">
+        {{ $t('INBOX_MGMT.ADD.WHATSAPP.APP_SECRET.SUBTITLE') }}
+      </p>
     </div>
 
     <div class="w-full mt-4">

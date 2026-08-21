@@ -326,6 +326,11 @@
         },
         "API": {
           "ERROR_MESSAGE": "Chúng tôi không thể lưu kênh WhatsApp"
+        },
+        "APP_SECRET": {
+          "LABEL": "App Secret (không bắt buộc)",
+          "PLACEHOLDER": "App Secret của ứng dụng Meta của bạn",
+          "SUBTITLE": "Khai vào để tin đến được kiểm chữ ký bằng ứng dụng Meta của chính bạn thay vì ứng dụng của nền tảng. Bỏ trống thì vẫn dùng ứng dụng của nền tảng."
         }
       },
       "VOICE": {
