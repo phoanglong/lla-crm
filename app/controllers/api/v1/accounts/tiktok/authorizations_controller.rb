@@ -3,7 +3,8 @@ class Api::V1::Accounts::Tiktok::AuthorizationsController < Api::V1::Accounts::O
 
   def create
     redirect_url = Tiktok::AuthClient.authorize_url(
-      state: generate_tiktok_token(Current.account.id, params[:return_to])
+      state: generate_tiktok_token(Current.account.id, params[:return_to]),
+      account: Current.account
     )
 
     if redirect_url

@@ -5,8 +5,11 @@ class Webhooks::TiktokEventsJob < MutexApplicationJob
 
   SUPPORTED_EVENTS = [:im_send_msg, :im_receive_msg, :im_mark_read_msg].freeze
 
-  def perform(event)
+  # `account_id` chỉ có khi sự kiện tới qua webhook riêng của tenant; khi có, kênh được tìm
+  # trong đúng tài khoản đó.
+  def perform(event, account_id = nil)
     @event = event.with_indifferent_access
+    @account_id = account_id
 
     return if channel_is_inactive?
 
@@ -48,7 +51,11 @@ class Webhooks::TiktokEventsJob < MutexApplicationJob
   end
 
   def channel
-    @channel ||= Channel::Tiktok.find_by(business_id: business_id)
+    @channel ||= if @account_id.present?
+                   Channel::Tiktok.find_by(business_id: business_id, account_id: @account_id)
+                 else
+                   Channel::Tiktok.find_by(business_id: business_id)
+                 end
   end
 
   # Receive real-time notifications if you send a message to a user.

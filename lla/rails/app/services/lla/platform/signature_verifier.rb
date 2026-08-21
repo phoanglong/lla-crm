@@ -8,9 +8,10 @@
 class Lla::Platform::SignatureVerifier
   META_HEADER = 'X-Hub-Signature-256'
   META_PREFIX = 'sha256='
-  TIKTOK_HEADER = 'X-Tiktok-Signature'
-  # Chữ ký TikTok ký kèm dấu thời gian; quá cửa sổ này thì một yêu cầu bắt được vẫn phát lại được.
-  TIKTOK_MAX_SKEW = 5.minutes
+  TIKTOK_HEADER = 'Tiktok-Signature'
+  # Cùng cửa sổ 5 giây mà endpoint TikTok sẵn có đang dùng; quá đó thì một yêu cầu bắt được
+  # vẫn phát lại được.
+  TIKTOK_MAX_SKEW = 5
 
   def initialize(platform_app, request)
     @app = platform_app
@@ -47,7 +48,7 @@ class Lla::Platform::SignatureVerifier
     timestamp = parts['t'].to_s
     signature = parts['s'].to_s
     return false if timestamp.blank? || signature.blank?
-    return false if (Time.now.to_i - timestamp.to_i).abs > TIKTOK_MAX_SKEW.to_i
+    return false if (Time.current.to_i - timestamp.to_i).abs > TIKTOK_MAX_SKEW
 
     expected = OpenSSL::HMAC.hexdigest('SHA256', secret, "#{timestamp}.#{body}")
     ActiveSupport::SecurityUtils.secure_compare(expected, signature)

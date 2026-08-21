@@ -3,11 +3,9 @@ module Tiktok::IntegrationHelper
   #
   # @param account_id [Integer] The account ID to encode in the token
   # @param return_to [String, nil] Optional onboarding return hint
-  # @return [String, nil] The encoded JWT token or nil if client secret is missing
+  # @return [String, nil] The encoded JWT token, or nil if it could not be signed
   def generate_tiktok_token(account_id, return_to = nil)
-    return if client_secret.blank?
-
-    JWT.encode(token_payload(account_id, return_to), client_secret, 'HS256')
+    JWT.encode(token_payload(account_id, return_to), state_signing_key, 'HS256')
   rescue StandardError => e
     Rails.logger.error("Failed to generate TikTok token: #{e.message}")
     nil
@@ -18,22 +16,24 @@ module Tiktok::IntegrationHelper
   # @param token [String] The JWT token to verify
   # @return [Integer, nil] The account ID from the token or nil if invalid
   def verify_tiktok_token(token)
-    return if token.blank? || client_secret.blank?
+    return if token.blank?
 
-    decode_token(token, client_secret)&.dig('sub')
+    decode_token(token, state_signing_key)&.dig('sub')
   end
 
   # Reads the onboarding return hint from a Tiktok JWT token, if present.
   def tiktok_token_return_to(token)
-    return if token.blank? || client_secret.blank?
+    return if token.blank?
 
-    decode_token(token, client_secret)&.dig('return_to')
+    decode_token(token, state_signing_key)&.dig('return_to')
   end
 
   private
 
-  def client_secret
-    @client_secret ||= GlobalConfigService.load('TIKTOK_APP_SECRET', nil)
+  # Ký `state` bằng khoá của máy chủ: mỗi tenant mang ứng dụng riêng là một app secret khác
+  # nhau, mà lúc TikTok quay về thì chưa biết tenant nào để chọn khoá giải mã.
+  def state_signing_key
+    Rails.application.key_generator.generate_key('tiktok oauth state', 32)
   end
 
   def token_payload(account_id, return_to = nil)

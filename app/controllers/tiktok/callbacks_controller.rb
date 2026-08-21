@@ -148,7 +148,7 @@ class Tiktok::CallbacksController < ApplicationController
   end
 
   def short_term_access_token
-    @short_term_access_token ||= Tiktok::AuthClient.obtain_short_term_access_token(params[:code])
+    @short_term_access_token ||= Tiktok::AuthClient.obtain_short_term_access_token(params[:code], account: account)
   end
 
   def tiktok_client

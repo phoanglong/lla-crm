@@ -56,7 +56,7 @@ RSpec.describe Lla::PlatformApp do
 
   it 'refuses a platform that has no wired dispatch path' do
     skip_without_encryption
-    app = described_class.new(account: account, platform: 'tiktok', app_id: '123', app_secret: 's')
+    app = described_class.new(account: account, platform: 'whatsapp', app_id: '123', app_secret: 's')
 
     expect(app).not_to be_valid
   end

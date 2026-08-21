@@ -15,6 +15,7 @@ class Lla::Platform::EventDispatcher
     case @app.platform
     when 'facebook' then dispatch_facebook
     when 'instagram' then dispatch_instagram
+    when 'tiktok' then dispatch_tiktok
     end
   end
 
@@ -50,6 +51,15 @@ class Lla::Platform::EventDispatcher
       Webhooks::InstagramEventsJob.set(wait: 2.seconds).perform_later(entries, account_id)
     else
       Webhooks::InstagramEventsJob.perform_later(entries, account_id)
+    end
+  end
+
+  # TikTok gửi từng sự kiện một; `im_send_msg` là bản vọng của chính mình.
+  def dispatch_tiktok
+    if @payload['event'] == 'im_send_msg'
+      Webhooks::TiktokEventsJob.set(wait: 2.seconds).perform_later(@payload, account_id)
+    else
+      Webhooks::TiktokEventsJob.perform_later(@payload, account_id)
     end
   end
 

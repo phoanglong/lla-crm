@@ -163,4 +163,46 @@ RSpec.describe 'Tenant platform webhooks', type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
   end
+
+  describe 'TikTok trên cùng khuôn webhook' do
+    let(:tiktok_secret) { 'secret-tiktok-cua-tenant' }
+    let(:tiktok_payload) { { event: 'im_receive_msg', user_openid: 'biz-1', content: '{}' }.to_json }
+
+    def post_tiktok(app, secret, timestamp: Time.current.to_i)
+      post "/webhooks/tenant/tiktok/#{app.webhook_token}",
+           params: tiktok_payload,
+           headers: {
+             'CONTENT_TYPE' => 'application/json',
+             'Tiktok-Signature' => "t=#{timestamp},s=#{OpenSSL::HMAC.hexdigest('SHA256', secret, "#{timestamp}.#{tiktok_payload}")}"
+           }
+    end
+
+    it 'hands the account down to the events job' do
+      skip_without_encryption
+      app = Lla::PlatformApp.create!(account: account, platform: 'tiktok', app_id: 'tt-app', app_secret: tiktok_secret)
+
+      expect { post_tiktok(app, tiktok_secret) }
+        .to have_enqueued_job(Webhooks::TiktokEventsJob).with(anything, account.id)
+
+      expect(response).to have_http_status(:success)
+    end
+
+    it 'refuses a replayed signature' do
+      skip_without_encryption
+      app = Lla::PlatformApp.create!(account: account, platform: 'tiktok', app_id: 'tt-app', app_secret: tiktok_secret)
+
+      post_tiktok(app, tiktok_secret, timestamp: 1.hour.ago.to_i)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'refuses a signature made with another secret' do
+      skip_without_encryption
+      app = Lla::PlatformApp.create!(account: account, platform: 'tiktok', app_id: 'tt-app', app_secret: tiktok_secret)
+
+      post_tiktok(app, 'secret-khac')
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

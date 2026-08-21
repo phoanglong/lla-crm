@@ -10,7 +10,7 @@ class Lla::PlatformApp < ApplicationRecord
 
   # Danh sách mở dần theo từng nền tảng được đấu dây thật. Khai một nền tảng chưa có đường
   # xử lý thì tenant sẽ có một URL webhook nuốt tin trong im lặng — thà không cho tạo.
-  PLATFORMS = %w[facebook instagram].freeze
+  PLATFORMS = %w[facebook instagram tiktok].freeze
   STATUSES = %w[pending active disabled error].freeze
   WEBHOOK_TOKEN_BYTES = 24
 

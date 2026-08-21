@@ -40,8 +40,12 @@ RSpec.describe 'TikTok Callbacks', type: :request do
     }.to_json
   end
 
+  # `state` nay ký bằng khoá của máy chủ, không bằng app secret của TikTok: mỗi tenant mang
+  # ứng dụng riêng thì app secret mỗi nơi một khác, mà lúc TikTok quay về thì chưa biết
+  # tenant nào để chọn khoá giải mã.
   let(:state) do
-    JWT.encode({ sub: account.id, iat: Time.current.to_i }, client_secret, 'HS256')
+    JWT.encode({ sub: account.id, iat: Time.current.to_i },
+               Rails.application.key_generator.generate_key('tiktok oauth state', 32), 'HS256')
   end
 
   before do
