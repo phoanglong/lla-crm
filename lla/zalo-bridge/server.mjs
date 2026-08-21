@@ -10,12 +10,13 @@
 // để định tuyến riêng openapi.zalo.me / oauth.zaloapp.com qua proxy VN.
 //
 // ENV bắt buộc: ZALO_APP_ID, ZALO_APP_SECRET, CHATWOOT_URL, CHATWOOT_API_TOKEN,
-//               CHATWOOT_ACCOUNT_ID, CHATWOOT_INBOX_ID, BRIDGE_PUBLIC_URL
+//               CHATWOOT_ACCOUNT_ID, CHATWOOT_INBOX_ID, BRIDGE_PUBLIC_URL,
+//               CHATWOOT_WEBHOOK_SECRET (= `secret` của inbox API; xem Cài đặt hộp thư)
 // ENV tuỳ chọn: PORT (8787), DATA_DIR (/data), ZALO_VERIFY_SIGNATURE (true),
-//               ZALO_HTTP_PROXY
+//               ZALO_HTTP_PROXY, CHATWOOT_VERIFY_SIGNATURE (true, chỉ tắt khi chạy local)
 
 import { createServer } from "node:http";
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -30,6 +31,11 @@ const CW_ACCOUNT = ENV("CHATWOOT_ACCOUNT_ID");
 const CW_INBOX = ENV("CHATWOOT_INBOX_ID");
 const PUBLIC_URL = ENV("BRIDGE_PUBLIC_URL").replace(/\/$/, "");
 const VERIFY_SIG = ENV("ZALO_VERIFY_SIGNATURE", "true") !== "false";
+const CW_SECRET = ENV("CHATWOOT_WEBHOOK_SECRET");
+const VERIFY_CW_SIG = ENV("CHATWOOT_VERIFY_SIGNATURE", "true") !== "false";
+// Cửa sổ chấp nhận lệch giờ của webhook LLA CRM. Chữ ký ký cả timestamp, nên
+// giới hạn này là thứ duy nhất ngăn phát lại một yêu cầu đã bắt được.
+const CW_SIG_MAX_SKEW_MS = 5 * 60 * 1000;
 const ZALO_PROXY = ENV("ZALO_HTTP_PROXY");
 
 // Khi ZALO_HTTP_PROXY được đặt, các fetch tới Zalo đi qua proxy VN đó.
@@ -193,6 +199,14 @@ async function pushIncoming(uid, text, profile) {
 }
 
 // ---------- Zalo webhook ----------
+// So sánh hai chuỗi hex trong thời gian không phụ thuộc nội dung. `===` trả lời
+// sớm ngay ký tự đầu khác nhau, đủ để dò dần từng byte của một chữ ký hợp lệ.
+function safeEqualHex(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
+}
 function verifyZaloSignature(rawBody, headers) {
   if (!VERIFY_SIG) return true;
   const sig = (headers["x-zevent-signature"] || "").replace(/^mac=/, "");
@@ -200,7 +214,23 @@ function verifyZaloSignature(rawBody, headers) {
   let ts = "";
   try { ts = String(JSON.parse(rawBody).timestamp ?? ""); } catch { return false; }
   const mac = createHash("sha256").update(APP_ID + rawBody + ts + APP_SECRET).digest("hex");
-  return mac === sig;
+  return safeEqualHex(mac, sig);
+}
+
+// LLA CRM ký mọi webhook của inbox API bằng `secret` của inbox đó:
+//   X-Chatwoot-Signature: sha256=HMAC_SHA256(secret, "<timestamp>.<body>")
+// Không kiểm tra chữ ký thì /webhook/chatwoot là một cửa gửi tin mở: bất kỳ ai
+// đoán được id hội thoại đều nhắn được cho khách qua OA của tenant.
+function verifyChatwootSignature(rawBody, headers, now = Date.now()) {
+  if (!VERIFY_CW_SIG) return { ok: true };
+  if (!CW_SECRET) return { ok: false, reason: "missing_secret_config" };
+  const sig = String(headers["x-chatwoot-signature"] || "").replace(/^sha256=/, "");
+  const ts = String(headers["x-chatwoot-timestamp"] || "");
+  if (!sig || !ts) return { ok: false, reason: "missing_signature" };
+  const skew = Math.abs(now - Number(ts) * 1000);
+  if (!Number.isFinite(skew) || skew > CW_SIG_MAX_SKEW_MS) return { ok: false, reason: "stale_timestamp" };
+  const mac = createHmac("sha256", CW_SECRET).update(`${ts}.${rawBody}`).digest("hex");
+  return safeEqualHex(mac, sig) ? { ok: true } : { ok: false, reason: "bad_signature" };
 }
 function extractZaloText(ev) {
   const m = ev?.message;
@@ -269,7 +299,13 @@ const server = createServer(async (req, res) => {
   };
   try {
     if (url.pathname === "/healthz") {
-      return send(200, JSON.stringify({ status: "ok", oa_uy_quyen: Boolean(state.tokens), proxy: Boolean(zaloDispatcher) }));
+      return send(200, JSON.stringify({
+        status: "ok",
+        oa_uy_quyen: Boolean(state.tokens),
+        proxy: Boolean(zaloDispatcher),
+        chu_ky_zalo: VERIFY_SIG,
+        chu_ky_crm: VERIFY_CW_SIG && Boolean(CW_SECRET),
+      }));
     }
     if (url.pathname === "/oauth/start") {
       const target = `https://oauth.zaloapp.com/v4/oa/permission?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(PUBLIC_URL + "/oauth/callback")}&state=llacrm`;
@@ -305,6 +341,11 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/webhook/chatwoot" && req.method === "POST") {
       const raw = await readBody(req);
+      const verdict = verifyChatwootSignature(raw, req.headers);
+      if (!verdict.ok) {
+        log("cw.sig.reject", { reason: verdict.reason });
+        return send(401, JSON.stringify({ ok: false, error: verdict.reason }));
+      }
       send(200, JSON.stringify({ ok: true }));
       handleChatwootEvent(JSON.parse(raw)).catch((e) => log("cw.handle.fail", { error: String(e) }));
       return;
@@ -319,6 +360,16 @@ const server = createServer(async (req, res) => {
   }
 });
 if (ENV("NODE_ENV") !== "test") {
-  server.listen(PORT, "0.0.0.0", () => log("bridge.started", { port: PORT, proxy: Boolean(zaloDispatcher) }));
+  // Thiếu secret thì mọi webhook của CRM sẽ bị từ chối 401 — nói ra ngay lúc khởi
+  // động thay vì để người vận hành đi tìm lý do agent trả lời mà khách không nhận được.
+  if (VERIFY_CW_SIG && !CW_SECRET) {
+    log("bridge.config.missing", {
+      error: "CHATWOOT_WEBHOOK_SECRET chưa đặt — /webhook/chatwoot sẽ trả 401. " +
+        "Lấy `secret` của inbox API trong LLA CRM rồi đặt vào biến môi trường này.",
+    });
+  }
+  server.listen(PORT, "0.0.0.0", () => log("bridge.started", {
+    port: PORT, proxy: Boolean(zaloDispatcher), chu_ky_crm: VERIFY_CW_SIG && Boolean(CW_SECRET),
+  }));
 }
-export { verifyZaloSignature, extractZaloText, handleChatwootEvent, handleZaloEvent, state };
+export { verifyZaloSignature, verifyChatwootSignature, extractZaloText, handleChatwootEvent, handleZaloEvent, state };
