@@ -2,8 +2,14 @@
 class ChatwootFbProvider < Facebook::Messenger::Configuration::Providers::Base
   CHANNEL_APP_SECRET_KEYS = %w[app_secret app_secret_key client_secret api_secret].freeze
 
-  def valid_verify_token?(_verify_token)
-    GlobalConfigService.load('FB_VERIFY_TOKEN', '')
+  # Trả về chính chuỗi cấu hình là trả về một giá trị truthy cho **mọi** token gửi lên: cửa
+  # xác minh webhook coi như không có. So sánh thật, và một verify token chưa đặt thì không
+  # xác minh được gì cả.
+  def valid_verify_token?(verify_token)
+    expected = GlobalConfigService.load('FB_VERIFY_TOKEN', '').to_s
+    return false if expected.blank?
+
+    ActiveSupport::SecurityUtils.secure_compare(verify_token.to_s, expected)
   end
 
   def app_secret_for(page_id)
