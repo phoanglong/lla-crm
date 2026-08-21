@@ -162,6 +162,8 @@ class Captain::BaseTaskService
   # return false. When false, the wrapper neither blocks the call on an
   # exhausted captain_responses quota nor decrements it on success — the call
   # participates in the quota system in neither direction.
+  # Khoá của tài khoản — dù qua hook OpenAI cũ hay qua kết nối AI tenant tự khai — thì lượt
+  # gọi ấy không phải là lượt của LLA.
   def counts_toward_usage?
     llm_credential&.dig(:source) != :hook
   end

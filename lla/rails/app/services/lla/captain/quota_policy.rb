@@ -5,10 +5,13 @@ class Lla::Captain::QuotaPolicy
   INTERNAL = :internal
   SYSTEM = :system
   ACCOUNT_HOOK = :account_hook
+  # Tenant gọi bằng khoá của chính nhà cung cấp mà họ khai — tiền trả thẳng cho nhà cung cấp
+  # đó, nên không có gì để trừ vào hạn mức của LLA.
+  ACCOUNT_PROVIDER = :account_provider
 
   MATRIX = {
-    CUSTOMER_RESPONSE => { SYSTEM => true, ACCOUNT_HOOK => false }.freeze,
-    INTERNAL => { SYSTEM => false, ACCOUNT_HOOK => false }.freeze
+    CUSTOMER_RESPONSE => { SYSTEM => true, ACCOUNT_HOOK => false, ACCOUNT_PROVIDER => false }.freeze,
+    INTERNAL => { SYSTEM => false, ACCOUNT_HOOK => false, ACCOUNT_PROVIDER => false }.freeze
   }.freeze
 
   class << self
@@ -21,7 +24,11 @@ class Lla::Captain::QuotaPolicy
     end
 
     def normalize_source(source)
-      source.to_sym == :hook ? ACCOUNT_HOOK : source.to_sym
+      case source.to_sym
+      when :hook then ACCOUNT_HOOK
+      when :account then ACCOUNT_PROVIDER
+      else source.to_sym
+      end
     rescue NoMethodError
       SYSTEM
     end

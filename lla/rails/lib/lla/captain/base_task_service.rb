@@ -49,15 +49,27 @@ module Lla::Captain::BaseTaskService
   end
 
   def lla_quota_provider
-    return Llm::FeatureRouter.resolve(feature: lla_quota_feature, account: account)[:provider] if Llm::Models.feature?(lla_quota_feature)
+    return lla_quota_route[:provider] if lla_quota_route
 
     Llm::Models.provider_for(self.class.const_defined?(:GPT_MODEL) ? self.class::GPT_MODEL : Llm::Config::DEFAULT_MODEL)
-  rescue Llm::FeatureRouter::UnknownFeatureError
-    'configured'
   end
 
+  # Nguồn khoá được đọc từ chính route của tính năng, vì mô hình mới là thứ quyết định gọi
+  # bằng khoá nào: chọn `noi-bo/llama-3.1-70b` là gọi bằng khoá của tenant, kể cả khi tài
+  # khoản không hề có hook OpenAI nào.
   def lla_quota_credential_source
+    route_source = lla_quota_route&.dig(:credential)&.source
+    return route_source.to_s if route_source == :account
+
     llm_credential&.dig(:source).to_s.presence || 'system'
+  end
+
+  def lla_quota_route
+    return @lla_quota_route if defined?(@lla_quota_route)
+
+    @lla_quota_route = Llm::Models.feature?(lla_quota_feature) ? Llm::FeatureRouter.resolve(feature: lla_quota_feature, account: account) : nil
+  rescue Llm::FeatureRouter::UnknownFeatureError
+    @lla_quota_route = nil
   end
 
   def lla_successful_result?(result)

@@ -21,4 +21,10 @@ RSpec.describe Lla::Captain::QuotaPolicy do
       expect(described_class.billable?(workload: :customer_response, credential_source: :unknown)).to be true
     end
   end
+
+  # Tenant gọi bằng khoá của chính nhà cung cấp họ khai thì tiền đã trả thẳng cho nhà cung
+  # cấp đó — không có gì để trừ vào hạn mức của LLA.
+  it 'does not bill a customer response made with the tenant own provider key' do
+    expect(described_class.billable?(workload: :customer_response, credential_source: 'account')).to be(false)
+  end
 end

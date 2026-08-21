@@ -46,12 +46,24 @@ module Captain::Conversation::V2Runtime
 
   def captain_v2_enabled?
     return false unless account.feature_enabled?('captain_integration_v2')
+    return false if tenant_ai_provider_route?
 
     available = v2_runtime_constants.all?(&:safe_constantize)
     return true if available
 
     log_missing_v2_runtime
     raise RuntimeUnavailableError, 'Captain V2 runtime is unavailable'
+  end
+
+  # Đường chạy V2 dùng gem `agents`, mà gem này cấu hình RubyLLM **toàn cục** lúc khởi động:
+  # không có chỗ nào để đưa khoá của một tenant vào một lượt chạy. Tenant đã chọn mô hình của
+  # nhà cung cấp riêng thì chạy V2 nghĩa là lặng lẽ gọi bằng khoá của LLA — sai cả về khoá lẫn
+  # về tiền. Rơi về đường V1, nơi credential đi theo từng lệnh gọi.
+  def tenant_ai_provider_route?
+    route = Llm::FeatureRouter.resolve(feature: 'assistant', account: account)
+    route[:credential]&.source == :account
+  rescue Llm::FeatureRouter::UnknownFeatureError
+    false
   end
 
   def v2_runtime_constants
