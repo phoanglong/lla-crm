@@ -12,6 +12,14 @@ export function useChannelConfig() {
   const isOnChatwootCloud = useMapGetter('globalConfig/isOnChatwootCloud');
   const { isCloudFeatureEnabled } = useAccount();
   const installationConfig = window.chatwootConfig || {};
+  const accountId = useMapGetter('getCurrentAccountId');
+  const getAccount = useMapGetter('accounts/getAccount');
+  // Ứng dụng của chính tenant cũng làm cho kênh "đã cấu hình" — không chỉ ứng dụng của
+  // bản cài đặt.
+  const tenantApp = platform =>
+    Boolean(
+      getAccount.value?.(accountId.value)?.platform_apps?.[platform]?.app_id
+    );
 
   const CHANNEL_CONFIGURED = {
     // WhatsApp is onboarded only via Meta embedded signup, which needs both the
@@ -22,11 +30,13 @@ export function useChannelConfig() {
       Boolean(installationConfig.whatsappAppId) &&
       installationConfig.whatsappAppId !== 'none' &&
       Boolean(installationConfig.whatsappConfigurationId),
-    facebook: () => Boolean(installationConfig.fbAppId),
+    facebook: () =>
+      Boolean(installationConfig.fbAppId) || tenantApp('facebook'),
     instagram: () =>
-      Boolean(installationConfig.instagramAppId) &&
+      (Boolean(installationConfig.instagramAppId) || tenantApp('instagram')) &&
       isCloudFeatureEnabled(FEATURE_FLAGS.CHANNEL_INSTAGRAM),
-    tiktok: () => Boolean(installationConfig.tiktokAppId),
+    tiktok: () =>
+      Boolean(installationConfig.tiktokAppId) || tenantApp('tiktok'),
     gmail: () => Boolean(installationConfig.googleOAuthClientId),
     outlook: () => Boolean(globalConfig.value.azureAppId),
   };

@@ -16,16 +16,24 @@ import { setupFacebookSdk } from 'dashboard/routes/dashboard/settings/inbox/chan
 // later, after activation has expired, and the popup gets blocked.
 export function useFacebookPageConnect() {
   const accountId = useMapGetter('getCurrentAccountId');
+  const getAccount = useMapGetter('accounts/getAccount');
   const isAuthenticating = ref(false);
 
   let sdkSetupPromise = null;
 
   // Idempotent — call this when the picker UI opens. A failed load clears the
   // cache so a later attempt can retry instead of being stuck on a rejection.
+  // Ứng dụng của chính tenant được ưu tiên: token do ứng dụng nào cấp thì phải đổi bằng
+  // ứng dụng đó, nên đăng nhập bằng app id của LLA rồi đổi token bằng app của tenant (hoặc
+  // ngược lại) sẽ hỏng ở bước đổi token dài hạn.
+  const resolveAppId = () =>
+    getAccount.value(accountId.value)?.platform_apps?.facebook?.app_id ||
+    window.chatwootConfig?.fbAppId;
+
   const preloadSdk = () => {
     if (!sdkSetupPromise) {
       sdkSetupPromise = setupFacebookSdk(
-        window.chatwootConfig?.fbAppId,
+        resolveAppId(),
         window.chatwootConfig?.fbApiVersion
       ).catch(error => {
         sdkSetupPromise = null;

@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useMapGetter } from 'dashboard/composables/store';
 import ChannelSelector from '../ChannelSelector.vue';
 
 const props = defineProps({
@@ -15,17 +16,27 @@ const props = defineProps({
 
 const emit = defineEmits(['channelItemClick']);
 
-const hasFbConfigured = computed(() => {
-  return window.chatwootConfig?.fbAppId;
-});
+const accountId = useMapGetter('getCurrentAccountId');
+const getAccount = useMapGetter('accounts/getAccount');
 
-const hasInstagramConfigured = computed(() => {
-  return window.chatwootConfig?.instagramAppId;
-});
+// Một tenant đã khai ứng dụng nền tảng của chính mình thì kênh đó dùng được, kể cả khi bản
+// cài đặt không có ứng dụng nào — đó chính là điều "tự mang ứng dụng" có nghĩa.
+const tenantApp = platform =>
+  Boolean(
+    getAccount.value?.(accountId.value)?.platform_apps?.[platform]?.app_id
+  );
 
-const hasTiktokConfigured = computed(() => {
-  return window.chatwootConfig?.tiktokAppId;
-});
+const hasFbConfigured = computed(
+  () => Boolean(window.chatwootConfig?.fbAppId) || tenantApp('facebook')
+);
+
+const hasInstagramConfigured = computed(
+  () => Boolean(window.chatwootConfig?.instagramAppId) || tenantApp('instagram')
+);
+
+const hasTiktokConfigured = computed(
+  () => Boolean(window.chatwootConfig?.tiktokAppId) || tenantApp('tiktok')
+);
 
 const isActive = computed(() => {
   const { key } = props.channel;
