@@ -10,6 +10,7 @@ import router from '../../../../index';
 import { useBranding } from 'shared/composables/useBranding';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import PlatformAppSetup from 'dashboard/components-next/platform/PlatformAppSetup.vue';
 
 import * as Sentry from '@sentry/vue';
 
@@ -19,6 +20,7 @@ export default {
     PageHeader,
     NextButton,
     ComboBox,
+    PlatformAppSetup,
   },
   setup() {
     const { replaceInstallationName } = useBranding();
@@ -42,6 +44,9 @@ export default {
       errorStateMessage: '',
       errorStateDescription: '',
       hasLoginStarted: false,
+      // Bước khai ứng dụng đứng trước bước đăng nhập: token phải do đúng ứng dụng cấp,
+      // nên phải biết dùng ứng dụng nào trước khi mở hộp thoại đăng nhập.
+      isPlatformAppReady: false,
     };
   },
 
@@ -64,6 +69,9 @@ export default {
     getSelectablePages() {
       return this.pageList.filter(item => !item.exists);
     },
+    sharedAppId() {
+      return window.chatwootConfig?.fbAppId;
+    },
     comboBoxPageOptions() {
       return this.getSelectablePages.map(({ id, name }) => ({
         value: id,
@@ -72,13 +80,14 @@ export default {
     },
   },
 
-  mounted() {
-    // Warm the SDK so the login click opens its popup within the gesture's
-    // activation window (see useFacebookPageConnect).
-    this.preloadSdk();
-  },
-
   methods: {
+    onPlatformAppReady() {
+      this.isPlatformAppReady = true;
+      // Nạp sẵn SDK để cú bấm đăng nhập mở được popup trong cửa sổ activation của chính
+      // cú bấm đó (xem useFacebookPageConnect). Chỉ nạp sau khi đã biết dùng app nào.
+      this.preloadSdk();
+    },
+
     async startLogin() {
       this.hasLoginStarted = true;
       try {
@@ -147,8 +156,14 @@ export default {
 
 <template>
   <div class="w-full h-full col-span-6 p-6 overflow-auto">
+    <PlatformAppSetup
+      v-if="!isPlatformAppReady"
+      platform="facebook"
+      :platform-app-available="Boolean(sharedAppId)"
+      @ready="onPlatformAppReady"
+    />
     <div
-      v-if="!hasLoginStarted"
+      v-else-if="!hasLoginStarted"
       class="flex flex-col items-center justify-center h-full text-center"
     >
       <a href="#" @click="startLogin()">

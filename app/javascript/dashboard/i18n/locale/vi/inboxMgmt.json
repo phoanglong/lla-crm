@@ -1378,6 +1378,29 @@
       "INSTAGRAM": "Instagram",
       "TIKTOK": "TikTok",
       "VOICE": "Voice"
+    },
+    "PLATFORM_APP": {
+      "NAMES": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "whatsapp": "WhatsApp",
+        "tiktok": "TikTok"
+      },
+      "TITLE": "Dùng ứng dụng {platform} của chính bạn",
+      "SUBTITLE": "Nhập App ID và App Secret của ứng dụng bạn tạo trên trang nhà phát triển {platform}. Khi đó tin đến sẽ vào một URL webhook chỉ của riêng bạn và được kiểm chữ ký bằng ứng dụng của bạn.",
+      "APP_ID_LABEL": "App ID",
+      "APP_ID_PLACEHOLDER": "App ID lấy ở trang nhà phát triển",
+      "APP_SECRET_LABEL": "App Secret",
+      "APP_SECRET_PLACEHOLDER": "App Secret của ứng dụng",
+      "SAVE_BUTTON": "Lưu và tiếp tục",
+      "USE_SHARED_BUTTON": "Dùng ứng dụng của nền tảng",
+      "CONFIGURED_TITLE": "Dán hai giá trị này vào ứng dụng {platform} của bạn",
+      "CONFIGURED_SUBTITLE": "Đặt làm Callback URL và Verify Token trong phần webhook của ứng dụng, rồi bấm tiếp tục.",
+      "WEBHOOK_URL": "Callback URL",
+      "VERIFY_TOKEN": "Verify Token",
+      "COPY": "Chép",
+      "COPIED": "Đã chép",
+      "CONTINUE_BUTTON": "Tiếp tục"
     }
   }
 }

@@ -1448,6 +1448,29 @@
       "INSTAGRAM": "Instagram",
       "TIKTOK": "TikTok",
       "VOICE": "Voice"
+    },
+    "PLATFORM_APP": {
+      "NAMES": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "whatsapp": "WhatsApp",
+        "tiktok": "TikTok"
+      },
+      "TITLE": "Use your own {platform} app",
+      "SUBTITLE": "Enter the App ID and App Secret of the app you created on the {platform} developer console. Messages then arrive on a webhook URL that belongs to you alone, verified with your own app's signature.",
+      "APP_ID_LABEL": "App ID",
+      "APP_ID_PLACEHOLDER": "App ID from the developer console",
+      "APP_SECRET_LABEL": "App Secret",
+      "APP_SECRET_PLACEHOLDER": "App Secret of the app",
+      "SAVE_BUTTON": "Save and continue",
+      "USE_SHARED_BUTTON": "Use the platform's app instead",
+      "CONFIGURED_TITLE": "Paste these into your {platform} app",
+      "CONFIGURED_SUBTITLE": "Set these as the callback URL and verify token in the app's webhook settings, then continue.",
+      "WEBHOOK_URL": "Callback URL",
+      "VERIFY_TOKEN": "Verify token",
+      "COPY": "Copy",
+      "COPIED": "Copied",
+      "CONTINUE_BUTTON": "Continue"
     }
   }
 }
