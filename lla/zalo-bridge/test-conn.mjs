@@ -34,13 +34,16 @@ function jsonServer(handler) {
 const listen = (srv) => new Promise((r) => srv.listen(0, "127.0.0.1", r));
 
 // CRM giả: đủ để bắc cầu tạo liên hệ / hội thoại / tin nhắn.
-const crm = jsonServer((call) => {
+const crmHandler = (call) => {
   if (call.url.includes("/contacts/search")) return { payload: [] };
   if (call.url.endsWith("/contacts") && call.method === "POST") return { payload: { contact: { id: 77 } } };
   if (call.url.includes("/conversations") && call.method === "POST" && !call.url.includes("/messages")) return { id: 88 };
   if (call.url.includes("/conversations") && call.method === "GET") return { payload: [] };
   return { ok: true };
-});
+};
+const crm = jsonServer(crmHandler);
+// Bản cài CRM thứ hai: kết nối riêng phải ghi vào ĐÂY, không phải vào CRM của ENV.
+const crm2 = jsonServer(crmHandler);
 // Zalo giả: listrecentchat để resolve, và message/cs cho chiều ra.
 const zalo = jsonServer((call) => {
   if (call.url === "/v4/oa/access_token") {
@@ -60,6 +63,7 @@ const zalo = jsonServer((call) => {
   return { error: 0 };
 });
 await listen(crm.srv);
+await listen(crm2.srv);
 await listen(zalo.srv);
 
 const PORT = 18799;
@@ -84,7 +88,7 @@ const child = spawn(process.execPath, [join(HERE, "server.mjs")], {
   },
   stdio: "ignore",
 });
-after(() => { child.kill(); crm.srv.close(); zalo.srv.close(); });
+after(() => { child.kill(); crm.srv.close(); crm2.srv.close(); zalo.srv.close(); });
 
 for (let i = 0; i < 50; i++) {
   try { if ((await fetch(`${BASE}/healthz`)).ok) break; } catch { /* chưa lên */ }
@@ -132,6 +136,7 @@ test("chưa gắn hộp thư thì tin đến KHÔNG rơi vào hộp thư của E
 test("gắn hộp thư rồi thì tin đến vào ĐÚNG hộp thư của kết nối", async () => {
   await admin(`/api/connections/${created.id}`, "PATCH", {
     cw_account_id: "9", cw_inbox_id: "42", cw_webhook_secret: "secret-cua-inbox-42",
+    cw_url: `http://127.0.0.1:${crm2.port()}`,
   });
   await fetch(created.webhook_url, {
     method: "POST", headers: { "content-type": "application/json" },
@@ -139,9 +144,10 @@ test("gắn hộp thư rồi thì tin đến vào ĐÚNG hộp thư của kết 
   });
   await new Promise((r) => setTimeout(r, 500));
 
-  const contact = crm.calls.find((c) => c.method === "POST" && c.url.endsWith("/contacts"));
-  const conv = crm.calls.find((c) => c.method === "POST" && /\/conversations$/.test(c.url));
-  const msg = crm.calls.find((c) => c.method === "POST" && c.url.includes("/messages"));
+  assert.equal(crm.calls.filter((c) => c.method === "POST").length, 0, "không được chạm vào CRM của ENV");
+  const contact = crm2.calls.find((c) => c.method === "POST" && c.url.endsWith("/contacts"));
+  const conv = crm2.calls.find((c) => c.method === "POST" && /\/conversations$/.test(c.url));
+  const msg = crm2.calls.find((c) => c.method === "POST" && c.url.includes("/messages"));
   assert.ok(contact, "phải tạo liên hệ");
   assert.match(contact.url, /^\/api\/v1\/accounts\/9\//, "phải gọi vào account của kết nối, không phải account ENV");
   assert.equal(contact.body.inbox_id, 42);

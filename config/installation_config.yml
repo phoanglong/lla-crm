@@ -189,6 +189,12 @@
   description: 'HTTPS base URL of the LLA Zalo OA bridge used by the inbox onboarding wizard'
   value: 'https://zbridge.llavn.cloud'
   locked: false
+- name: ZALO_BRIDGE_ADMIN_TOKEN
+  display_title: 'Zalo OA Bridge Admin Token'
+  description: 'Admin token of the Zalo bridge. Used server side only, so a tenant can onboard its own Official Account without an operator provisioning a bridge by hand. Never sent to the browser.'
+  value: ''
+  locked: false
+  type: secret
 # ------- End of Zalo OA Bridge Config ------- #
 
 # MARK: Microsoft Email Channel Config

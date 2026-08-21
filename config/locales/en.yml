@@ -111,6 +111,11 @@ en:
     saml:
       feature_not_enabled: SAML feature not enabled for this account
       sso_not_enabled: SAML SSO is not enabled for this installation
+    zalo:
+      bridge_not_configured: The Zalo bridge is not configured for this installation. Set the bridge URL and admin token in Super Admin.
+      invalid_app_credentials: The Zalo App ID or App Secret is not valid
+      connection_not_found: This Zalo connection no longer exists on the bridge
+      invalid_domain: Enter a domain such as example.com
     conversations:
       unread_counts:
         feature_not_enabled: Conversation unread counts feature not enabled for this account

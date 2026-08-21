@@ -105,6 +105,11 @@ Rails.application.routes.draw do
             end
           end
           resource :saml_settings, only: [:show, :create, :update, :destroy]
+          namespace :zalo do
+            resources :connections, only: [:create, :show] do
+              get :domain_check, on: :collection
+            end
+          end
           resources :agent_bots, only: [:index, :create, :show, :update, :destroy] do
             delete :avatar, on: :member
             post :reset_access_token, on: :member

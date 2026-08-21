@@ -546,7 +546,7 @@
       },
       "ZALO_CHANNEL": {
         "TITLE": "Kênh Zalo OA",
-        "DESC": "Kết nối Zalo Official Account qua LLA Zalo bridge. Tạo hộp thư tại đây, sau đó uỷ quyền OA từ trang bridge.",
+        "DESC": "Kết nối một Official Account của Zalo. Bạn chỉ cần App ID và App Secret ở developers.zalo.me — phần còn lại hệ thống tự lo.",
         "CHANNEL_NAME": {
           "LABEL": "Tên hộp thư",
           "PLACEHOLDER": "VD: Zalo OA LLA",
@@ -559,10 +559,72 @@
           "ERROR": "Vui lòng nhập địa chỉ bridge hợp lệ (https)"
         },
         "AUTHORIZE_HELP": "Sau khi tạo hộp thư, mở trang uỷ quyền của bridge để uỷ quyền Official Account.",
-        "SUBMIT_BUTTON": "Tạo hộp thư Zalo OA",
+        "SUBMIT_BUTTON": "Tạo kết nối",
         "API": {
-          "ERROR_MESSAGE": "Không thể tạo hộp thư. Vui lòng thử lại"
-        }
+          "ERROR_MESSAGE": "Không tạo được kết nối. Vui lòng thử lại"
+        },
+        "APP_ID": {
+          "LABEL": "App ID của Zalo",
+          "PLACEHOLDER": "Ví dụ: 2222222222",
+          "SUBTITLE": "developers.zalo.me → ứng dụng của bạn → Cài đặt → App ID.",
+          "ERROR": "App ID là dãy số, từ 5 đến 25 chữ số"
+        },
+        "APP_SECRET": {
+          "LABEL": "App Secret Key của Zalo",
+          "PLACEHOLDER": "Khoá bí mật của ứng dụng",
+          "SUBTITLE": "Được giữ ở cầu, sau bước này sẽ không hiển thị lại.",
+          "ERROR": "Vui lòng nhập App Secret Key"
+        },
+        "OA_ID": {
+          "LABEL": "ID Official Account (không bắt buộc)",
+          "PLACEHOLDER": "Ví dụ: 1091464180686003783",
+          "SUBTITLE": "Điền vào để bỏ qua sự kiện do Official Account khác gửi tới."
+        },
+        "STEPS": {
+          "CREDENTIALS": "1. Thông tin ứng dụng",
+          "PASTE": "2. Dán các địa chỉ này vào developers.zalo.me",
+          "EVENTS": "3. Bật các sự kiện webhook sau",
+          "DOMAIN": "4. Xác minh tên miền",
+          "AUTHORIZE": "5. Uỷ quyền Official Account",
+          "CHECK": "6. Thực tế đang chạy tới đâu"
+        },
+        "FIELDS": {
+          "WEBHOOK_URL": "Webhook URL",
+          "CALLBACK_URL": "Official Account Callback Url",
+          "PERMISSION_URL": "Đường dẫn xin quyền",
+          "COPY": "Chép",
+          "COPIED": "Đã chép"
+        },
+        "DOMAIN_CHECK": {
+          "DOMAIN_LABEL": "Tên miền",
+          "DOMAIN_PLACEHOLDER": "example.com",
+          "CODE_LABEL": "Mã xác minh Zalo cấp",
+          "CODE_PLACEHOLDER": "Phần đứng sau zalo-platform-site-verification=",
+          "BUTTON": "Kiểm tra bản ghi TXT",
+          "HELP": "Zalo yêu cầu đăng một bản ghi TXT ở nhà cung cấp DNS trước khi chấp nhận webhook thuộc tên miền này. DNS cần vài phút để lan.",
+          "FOUND": "Đã thấy bản ghi xác minh cho {domain}.",
+          "MATCHES": "Đã thấy và khớp đúng mã bạn nhập.",
+          "MISMATCH": "Có bản ghi xác minh Zalo, nhưng không phải mã bạn vừa nhập.",
+          "MISSING": "Chưa thấy bản ghi xác minh Zalo nào cho {domain}."
+        },
+        "AUTHORIZE": {
+          "BUTTON": "Uỷ quyền Official Account",
+          "HELP": "Mở Zalo ở tab mới. Đăng nhập bằng tài khoản quản trị OA rồi bấm đồng ý."
+        },
+        "CHECKS": {
+          "REFRESH": "Kiểm tra lại",
+          "PENDING": "Chưa",
+          "DONE": "Đang chạy",
+          "inbox_created": "Đã tạo hộp thư",
+          "inbox_linked": "Kết nối đã gắn vào hộp thư này",
+          "outbound_signature": "Tin nhân viên gửi đi đã được ký và kiểm chữ ký",
+          "oauth_authorized": "Official Account đã uỷ quyền",
+          "webhook_received": "Zalo đã gọi vào webhook",
+          "message_received": "Đã nhận được tin của khách",
+          "message_sent": "Đã gửi được tin của nhân viên",
+          "HINT": "Nhắn thử cho Official Account bằng một tài khoản Zalo cá nhân, rồi trả lời từ hộp thư. Hai dòng cuối chỉ xanh khi mỗi chiều đã thật sự chuyển được một tin."
+        },
+        "FINISH_BUTTON": "Vào hộp thư"
       }
     },
     "DETAILS": {

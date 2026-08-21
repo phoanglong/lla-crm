@@ -157,6 +157,9 @@ function boxOf(conn) {
 }
 function cwTargetOf(conn) {
   return {
+    // Một cầu có thể phục vụ nhiều bản cài CRM (UAT và production là hai bản khác
+    // nhau), nên địa chỉ CRM thuộc về kết nối chứ không thuộc về tiến trình.
+    url: (conn.cwUrl || CW_URL).replace(/\/$/, ""),
     account: conn.cwAccountId || CW_ACCOUNT,
     inbox: conn.cwInboxId || CW_INBOX,
     token: conn.cwToken || CW_TOKEN,
@@ -167,7 +170,7 @@ function cwTargetOf(conn) {
 // ---------- Chatwoot Application API ----------
 async function cw(conn, method, path, body) {
   const t = cwTargetOf(conn);
-  const res = await fetch(`${CW_URL}/api/v1/accounts/${t.account}${path}`, {
+  const res = await fetch(`${t.url}/api/v1/accounts/${t.account}${path}`, {
     method,
     headers: { "Content-Type": "application/json", api_access_token: t.token },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -405,6 +408,7 @@ function connPublicView(conn) {
     chatwoot_webhook_url: `${PUBLIC_URL}/webhook/chatwoot/c/${conn.id}`,
     inbox_id: conn.cwInboxId || null,
     account_id: conn.cwAccountId || null,
+    crm_url: conn.cwUrl || CW_URL,
     status: {
       authorized: Boolean(conn.tokens?.access),
       webhook_received: Boolean(conn.lastEventAt),
@@ -431,6 +435,7 @@ async function handleConnApi(req, url, send, readBodyFn) {
       id, name: String(b.name || "Zalo OA").slice(0, 80), appId, appSecret,
       webhookToken: randToken(28), egress: "auto", createdAt: Date.now(),
       oaId: b.oa_id ? String(b.oa_id) : "",
+      cwUrl: b.cw_url ? String(b.cw_url) : "",
       cwAccountId: b.cw_account_id ? String(b.cw_account_id) : "",
       cwInboxId: b.cw_inbox_id ? String(b.cw_inbox_id) : "",
       cwWebhookSecret: b.cw_webhook_secret ? String(b.cw_webhook_secret) : "",
@@ -447,6 +452,7 @@ async function handleConnApi(req, url, send, readBodyFn) {
     if (!conn) return send(404, JSON.stringify({ error: "not_found" }));
     const b = JSON.parse((await readBodyFn(req)) || "{}");
     const patch = {};
+    if (b.cw_url) patch.cwUrl = String(b.cw_url);
     if (b.cw_account_id) patch.cwAccountId = String(b.cw_account_id);
     if (b.cw_inbox_id) patch.cwInboxId = String(b.cw_inbox_id);
     if (b.cw_webhook_secret) patch.cwWebhookSecret = String(b.cw_webhook_secret);

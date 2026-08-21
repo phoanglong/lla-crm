@@ -94,6 +94,11 @@ vi:
     saml:
       feature_not_enabled: SAML feature not enabled for this account
       sso_not_enabled: SAML SSO is not enabled for this installation
+    zalo:
+      bridge_not_configured: Cầu Zalo chưa được cấu hình cho hệ thống này. Đặt địa chỉ cầu và token quản trị trong Super Admin.
+      invalid_app_credentials: App ID hoặc App Secret của Zalo không hợp lệ
+      connection_not_found: Kết nối Zalo này không còn tồn tại trên cầu
+      invalid_domain: Nhập tên miền dạng example.com
     conversations:
       unread_counts:
         feature_not_enabled: Conversation unread counts feature not enabled for this account
