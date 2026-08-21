@@ -419,7 +419,7 @@
         "SLUG": {
           "LABEL": "Slug",
           "PLACEHOLDER": "Category slug for urls",
-          "HELP_TEXT": "app.chatwoot.com/hc/my-portal/en-US/categories/my-slug",
+          "HELP_TEXT": "support.example.com/hc/my-portal/en-US/categories/my-slug",
           "ERROR": "Slug is required"
         },
         "DESCRIPTION": {
@@ -450,7 +450,7 @@
         "SLUG": {
           "LABEL": "Slug",
           "PLACEHOLDER": "Category slug for urls",
-          "HELP_TEXT": "app.chatwoot.com/hc/my-portal/en-US/categories/my-slug",
+          "HELP_TEXT": "support.example.com/hc/my-portal/en-US/categories/my-slug",
           "ERROR": "Slug is required"
         },
         "DESCRIPTION": {
@@ -687,7 +687,7 @@
             "LABEL": "Slug",
             "PLACEHOLDER": "Category slug for urls",
             "ERROR": "Slug is required",
-            "HELP_TEXT": "app.chatwoot.com/hc/{portalSlug}/{localeCode}/categories/{categorySlug}"
+            "HELP_TEXT": "support.example.com/hc/{portalSlug}/{localeCode}/categories/{categorySlug}"
           },
           "DESCRIPTION": {
             "LABEL": "Description",
@@ -913,7 +913,29 @@
           "STATUS": {
             "LIVE": "Live",
             "PENDING": "Awaiting verification",
-            "ERROR": "Verification failed"
+            "ERROR": "Verification failed",
+            "OWNERSHIP_PENDING": "Awaiting domain ownership proof",
+            "PROVISIONING": "Setting up the domain",
+            "REVERIFY_REQUIRED": "Reverification required",
+            "MANUAL_INTERVENTION": "Needs administrator attention",
+            "REMOVING": "Being removed",
+            "PROVIDER_PENDING": "Waiting for the domain provider"
+          },
+          "LIFECYCLE": {
+            "OWNERSHIP_DESCRIPTION": "Point the domain at this installation with a CNAME record. It goes live as soon as we can read the ownership proof.",
+            "REVERIFY_DESCRIPTION": "This domain was imported before ownership proofs existed. It keeps serving, but an administrator should reverify it.",
+            "MANUAL_DESCRIPTION": "Automatic removal could not finish. An administrator needs to complete it with the DNS provider.",
+            "FAILED_DESCRIPTION": "The last attempt did not complete. Retry verification to start a new attempt on the same domain.",
+            "CAPABILITY_DISABLED": "Custom domains are turned off for this installation. Ask an administrator to enable the LLA custom-domain capability.",
+            "PROVIDER_NOT_READY": "No external domain provider is configured. The domain still works through this installation, and no external request is made.",
+            "NO_PERMISSION": "Only a workspace administrator can change the custom domain.",
+            "REVERIFY_BUTTON": "Reverify",
+            "REVERIFY_STARTED": "Reverification started. It completes once the ownership proof is readable.",
+            "ERROR": "Could not update the custom domain. Please try again or contact your workspace administrator.",
+            "RETRY_BUTTON": "Retry verification",
+            "RETRY_DESCRIPTION": "The last attempt did not complete. Retry verification to start a new attempt on the same domain.",
+            "RETRY_STARTED": "A new verification attempt has started. Keep the CNAME record in place until it completes.",
+            "PROVIDER_PENDING_DESCRIPTION": "The domain is live in LLA, but the external provider has not reported it as ready yet."
           },
           "DIALOG": {
             "ADD_HEADER": "Add custom domain",
@@ -927,7 +949,7 @@
           },
           "DNS_CONFIGURATION_DIALOG": {
             "HEADER": "DNS configuration",
-            "DESCRIPTION": "Log in to the account you have with your DNS provider, and add a CNAME record for subdomain pointing to chatwoot.help",
+            "DESCRIPTION": "Log in to the account you have with your DNS provider, and add a CNAME record for the subdomain pointing to {domain}",
             "COPY": "Successfully copied CNAME",
             "SEND_INSTRUCTIONS": {
               "HEADER": "Send instructions",

@@ -419,7 +419,7 @@
         "SLUG": {
           "LABEL": "სლაგი",
           "PLACEHOLDER": "კატეგორიის slug url-ებისთვის",
-          "HELP_TEXT": "app.chatwoot.com/hc/my-portal/ka-GE/categories/my-slug",
+          "HELP_TEXT": "support.example.com/hc/my-portal/ka-GE/categories/my-slug",
           "ERROR": "Slug-ის შეყვანა აუცილებელია"
         },
         "DESCRIPTION": {
@@ -450,7 +450,7 @@
         "SLUG": {
           "LABEL": "სლაგი",
           "PLACEHOLDER": "კატეგორიის სლაგი url-ებისთვის",
-          "HELP_TEXT": "app.chatwoot.com/hc/my-portal/ka-GE/categories/my-slug",
+          "HELP_TEXT": "support.example.com/hc/my-portal/ka-GE/categories/my-slug",
           "ERROR": "სლაგი აუცილებელია"
         },
         "DESCRIPTION": {
@@ -687,7 +687,7 @@
             "LABEL": "სლაგი",
             "PLACEHOLDER": "კატეგორიის სლაგი url-ებისთვის",
             "ERROR": "სლაგი აუცილებელია",
-            "HELP_TEXT": "app.chatwoot.com/hc/{portalSlug}/{localeCode}/categories/{categorySlug}"
+            "HELP_TEXT": "support.example.com/hc/{portalSlug}/{localeCode}/categories/{categorySlug}"
           },
           "DESCRIPTION": {
             "LABEL": "აღწერა",
@@ -927,7 +927,7 @@
           },
           "DNS_CONFIGURATION_DIALOG": {
             "HEADER": "DNS კონფიგურაცია",
-            "DESCRIPTION": "შესვლა თქვენს DNS პროვაიდერთან დაკავშირებულ ანგარიშში და დაამატეთ CNAME ჩანაწერი ქვედომენისთვის, რომელიც მიუთითებს chatwoot.help-ზე",
+            "DESCRIPTION": "შესვლა თქვენს DNS პროვაიდერთან დაკავშირებულ ანგარიშში და დაამატეთ CNAME ჩანაწერი ქვედომენისთვის, რომელიც მიუთითებს {domain}-ზე",
             "COPY": "CNAME წარმატებით კოპირებულია",
             "SEND_INSTRUCTIONS": {
               "HEADER": "გაგზავნეთ ინსტრუქციები",

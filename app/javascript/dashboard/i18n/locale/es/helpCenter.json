@@ -419,7 +419,7 @@
         "SLUG": {
           "LABEL": "Slug",
           "PLACEHOLDER": "Slug de categoría para urls",
-          "HELP_TEXT": "app.chatwoot.com/hc/my-portal/es-es-ES/categories/my-slug",
+          "HELP_TEXT": "support.example.com/hc/my-portal/es-es-ES/categories/my-slug",
           "ERROR": "Slug es requerido"
         },
         "DESCRIPTION": {
@@ -450,7 +450,7 @@
         "SLUG": {
           "LABEL": "Slug",
           "PLACEHOLDER": "Slug de categoría para urls",
-          "HELP_TEXT": "app.chatwoot.com/hc/my-portal/es-ES/categories/my-slug",
+          "HELP_TEXT": "support.example.com/hc/my-portal/es-ES/categories/my-slug",
           "ERROR": "Slug es requerido"
         },
         "DESCRIPTION": {
@@ -687,7 +687,7 @@
             "LABEL": "Slug",
             "PLACEHOLDER": "Slug de categoría para urls",
             "ERROR": "Slug es requerido",
-            "HELP_TEXT": "app.chatwoot.com/hc/{portalSlug}/{localeCode}/categories/{categorySlug}"
+            "HELP_TEXT": "support.example.com/hc/{portalSlug}/{localeCode}/categories/{categorySlug}"
           },
           "DESCRIPTION": {
             "LABEL": "Descripción",
@@ -927,7 +927,7 @@
           },
           "DNS_CONFIGURATION_DIALOG": {
             "HEADER": "DNS configuration",
-            "DESCRIPTION": "Log in to the account you have with your DNS provider, and add a CNAME record for subdomain pointing to chatwoot.help",
+            "DESCRIPTION": "Log in to the account you have with your DNS provider, and add a CNAME record for subdomain pointing to {domain}",
             "COPY": "Successfully copied CNAME",
             "SEND_INSTRUCTIONS": {
               "HEADER": "Send instructions",

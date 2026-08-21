@@ -1,63 +1,63 @@
 {
   "YEAR_IN_REVIEW": {
-    "TITLE": "Year in Review",
-    "LOADING": "Loading your year in review...",
-    "ERROR": "Failed to load year in review",
+    "TITLE": "Nhìn lại năm qua",
+    "LOADING": "Đang tải bản nhìn lại năm qua của bạn...",
+    "ERROR": "Không thể tải bản nhìn lại năm qua",
     "CLOSE": "Đóng",
     "CONVERSATIONS": {
-      "TITLE": "You have handled",
+      "TITLE": "Bạn đã xử lý",
       "SUBTITLE": "các cuộc hội thoại",
-      "FALLBACK": "This year wasn't about the numbers. It was about showing up.",
+      "FALLBACK": "Năm nay không phải về những con số. Đó là về sự hiện diện của bạn.",
       "COMPARISON": {
-        "0_50": "You showed up, and that's how every good inbox begins.",
-        "50_100": "You kept the replies flowing and the conversations alive.",
-        "100_500": "You handled serious volume and kept everything on track.",
-        "500_2000": "You kept things moving while the volume kept climbing.",
-        "2000_10000": "You ran high traffic through your inbox without breaking a sweat.",
-        "10000_PLUS": "That's a full city of customers knocking on your door. You made it look effortless."
+        "0_50": "Bạn đã có mặt, và đó là cách mọi hộp thư tốt bắt đầu.",
+        "50_100": "Bạn giữ cho phản hồi luôn tuôn chảy và các cuộc trò chuyện luôn sống động.",
+        "100_500": "Bạn đã xử lý khối lượng đáng nể và giữ mọi thứ đúng hướng.",
+        "500_2000": "Bạn giữ nhịp trong khi khối lượng không ngừng tăng.",
+        "2000_10000": "Bạn xử lý lưu lượng lớn qua hộp thư mà không hề đổ mồ hôi.",
+        "10000_PLUS": "Đó là cả một thành phố khách hàng gõ cửa bạn. Bạn khiến điều đó trông thật nhẹ nhàng."
       }
     },
     "BUSIEST_DAY": {
-      "TITLE": "Your busiest day was",
-      "MESSAGE": "{count} conversations that day.",
+      "TITLE": "Ngày bận rộn nhất của bạn là",
+      "MESSAGE": "{count} cuộc trò chuyện trong ngày đó.",
       "COMPARISON": {
-        "0_5": "A warm-up lap that barely woke the inbox.",
-        "5_10": "Enough action to justify a second cup of coffee.",
-        "10_25": "Things got busy and the inbox stayed on its toes.",
-        "25_50": "A proper rush that barely broke a sweat.",
-        "50_100": "Controlled chaos, handled like a normal Tuesday.",
-        "100_500": "Absolute dumpster fire, somehow still shipping replies.",
-        "500_PLUS": "The inbox lost all chill and never slowed down."
+        "0_5": "Một vòng khởi động, hộp thư còn chưa kịp tỉnh giấc.",
+        "5_10": "Đủ việc để thưởng cho mình ly cà phê thứ hai.",
+        "10_25": "Mọi thứ bận rộn và hộp thư luôn trong tư thế sẵn sàng.",
+        "25_50": "Một đợt cao điểm thực sự nhưng bạn vẫn nhẹ nhàng vượt qua.",
+        "50_100": "Hỗn loạn trong tầm kiểm soát, xử lý như một ngày thứ Ba bình thường.",
+        "100_500": "Bận đến cháy máy, ấy vậy mà phản hồi vẫn đều đặn.",
+        "500_PLUS": "Hộp thư không còn phút giây thảnh thơi và chẳng bao giờ chậm lại."
       }
     },
     "PERSONALITY": {
-      "TITLE": "Your support personality is",
+      "TITLE": "Phong cách hỗ trợ của bạn là",
       "MESSAGES": {
-        "SWIFT_HELPER": "You replied in {time} on average. Faster than most notifications.",
-        "QUICK_RESPONDER": "You replied in {time} on average. The inbox barely waited.",
-        "STEADY_SUPPORT": "You replied in {time} on average. Calm pace, solid replies.",
-        "THOUGHTFUL_ADVISOR": "You replied in {time} on average. Took the time to get it right."
+        "SWIFT_HELPER": "Bạn phản hồi trung bình trong {time}. Nhanh hơn cả phần lớn thông báo.",
+        "QUICK_RESPONDER": "Bạn phản hồi trung bình trong {time}. Hộp thư gần như không phải chờ.",
+        "STEADY_SUPPORT": "Bạn phản hồi trung bình trong {time}. Nhịp điềm tĩnh, phản hồi chắc chắn.",
+        "THOUGHTFUL_ADVISOR": "Bạn phản hồi trung bình trong {time}. Dành thời gian để làm cho đúng."
       }
     },
     "THANK_YOU": {
-      "TITLE": "Congratulations on surviving the inbox of {year}.",
-      "MESSAGE": "Thank you for your incredible dedication to supporting customers throughout this year. Your hard work has made a real difference, and we're grateful to have you on this journey. Here's to making {nextYear} even better together!"
+      "TITLE": "Chúc mừng bạn đã vượt qua hộp thư của năm {year}.",
+      "MESSAGE": "Cảm ơn bạn vì sự tận tâm phi thường trong việc hỗ trợ khách hàng suốt năm qua. Nỗ lực của bạn đã tạo nên khác biệt thực sự, và chúng tôi biết ơn khi có bạn trên hành trình này. Cùng nhau làm cho năm {nextYear} còn tuyệt vời hơn nữa!"
     },
     "SHARE_MODAL": {
-      "TITLE": "Share Your Year in Review",
-      "PREPARING": "Preparing your image...",
+      "TITLE": "Chia sẻ bản nhìn lại năm qua của bạn",
+      "PREPARING": "Đang chuẩn bị hình ảnh của bạn...",
       "DOWNLOAD": "Tải xuống",
-      "SHARE_TITLE": "My {year} Year in Review",
-      "SHARE_TEXT": "Check out my {year} Year in Review with Chatwoot!",
-      "BRANDING": "Made with Chatwoot"
+      "SHARE_TITLE": "Bản nhìn lại năm {year} của tôi",
+      "SHARE_TEXT": "Xem bản nhìn lại năm {year} của tôi với Mochi.CRM!",
+      "BRANDING": "Được tạo bằng Mochi.CRM"
     },
     "BANNER": {
-      "TITLE": "Your {year} Year in Review is here",
-      "BUTTON": "See your impact"
+      "TITLE": "Bản nhìn lại năm {year} của bạn đã sẵn sàng",
+      "BUTTON": "Xem tác động của bạn"
     },
     "NAVIGATION": {
-      "PREVIOUS": "Previous",
-      "NEXT": "Next",
+      "PREVIOUS": "Trước",
+      "NEXT": "Tiếp",
       "SHARE": "Chia sẻ cuộc trò chuyện"
     }
   }

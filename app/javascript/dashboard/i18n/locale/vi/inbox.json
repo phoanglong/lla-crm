@@ -1,7 +1,7 @@
 {
   "INBOX": {
     "LIST": {
-      "TITLE": "My Inbox",
+      "TITLE": "Hộp thư của tôi",
       "DISPLAY_DROPDOWN": "Hiển thị",
       "LOADING": "Tải thông báo",
       "404": "Không có thông báo nào đang hoạt động trong nhóm này.",
@@ -13,82 +13,82 @@
       "SNOOZED_UNTIL_NEXT_WEEK": "Tạm dừng đến tuần sau"
     },
     "ACTION_HEADER": {
-      "SNOOZE": "Tạm dừng đến ngày mai",
-      "DELETE": "Tạm dừng đến tuần sau",
-      "BACK": "Trờ về"
+      "SNOOZE": "Tạm dừng",
+      "DELETE": "Xoá",
+      "BACK": "Trở về"
     },
     "TYPES": {
       "CONVERSATION_MENTION": "Bạn đã được nhắc đến trong một cuộc trò chuyện",
-      "CONVERSATION_CREATION": "New conversation created",
-      "CONVERSATION_ASSIGNMENT": "A conversation has been assigned to you",
-      "ASSIGNED_CONVERSATION_NEW_MESSAGE": "New message in an assigned conversation",
-      "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "New message in a conversation you are participating in",
-      "SLA_MISSED_FIRST_RESPONSE": "SLA target first response missed for conversation",
-      "SLA_MISSED_NEXT_RESPONSE": "SLA target next response missed for conversation",
-      "SLA_MISSED_RESOLUTION": "SLA target resolution missed for conversation"
+      "CONVERSATION_CREATION": "Đã tạo cuộc trò chuyện mới",
+      "CONVERSATION_ASSIGNMENT": "Một cuộc trò chuyện đã được giao cho bạn",
+      "ASSIGNED_CONVERSATION_NEW_MESSAGE": "Tin nhắn mới trong cuộc trò chuyện đã giao",
+      "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "Tin nhắn mới trong cuộc trò chuyện bạn đang tham gia",
+      "SLA_MISSED_FIRST_RESPONSE": "Đã trễ SLA phản hồi đầu tiên cho cuộc trò chuyện",
+      "SLA_MISSED_NEXT_RESPONSE": "Đã trễ SLA phản hồi tiếp theo cho cuộc trò chuyện",
+      "SLA_MISSED_RESOLUTION": "Đã trễ SLA giải quyết cho cuộc trò chuyện"
     },
     "TYPES_NEXT": {
-      "CONVERSATION_MENTION": "Mentioned",
-      "CONVERSATION_ASSIGNMENT": "Assigned to you",
-      "CONVERSATION_CREATION": "New Conversation",
-      "SLA_MISSED_FIRST_RESPONSE": "SLA breach",
-      "SLA_MISSED_NEXT_RESPONSE": "SLA breach",
-      "SLA_MISSED_RESOLUTION": "SLA breach",
+      "CONVERSATION_MENTION": "Được nhắc đến",
+      "CONVERSATION_ASSIGNMENT": "Giao cho bạn",
+      "CONVERSATION_CREATION": "Cuộc trò chuyện mới",
+      "SLA_MISSED_FIRST_RESPONSE": "Vi phạm SLA",
+      "SLA_MISSED_NEXT_RESPONSE": "Vi phạm SLA",
+      "SLA_MISSED_RESOLUTION": "Vi phạm SLA",
       "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "Tin nhắn mới",
       "ASSIGNED_CONVERSATION_NEW_MESSAGE": "Tin nhắn mới",
-      "SNOOZED_UNTIL": "Snoozed for {time}",
-      "SNOOZED_ENDS": "Snooze ended"
+      "SNOOZED_UNTIL": "Tạm dừng trong {time}",
+      "SNOOZED_ENDS": "Đã hết tạm dừng"
     },
     "NO_CONTENT": "Không có nội dung",
     "MENU_ITEM": {
-      "MARK_AS_READ": "Mark as read",
+      "MARK_AS_READ": "Đánh dấu đã đọc",
       "MARK_AS_UNREAD": "Đánh dấu là chưa đọc",
-      "SNOOZE": "Báo lại",
+      "SNOOZE": "Tạm dừng",
       "DELETE": "Xoá",
       "MARK_ALL_READ": "Đánh dấu tất cả đã đọc",
-      "DELETE_ALL": "Delete all",
-      "DELETE_ALL_READ": "Delete all read"
+      "DELETE_ALL": "Xoá tất cả",
+      "DELETE_ALL_READ": "Xoá tất cả đã đọc"
     },
     "DISPLAY_MENU": {
-      "SORT": "Sort",
-      "DISPLAY": "Display :",
+      "SORT": "Sắp xếp",
+      "DISPLAY": "Hiển thị :",
       "SORT_OPTIONS": {
-        "NEWEST": "Newest",
-        "OLDEST": "Oldest",
+        "NEWEST": "Mới nhất",
+        "OLDEST": "Cũ nhất",
         "PRIORITY": "Mức độ ưu tiên"
       },
       "DISPLAY_OPTIONS": {
         "SNOOZED": "Tạm dừng",
-        "READ": "\bĐọc",
+        "READ": "Đã đọc",
         "LABELS": "Nhãn",
-        "CONVERSATION_ID": "Conversation ID"
+        "CONVERSATION_ID": "Mã cuộc trò chuyện"
       }
     },
     "ALERTS": {
-      "MARK_AS_READ": "Notification marked as read",
-      "MARK_AS_UNREAD": "Notification marked as unread",
-      "SNOOZE": "Notification snoozed",
-      "DELETE": "Notification deleted",
-      "MARK_ALL_READ": "All notifications marked as read",
-      "DELETE_ALL": "All notifications deleted",
-      "DELETE_ALL_READ": "All read notifications deleted"
+      "MARK_AS_READ": "Đã đánh dấu thông báo là đã đọc",
+      "MARK_AS_UNREAD": "Đã đánh dấu thông báo là chưa đọc",
+      "SNOOZE": "Đã tạm dừng thông báo",
+      "DELETE": "Đã xoá thông báo",
+      "MARK_ALL_READ": "Đã đánh dấu tất cả thông báo là đã đọc",
+      "DELETE_ALL": "Đã xoá tất cả thông báo",
+      "DELETE_ALL_READ": "Đã xoá tất cả thông báo đã đọc"
     },
     "REAUTHORIZE": {
-      "TITLE": "Reauthorization Required",
-      "DESCRIPTION": "Your WhatsApp connection has expired. Please reconnect to continue receiving and sending messages.",
-      "BUTTON_TEXT": "Reconnect WhatsApp",
-      "LOADING_FACEBOOK": "Loading Facebook SDK...",
-      "SUCCESS": "WhatsApp reconnected successfully",
-      "ERROR": "Failed to reconnect WhatsApp. Please try again.",
-      "WHATSAPP_APP_ID_MISSING": "WhatsApp App ID is not configured. Please contact your administrator.",
-      "WHATSAPP_CONFIG_ID_MISSING": "WhatsApp Configuration ID is not configured. Please contact your administrator.",
-      "CONFIGURATION_ERROR": "Configuration error occurred during reauthorization.",
-      "FACEBOOK_LOAD_ERROR": "Failed to load Facebook SDK. Please try again.",
+      "TITLE": "Cần cấp quyền lại",
+      "DESCRIPTION": "Kết nối WhatsApp của bạn đã hết hạn. Vui lòng kết nối lại để tiếp tục nhận và gửi tin nhắn.",
+      "BUTTON_TEXT": "Kết nối lại WhatsApp",
+      "LOADING_FACEBOOK": "Đang tải Facebook SDK...",
+      "SUCCESS": "Đã kết nối lại WhatsApp thành công",
+      "ERROR": "Không thể kết nối lại WhatsApp. Vui lòng thử lại.",
+      "WHATSAPP_APP_ID_MISSING": "Chưa cấu hình WhatsApp App ID. Vui lòng liên hệ quản trị viên của bạn.",
+      "WHATSAPP_CONFIG_ID_MISSING": "Chưa cấu hình WhatsApp Configuration ID. Vui lòng liên hệ quản trị viên của bạn.",
+      "CONFIGURATION_ERROR": "Đã xảy ra lỗi cấu hình trong quá trình cấp quyền lại.",
+      "FACEBOOK_LOAD_ERROR": "Không thể tải Facebook SDK. Vui lòng thử lại.",
       "TROUBLESHOOTING": {
-        "TITLE": "Troubleshooting",
-        "POPUP_BLOCKED": "Ensure pop-ups are allowed for this site",
-        "COOKIES": "Third-party cookies must be enabled",
-        "ADMIN_ACCESS": "You need admin access to the WhatsApp Business Account"
+        "TITLE": "Khắc phục sự cố",
+        "POPUP_BLOCKED": "Đảm bảo cửa sổ bật lên được cho phép đối với trang này",
+        "COOKIES": "Cookie của bên thứ ba phải được bật",
+        "ADMIN_ACCESS": "Bạn cần quyền quản trị viên đối với Tài khoản WhatsApp Business"
       }
     }
   }

@@ -15,7 +15,7 @@
     "VIEW_ORIGINAL": "View original",
     "VIEW_TRANSLATED": "View translated",
     "EMPTY_STATE": {
-      "CMD_BAR": "to open command menu",
+      "CMD_BAR": "để mở menu lệnh",
       "KEYBOARD_SHORTCUTS": "to view keyboard shortcuts"
     },
     "SEARCH": {
@@ -53,7 +53,7 @@
     "SAVE_CONTACT": "Lưu liên hệ",
     "NO_CONTENT": "Không có nội dung để hiển thị",
     "SHARED_ATTACHMENT": {
-      "CONTACT": "{sender} has shared a contact",
+      "CONTACT": "{sender} đã chia sẻ một liên hệ",
       "LOCATION": "{sender} has shared a location",
       "FILE": "{sender} has shared a file",
       "MEETING": "{sender} đã bắt đầu một cuộc họp"
@@ -68,36 +68,36 @@
     "SUCCESS_DELETE_MESSAGE": "Tin nhắn được xoá thành công",
     "FAIL_DELETE_MESSSAGE": "Không thể xoá tin nhắn! Thử lại",
     "NO_RESPONSE": "Không có phản hồi",
-    "RESPONSE": "Response",
+    "RESPONSE": "Phản hồi",
     "RATING_TITLE": "Đánh giá",
     "FEEDBACK_TITLE": "Phản hồi",
     "REPLY_MESSAGE_NOT_FOUND": "Message not available",
     "CARD": {
       "SHOW_LABELS": "Hiển thị nhãn",
       "HIDE_LABELS": "Ẩn nhãn",
-      "LABELS_COUNT": "{count} labels"
+      "LABELS_COUNT": "{count} nhãn"
     },
     "VOICE_CALL": {
       "INCOMING_CALL": "Incoming call",
       "OUTGOING_CALL": "Outgoing call",
       "CALL_IN_PROGRESS": "Call in progress",
-      "NO_ANSWER": "No answer",
-      "NO_ANSWER_OUTBOUND_LABEL": "No answer",
+      "NO_ANSWER": "Không trả lời",
+      "NO_ANSWER_OUTBOUND_LABEL": "Không trả lời",
       "NO_ANSWER_OUTBOUND_SUBTEXT": "Contact didn't pick up",
       "MISSED_CALL": "Missed call",
       "MISSED_CALL_INBOUND_SUBTEXT": "No agent picked up",
       "MISSED_CALL_DECLINED_BY": "Declined by {agentName}",
-      "CALL_ENDED": "Call ended",
-      "HANDLED_BY": "Handled by {agentName}",
-      "NOT_ANSWERED_YET": "Not answered yet",
+      "CALL_ENDED": "Cuộc gọi đã kết thúc",
+      "HANDLED_BY": "Được xử lý bởi {agentName}",
+      "NOT_ANSWERED_YET": "Chưa được trả lời",
       "CALLING": "Calling…",
-      "THEY_ANSWERED": "They answered",
-      "YOU_ANSWERED": "You answered",
-      "AGENT_ANSWERED": "{agentName} answered",
+      "THEY_ANSWERED": "Họ đã trả lời",
+      "YOU_ANSWERED": "Bạn đã trả lời",
+      "AGENT_ANSWERED": "{agentName} đã trả lời",
       "JOIN_CALL": "Join call",
-      "CALL_BACK": "Call back",
-      "TRANSCRIPT_SHOW_MORE": "Show more",
-      "TRANSCRIPT_SHOW_LESS": "Show less"
+      "CALL_BACK": "Gọi lại",
+      "TRANSCRIPT_SHOW_MORE": "Xem thêm",
+      "TRANSCRIPT_SHOW_LESS": "Thu gọn"
     },
     "HEADER": {
       "RESOLVE_ACTION": "Giải quyết",
@@ -112,10 +112,10 @@
       "SNOOZED_UNTIL_TOMORROW": "Tạm dừng đến ngày mai",
       "SNOOZED_UNTIL_NEXT_WEEK": "Tạm dừng đến tuần sau",
       "SNOOZED_UNTIL_NEXT_REPLY": "Tạm dừng đến khi có phản hồi",
-      "WHATSAPP_CALL": "Start WhatsApp call",
-      "WHATSAPP_CALL_FAILED": "Could not start the WhatsApp call.",
-      "VOICE_CALL": "Start call",
-      "VOICE_CALL_FAILED": "Could not start the call.",
+      "WHATSAPP_CALL": "Bắt đầu cuộc gọi WhatsApp",
+      "WHATSAPP_CALL_FAILED": "Không thể bắt đầu cuộc gọi WhatsApp.",
+      "VOICE_CALL": "Bắt đầu cuộc gọi",
+      "VOICE_CALL_FAILED": "Không thể bắt đầu cuộc gọi.",
       "WHATSAPP_CALL_PERMISSION_REQUESTED": "Sent a call permission request to the contact. Try again once they accept.",
       "WHATSAPP_CALL_PERMISSION_PENDING": "Call permission request already sent recently. Try again once the contact accepts.",
       "SLA_STATUS": {
@@ -171,7 +171,7 @@
       "PENDING": "Đánh dấu chưa giải quyết",
       "RESOLVED": "Đánh dấu là đã giải quyết",
       "MARK_AS_UNREAD": "Đánh dấu là chưa đọc",
-      "MARK_AS_READ": "Mark as read",
+      "MARK_AS_READ": "Đánh dấu đã đọc",
       "REOPEN": "Mở lại hội thoại",
       "SNOOZE": {
         "TITLE": "Báo lại",
@@ -244,12 +244,12 @@
         "ADD_BCC": "Thêm bcc",
         "CC": {
           "LABEL": "CC",
-          "PLACEHOLDER": "Các e\u001dmail phân biệt bởi dấu phẩy",
+          "PLACEHOLDER": "Các email phân biệt bởi dấu phẩy",
           "ERROR": "Vui lòng điền địa chỉ email hợp lệ"
         },
         "BCC": {
           "LABEL": "BCC",
-          "PLACEHOLDER": "Các e\u001dmail phân biệt bởi dấu phẩy",
+          "PLACEHOLDER": "Các email phân biệt bởi dấu phẩy",
           "ERROR": "Vui lòng điền địa chỉ email hợp lệ"
         }
       },
@@ -285,7 +285,7 @@
     "SENT_BY": "Gửi bởi:",
     "BOT": "Bot",
     "NATIVE_APP": "Native app",
-    "NATIVE_APP_ADVISORY": "This message was sent from the native app. Reply from Chatwoot to maintain the message window.",
+    "NATIVE_APP_ADVISORY": "This message was sent from the native app. Reply from Mochi.CRM to maintain the message window.",
     "SEND_FAILED": "Không thể gửi tin nhắn! Thử lại",
     "TRY_AGAIN": "thử lại",
     "ASSIGNMENT": {
@@ -298,7 +298,7 @@
       "REPLY_TO": "Reply to this message",
       "DELETE": "Xoá",
       "CREATE_A_CANNED_RESPONSE": "Thêm vào câu trả lời soạn sẵn",
-      "TRANSLATE": "Translate",
+      "TRANSLATE": "Dịch",
       "COPY_PERMALINK": "Copy link to the message",
       "LINK_COPIED": "Message URL copied to the clipboard",
       "DELETE_CONFIRMATION": {
@@ -308,14 +308,14 @@
         "CANCEL": "Huỷ"
       },
       "REPORT_MESSAGE": {
-        "LABEL": "Report message",
+        "LABEL": "Báo cáo tin nhắn",
         "TITLE": "Report Captain message",
         "DESCRIPTION": "Found an issue with this AI response? Let us know what went wrong and our team will review it to help improve Captain's accuracy.",
-        "PROBLEM_TYPE": "Problem type",
-        "PROBLEM_TYPE_PLACEHOLDER": "Select a problem type",
+        "PROBLEM_TYPE": "Loại vấn đề",
+        "PROBLEM_TYPE_PLACEHOLDER": "Chọn loại vấn đề",
         "DESCRIPTION_LABEL": "Mô tả",
         "DESCRIPTION_PLACEHOLDER": "Describe the problem in detail",
-        "SUBMIT": "Report",
+        "SUBMIT": "Báo cáo",
         "SUCCESS": "Thanks for reporting. Our team will take a look.",
         "ERROR": "Could not report this message. Please try again.",
         "REASONS": {
@@ -323,7 +323,7 @@
           "inappropriate_response": "Inappropriate response",
           "incomplete_response": "Incomplete response",
           "outdated_information": "Outdated information",
-          "other": "Other"
+          "other": "Khác"
         }
       }
     },
@@ -335,12 +335,12 @@
       "INCOMING_CALL": "Incoming call",
       "OUTGOING_CALL": "Outgoing call",
       "CALL_IN_PROGRESS": "Call in progress",
-      "NOT_ANSWERED_YET": "Not answered yet",
+      "NOT_ANSWERED_YET": "Chưa được trả lời",
       "HANDLED_IN_ANOTHER_TAB": "Being handled in another tab",
-      "REJECT_CALL": "Reject",
+      "REJECT_CALL": "Từ chối",
       "DISMISS_CALL": "Dismiss",
       "JOIN_CALL": "Join call",
-      "END_CALL": "End call",
+      "END_CALL": "Kết thúc cuộc gọi",
       "MUTE": "Mute mic",
       "UNMUTE": "Unmute mic",
       "VIEW_CHAT_HISTORY": "View chat history",
@@ -384,11 +384,11 @@
     },
     "LABELS": {
       "TITLE": "Tổ chức hội thoại theo nhãn",
-      "DESCRIPTION": "Nhãn cung cấp một cách để phân loại các hội thoại của bạn dễ dàng hơn. Tạo một số nhãn như #ho-tro, #\byeu-cau-bao-gia, v. v. để bạn có thể sử dụng chúng trong hội thoại sau này.",
+      "DESCRIPTION": "Nhãn cung cấp một cách để phân loại các hội thoại của bạn dễ dàng hơn. Tạo một số nhãn như #ho-tro, #yeu-cau-bao-gia, v. v. để bạn có thể sử dụng chúng trong hội thoại sau này.",
       "NEW_LINK": "Bấm vào đây để tạo nhãn"
     },
     "CANNED_RESPONSES": {
-      "TITLE": "Create canned responses",
+      "TITLE": "Tạo câu trả lời mẫu",
       "DESCRIPTION": "Pre-written quick reply templates help you quickly respond to a conversation. Agents can type the '/' character followed by the shortcode to insert a response.",
       "NEW_LINK": "Click here to create a canned response"
     }
@@ -402,40 +402,40 @@
     },
     "ACCORDION": {
       "CONTACT_DETAILS": "Chi tiết liên hệ",
-      "CONVERSATION_ACTIONS": "Hành động của \bhội thoại",
+      "CONVERSATION_ACTIONS": "Hành động của hội thoại",
       "CONVERSATION_LABELS": "Nhãn hội thoại",
       "CONVERSATION_INFO": "Thông tin hội thoại",
       "CONTACT_NOTES": "Ghi chú liên hệ",
       "CONTACT_ATTRIBUTES": "Thuộc tính của liên hệ",
       "PREVIOUS_CONVERSATION": "Cuộc trò chuyện trước đó",
-      "MACROS": "Macros",
+      "MACROS": "Macro",
       "LINEAR_ISSUES": "Linked Linear Issues",
       "SHOPIFY_ORDERS": "Shopify Orders",
-      "SHARED_FILES": "Attachments"
+      "SHARED_FILES": "Tệp đính kèm"
     },
     "SHARED_FILES": {
-      "EMPTY": "No attachments yet",
+      "EMPTY": "Chưa có tệp đính kèm",
       "DOWNLOAD": "Download file",
       "DOWNLOAD_ERROR": "Could not download the file. Please try again.",
       "MEDIA_HEADING": "Media",
       "FILES_HEADING": "Files",
       "VIEW_ALL": "View all",
-      "SHOW_LESS": "Show less",
+      "SHOW_LESS": "Thu gọn",
       "MORE_COUNT": "+{count}",
       "UNTITLED_FILE": "Untitled file",
-      "JUMP_TO_MESSAGE": "Jump to message"
+      "JUMP_TO_MESSAGE": "Nhảy đến tin nhắn"
     },
     "SHOPIFY": {
       "ORDER_ID": "Order #{id}",
       "ERROR": "Error loading orders",
-      "NO_SHOPIFY_ORDERS": "No orders found",
+      "NO_SHOPIFY_ORDERS": "Không tìm thấy đơn hàng nào",
       "FINANCIAL_STATUS": {
         "PENDING": "Chờ giải quyết",
         "AUTHORIZED": "Authorized",
         "PARTIALLY_PAID": "Partially Paid",
         "PAID": "Paid",
         "PARTIALLY_REFUNDED": "Partially Refunded",
-        "REFUNDED": "Refunded",
+        "REFUNDED": "Đã hoàn tiền",
         "VOIDED": "Voided"
       },
       "FULFILLMENT_STATUS": {
@@ -480,8 +480,8 @@
     "SIDEBAR_TITLE": "Conversation participants",
     "NO_RECORDS_FOUND": "Không tìm thấy kết quả",
     "ADD_PARTICIPANTS": "Select participants",
-    "REMANING_PARTICIPANTS_TEXT": "+{count} others",
-    "REMANING_PARTICIPANT_TEXT": "+{count} other",
+    "REMANING_PARTICIPANTS_TEXT": "+{count} khác",
+    "REMANING_PARTICIPANT_TEXT": "+{count} khác",
     "TOTAL_PARTICIPANTS_TEXT": "{count} people are participating.",
     "TOTAL_PARTICIPANT_TEXT": "{count} person is participating.",
     "NO_PARTICIPANTS_TEXT": "No one is participating!.",
@@ -496,7 +496,7 @@
     "TITLE": "View translated content",
     "DESC": "You can view the translated content in each langauge.",
     "ORIGINAL_CONTENT": "Original Content",
-    "TRANSLATED_CONTENT": "Translated Content",
+    "TRANSLATED_CONTENT": "Nội dung đã dịch",
     "NO_TRANSLATIONS_AVAILABLE": "No translations are available for this content"
   },
   "TYPING": {
@@ -505,7 +505,7 @@
     "MULTIPLE": "{user} and {count} others are typing"
   },
   "COPILOT": {
-    "TRY_THESE_PROMPTS": "Try these prompts"
+    "TRY_THESE_PROMPTS": "Thử các gợi ý này"
   },
   "GALLERY_VIEW": {
     "ERROR_DOWNLOADING": "Unable to download attachment. Please try again"

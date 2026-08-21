@@ -6,8 +6,6 @@ RSpec.describe Account, type: :model do
   include ActiveJob::TestHelper
 
   describe 'associations' do
-    it { is_expected.to have_many(:sla_policies).dependent(:destroy_async) }
-    it { is_expected.to have_many(:applied_slas).dependent(:destroy_async) }
     it { is_expected.to have_many(:custom_roles).dependent(:destroy_async) }
   end
 
@@ -29,44 +27,6 @@ RSpec.describe Account, type: :model do
 
       expect(account).not_to be_feature_assignment_v2
       expect(account).not_to be_feature_advanced_assignment
-    end
-  end
-
-  describe '#api_and_webhooks_enabled?' do
-    let(:account) { create(:account) }
-
-    it 'is always enabled for self-hosted enterprise accounts' do
-      allow(ChatwootApp).to receive(:chatwoot_cloud?).and_return(false)
-      account.disable_features!('api_and_webhooks')
-
-      expect(account.api_and_webhooks_enabled?).to be true
-    end
-
-    it 'uses the account feature flag on Chatwoot Cloud' do
-      allow(ChatwootApp).to receive(:chatwoot_cloud?).and_return(true)
-      account.disable_features!('api_and_webhooks')
-
-      expect(account.api_and_webhooks_enabled?).to be false
-
-      account.enable_features!('api_and_webhooks')
-
-      expect(account.api_and_webhooks_enabled?).to be true
-    end
-  end
-
-  describe 'sla_policies' do
-    let!(:account) { create(:account) }
-    let!(:sla_policy) { create(:sla_policy, account: account) }
-
-    it 'returns associated sla policies' do
-      expect(account.sla_policies).to eq([sla_policy])
-    end
-
-    it 'deletes associated sla policies' do
-      perform_enqueued_jobs do
-        account.destroy!
-      end
-      expect { sla_policy.reload }.to raise_error(ActiveRecord::RecordNotFound)
     end
   end
 
@@ -206,11 +166,6 @@ RSpec.describe Account, type: :model do
       expect(account.usage_limits[:agents]).to eq(10)
     end
 
-    it 'returns limits based on subscription' do
-      account.update(limits: { agents: 10 }, custom_attributes: { subscribed_quantity: 5 })
-      expect(account.usage_limits[:agents]).to eq(5)
-    end
-
     it 'returns max limits from global config if account limit is absent' do
       account.update(limits: { agents: '' })
       expect(account.usage_limits[:agents]).to eq(20)
@@ -221,203 +176,6 @@ RSpec.describe Account, type: :model do
       InstallationConfig.where(name: 'ACCOUNT_AGENTS_LIMIT').update(value: '')
 
       expect(account.usage_limits[:agents]).to eq(ChatwootApp.max_limit)
-    end
-  end
-
-  describe 'subscribed_features' do
-    let(:account) { create(:account) }
-    let(:plan_features) do
-      {
-        'hacker' => %w[feature1 feature2],
-        'startups' => %w[feature1 feature2 feature3 feature4]
-      }
-    end
-
-    before do
-      InstallationConfig.where(name: 'CHATWOOT_CLOUD_PLAN_FEATURES').first_or_create(value: plan_features)
-    end
-
-    context 'when plan_name is hacker' do
-      it 'returns the features for the hacker plan' do
-        account.custom_attributes = { 'plan_name': 'hacker' }
-        account.save!
-
-        expect(account.subscribed_features).to eq(%w[feature1 feature2])
-      end
-    end
-
-    context 'when plan_name is startups' do
-      it 'returns the features for the startups plan' do
-        account.custom_attributes = { 'plan_name': 'startups' }
-        account.save!
-
-        expect(account.subscribed_features).to eq(%w[feature1 feature2 feature3 feature4])
-      end
-    end
-
-    context 'when plan_features is blank' do
-      it 'returns an empty array' do
-        account.custom_attributes = {}
-        account.save!
-
-        expect(account.subscribed_features).to be_nil
-      end
-    end
-  end
-
-  describe 'default features' do
-    before do
-      InstallationConfig.find_or_initialize_by(name: 'ACCOUNT_LEVEL_FEATURE_DEFAULTS').update!(
-        value: Featurable::FEATURE_LIST,
-        locked: true
-      )
-    end
-
-    it 'enables Captain V2 for new self-hosted enterprise accounts' do
-      allow(ChatwootApp).to receive(:self_hosted_enterprise?).and_return(true)
-
-      account = create(:account)
-
-      expect(account).to be_feature_enabled('captain_integration')
-      expect(account).to be_feature_enabled('captain_integration_v2')
-      expect(account.captain_preferences[:models]['assistant']).to eq('gpt-5.2')
-      expect(account.captain_models).to be_nil
-    end
-
-    it 'marks new cloud accounts as eligible for the Captain V2 paid-plan default' do
-      allow(ChatwootApp).to receive(:self_hosted_enterprise?).and_return(false)
-      allow(ChatwootApp).to receive(:chatwoot_cloud?).and_return(true)
-
-      account = create(:account)
-
-      expect(account.internal_attributes[Enterprise::Account::CAPTAIN_V2_DEFAULT_ELIGIBLE]).to be true
-      expect(account).not_to be_feature_enabled('captain_integration')
-      expect(account).not_to be_feature_enabled('captain_integration_v2')
-    end
-  end
-
-  describe 'captain document sync cadence' do
-    let(:account) { create(:account) }
-
-    it 'has no cadence when installation config is missing' do
-      account.update!(custom_attributes: { plan_name: 'business' })
-      expect(account.captain_document_sync_interval).to be_nil
-    end
-
-    it 'uses configured plan intervals from installation config' do
-      intervals = {
-        business: 48,
-        enterprise: 24
-      }
-      create(:installation_config, name: 'CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', value: intervals.to_json)
-      account.update!(custom_attributes: { plan_name: 'business' })
-
-      expect(account.captain_document_sync_interval).to eq(2.days)
-    end
-
-    it 'normalizes configured plan name casing' do
-      create(:installation_config, name: 'CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', value: { business: 24 }.to_json)
-      account.update!(custom_attributes: { plan_name: 'Business' })
-
-      expect(account.captain_document_sync_interval).to eq(1.day)
-    end
-
-    it 'uses the enterprise cadence for self-hosted enterprise installs without a plan_name' do
-      allow(ChatwootApp).to receive(:self_hosted_enterprise?).and_return(true)
-      create(:installation_config, name: 'CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', value: { enterprise: 6 }.to_json)
-      account.update!(custom_attributes: {})
-
-      expect(account.captain_document_sync_interval).to eq(6.hours)
-    end
-
-    it 'allows installation config to disable a plan cadence' do
-      create(:installation_config, name: 'CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', value: { business: nil }.to_json)
-      account.update!(custom_attributes: { plan_name: 'business' })
-
-      expect(account.captain_document_sync_interval).to be_nil
-    end
-
-    it 'has no cadence when installation config is invalid' do
-      create(:installation_config, name: 'CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', value: 'invalid-json')
-      account.update!(custom_attributes: { plan_name: 'business' })
-
-      expect(account.captain_document_sync_interval).to be_nil
-    end
-
-    it 'treats invalid plan interval values as disabled' do
-      intervals = {
-        business: false,
-        enterprise: { hours: 6 },
-        startups: '168'
-      }
-      create(:installation_config, name: 'CAPTAIN_DOCUMENT_AUTO_SYNC_INTERVALS', value: intervals.to_json)
-
-      account.update!(custom_attributes: { plan_name: 'business' })
-      expect(account.captain_document_sync_interval).to be_nil
-
-      account.update!(custom_attributes: { plan_name: 'enterprise' })
-      expect(account.captain_document_sync_interval).to be_nil
-
-      account.update!(custom_attributes: { plan_name: 'startups' })
-      expect(account.captain_document_sync_interval).to be_nil
-    end
-  end
-
-  describe 'account deletion' do
-    let(:account) { create(:account) }
-    let(:admin) { create(:user, account: account, role: :administrator) }
-
-    describe '#mark_for_deletion' do
-      it 'sets the marked_for_deletion_at and marked_for_deletion_reason attributes' do
-        expect do
-          account.mark_for_deletion('inactivity')
-        end.to change { account.reload.custom_attributes['marked_for_deletion_at'] }.from(nil).to(be_present)
-           .and change { account.reload.custom_attributes['marked_for_deletion_reason'] }.from(nil).to('inactivity')
-      end
-
-      it 'sends a user-initiated deletion email when reason is manual_deletion' do
-        mailer = double
-        expect(AdministratorNotifications::AccountNotificationMailer).to receive(:with).with(account: account).and_return(mailer)
-        expect(mailer).to receive(:account_deletion_user_initiated).with(account, 'manual_deletion').and_return(mailer)
-        expect(mailer).to receive(:deliver_later)
-
-        account.mark_for_deletion('manual_deletion')
-      end
-
-      it 'sends a system-initiated deletion email when reason is not manual_deletion' do
-        mailer = double
-        expect(AdministratorNotifications::AccountNotificationMailer).to receive(:with).with(account: account).and_return(mailer)
-        expect(mailer).to receive(:account_deletion_for_inactivity).with(account, 'inactivity').and_return(mailer)
-        expect(mailer).to receive(:deliver_later)
-
-        account.mark_for_deletion('inactivity')
-      end
-
-      it 'returns true when successful' do
-        expect(account.mark_for_deletion).to be_truthy
-      end
-    end
-
-    describe '#unmark_for_deletion' do
-      before do
-        account.update!(
-          custom_attributes: {
-            'marked_for_deletion_at' => 7.days.from_now.iso8601,
-            'marked_for_deletion_reason' => 'test_reason'
-          }
-        )
-      end
-
-      it 'removes the marked_for_deletion_at and marked_for_deletion_reason attributes' do
-        expect do
-          account.unmark_for_deletion
-        end.to change { account.reload.custom_attributes['marked_for_deletion_at'] }.from(be_present).to(nil)
-           .and change { account.reload.custom_attributes['marked_for_deletion_reason'] }.from('test_reason').to(nil)
-      end
-
-      it 'returns true when successful' do
-        expect(account.unmark_for_deletion).to be_truthy
-      end
     end
   end
 end

@@ -15,14 +15,17 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
     let(:assistant_model) { Llm::Models.default_model_for('assistant') }
 
     before do
-      create(:message, conversation: conversation, content: 'Hello', message_type: :incoming)
+      captain_inbox_association
+      create(:message, conversation: conversation, account: account, content: 'Hello', message_type: :incoming)
 
       allow(inbox).to receive(:captain_active?).and_return(true)
       allow(Captain::Llm::AssistantChatService).to receive(:new).and_return(mock_llm_chat_service)
       allow(mock_llm_chat_service).to receive(:generate_response).and_return({ 'response' => 'Hey, welcome to Captain Specs' })
-      allow(Captain::Assistant::AgentRunnerService).to receive(:new).and_return(mock_agent_runner_service)
-      allow(mock_agent_runner_service).to receive(:generate_response).and_return({ 'response' => 'Hey, welcome to Captain V2' })
-      allow(mock_agent_runner_service).to receive(:last_run_result).and_return(nil)
+      if defined?(Captain::Assistant::AgentRunnerService)
+        allow(Captain::Assistant::AgentRunnerService).to receive(:new).and_return(mock_agent_runner_service)
+        allow(mock_agent_runner_service).to receive(:generate_response).and_return({ 'response' => 'Hey, welcome to Captain V2' })
+        allow(mock_agent_runner_service).to receive(:last_run_result).and_return(nil)
+      end
       allow(Captain::Llm::AssistantActionClassifierService).to receive(:new).and_return(mock_action_classifier_service)
       allow(mock_action_classifier_service).to receive(:classify).and_return({ 'action' => 'continue' })
       allow(Captain::Llm::AssistantFalsePromiseService).to receive(:new).and_return(mock_false_promise_service)
@@ -58,7 +61,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
           content: 'Conversation was marked resolved',
           content_attributes: { activity: { type: 'conversation_status_changed', status: 'resolved' } }
         )
-        create(:message, conversation: conversation, content: 'Private note', message_type: :outgoing, private: true)
+        create(:message, conversation: conversation, account: account, content: 'Private note', message_type: :outgoing, private: true)
 
         expect(mock_llm_chat_service).to receive(:generate_response).with(
           message_history: [{ content: 'Hello', role: 'user' }]
@@ -372,15 +375,16 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
         create(
           :message,
           conversation: conversation,
+          account: account,
           message_type: :activity,
           content: 'Conversation was marked resolved by Alice',
           content_attributes: { activity: { type: 'conversation_status_changed', status: 'resolved' } },
           created_at: same_second,
           updated_at: same_second
         )
-        create(:message, conversation: conversation, message_type: :activity, content: 'Assigned to agent', created_at: same_second,
+        create(:message, conversation: conversation, account: account, message_type: :activity, content: 'Assigned to agent', created_at: same_second,
                          updated_at: same_second)
-        create(:message, conversation: conversation, content: 'Fresh question', message_type: :incoming, created_at: same_second,
+        create(:message, conversation: conversation, account: account, content: 'Fresh question', message_type: :incoming, created_at: same_second,
                          updated_at: same_second)
 
         expected_messages = [
@@ -544,7 +548,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
           user_id: nil
         )
         expect(session).to be_session_assistant
-        expect(session.run_context.first).to include('role' => 'user', 'content' => 'Hello')
+        expect(session.run_context.fetch('messages').first).to include('role' => 'user', 'content' => 'Hello')
       end
 
       it 'creates a zero-credit session when the handoff tool fired' do
@@ -646,7 +650,9 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
     end
 
     context 'when message contains an image' do
-      let(:message_with_image) { create(:message, conversation: conversation, message_type: :incoming, content: 'Can you help with this error?') }
+      let(:message_with_image) do
+        create(:message, conversation: conversation, account: account, message_type: :incoming, content: 'Can you help with this error?')
+      end
       let(:image_attachment) { message_with_image.attachments.create!(account: account, file_type: :image, external_url: 'https://example.com/error.jpg') }
 
       before do
@@ -677,7 +683,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
     let(:mock_message_builder) { instance_double(Captain::OpenAiMessageBuilderService) }
 
     before do
-      create(:message, conversation: conversation, content: 'Hello with image', message_type: :incoming)
+      create(:message, conversation: conversation, account: account, content: 'Hello with image', message_type: :incoming)
       allow(Captain::Llm::AssistantChatService).to receive(:new).and_return(mock_llm_chat_service)
       allow(Captain::OpenAiMessageBuilderService).to receive(:new).with(message: anything).and_return(mock_message_builder)
       allow(mock_message_builder).to receive(:generate_content).and_return('Hello with image')
@@ -790,7 +796,7 @@ RSpec.describe Captain::Conversation::ResponseBuilderJob, type: :job do
     let(:mock_llm_chat_service) { instance_double(Captain::Llm::AssistantChatService) }
 
     before do
-      create(:message, conversation: conversation, content: 'Hello', message_type: :incoming)
+      create(:message, conversation: conversation, account: account, content: 'Hello', message_type: :incoming)
       allow(Captain::Llm::AssistantChatService).to receive(:new).and_return(mock_llm_chat_service)
       allow(account).to receive(:feature_enabled?).and_return(false)
       allow(account).to receive(:feature_enabled?).with('captain_integration_v2').and_return(false)

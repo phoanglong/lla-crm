@@ -9,6 +9,7 @@ describe('useConfig', () => {
       vapidPublicKey: 'vapid-key',
       enabledLanguages: ['en', 'fr'],
       isEnterprise: 'true',
+      knowledgeOnboardingEnabled: 'true',
       enterprisePlanName: 'enterprise',
     };
   });
@@ -24,6 +25,7 @@ describe('useConfig', () => {
     expect(config.vapidPublicKey).toBe('vapid-key');
     expect(config.enabledLanguages).toEqual(['en', 'fr']);
     expect(config.isEnterprise).toBe(true);
+    expect(config.knowledgeOnboardingEnabled).toBe(true);
     expect(config.enterprisePlanName).toBe('enterprise');
   });
 
@@ -35,6 +37,7 @@ describe('useConfig', () => {
     expect(config.vapidPublicKey).toBeUndefined();
     expect(config.enabledLanguages).toBeUndefined();
     expect(config.isEnterprise).toBe(false);
+    expect(config.knowledgeOnboardingEnabled).toBe(false);
     expect(config.enterprisePlanName).toBeUndefined();
   });
 
@@ -46,6 +49,7 @@ describe('useConfig', () => {
     expect(config.vapidPublicKey).toBeUndefined();
     expect(config.enabledLanguages).toBeUndefined();
     expect(config.isEnterprise).toBe(false);
+    expect(config.knowledgeOnboardingEnabled).toBe(false);
     expect(config.enterprisePlanName).toBeUndefined();
   });
 });

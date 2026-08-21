@@ -19,9 +19,12 @@ import CoverageBanner from 'dashboard/components-next/captain/pageComponents/ove
 
 const { t } = useI18n();
 const route = useRoute();
-// Drilldown is admin-only; the backend policy enforces the same restriction.
+// Aggregate and drilldown access requires administration or the explicit
+// report_manage permission; the backend also scopes records by conversation.
 const { checkPermissions } = usePolicy();
-const canDrilldown = computed(() => checkPermissions(['administrator']));
+const canDrilldown = computed(() =>
+  checkPermissions(['administrator', 'report_manage'])
+);
 
 const selectedRange = ref('this_month');
 

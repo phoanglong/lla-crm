@@ -4,7 +4,7 @@
 
 # executed daily at 0000 UTC
 # schedules daily deferred jobs at stable times for each installation
-internal_check_new_versions_job:
+internal_trigger_daily_scheduled_items_job:
   cron: '0 0 * * *'
   class: 'Internal::TriggerDailyScheduledItemsJob'
   queue: scheduled_jobs
@@ -74,3 +74,11 @@ remove_orphan_conversations_job:
   cron: '0 */12 * * *'
   class: 'Internal::RemoveOrphanConversationsJob'
   queue: housekeeping
+
+# executed every 10 minutes
+# LLA custom-domain operation queue: re-dispatch waiting work, reclaim claims
+# abandoned by a dead worker, expire challenges and re-arm stuck teardowns
+lla_custom_domain_reconciliation_job:
+  cron: '*/10 * * * *'
+  class: 'Lla::CustomDomains::ReconciliationJob'
+  queue: scheduled_jobs

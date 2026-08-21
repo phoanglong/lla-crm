@@ -1,7 +1,6 @@
 <script setup>
 import { ref, useTemplateRef } from 'vue';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
-import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
 import { ROLES } from 'dashboard/constants/permissions';
 
 import SearchInput from './SearchInput.vue';
@@ -42,10 +41,6 @@ const onSelectRecentSearch = query => {
     >
       <Policy
         :permissions="ROLES"
-        :installation-types="[
-          INSTALLATION_TYPES.ENTERPRISE,
-          INSTALLATION_TYPES.CLOUD,
-        ]"
         :feature-flag="FEATURE_FLAGS.ADVANCED_SEARCH"
         class="w-full"
       >

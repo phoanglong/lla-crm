@@ -1,34 +1,32 @@
 require 'rails_helper'
 
 RSpec.describe Captain::Copilot::ChatService do
-  let(:account) { create(:account, custom_attributes: { plan_name: 'startups' }) }
-  let(:user) { create(:user, account: account) }
+  let(:account) { create(:account, limits: { captain_responses: 10 }, custom_attributes: { plan_name: 'startups' }) }
+  let(:user) { create(:user, account: account, role: :administrator) }
   let(:inbox) { create(:inbox, account: account) }
   let(:assistant) { create(:captain_assistant, account: account) }
   let(:contact) { create(:contact, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox, contact: contact) }
-  let(:copilot_thread) { create(:captain_copilot_thread, account: account, user: user) }
-  let!(:copilot_message) do
+  let(:copilot_thread) { create(:captain_copilot_thread, account: account, user: user, assistant: assistant) }
+  let(:source_message) do
     create(
-      :captain_copilot_message, account: account, copilot_thread: copilot_thread
-    )
+      :captain_copilot_message,
+      account: account,
+      copilot_thread: copilot_thread,
+      conversation: conversation,
+      message: { 'content' => 'Private customer question' },
+      message_type: :user
+    ).tap do |message|
+      message.reserve_response!
+      message.claim_response!(message.response_job_token)
+    end
   end
-  let(:previous_history) { [{ role: copilot_message.message_type, content: copilot_message.message['content'] }] }
-
-  let(:config) do
-    { user_id: user.id, copilot_thread_id: copilot_thread.id, conversation_id: conversation.display_id }
-  end
-
-  # RubyLLM mocks
   let(:mock_chat) { instance_double(RubyLLM::Chat) }
-  let(:mock_response) do
-    instance_double(RubyLLM::Message, content: '{ "content": "Hey", "reasoning": "Test reasoning", "reply_suggestion": false }')
-  end
+  let(:response_content) { '{ "content": "Hey", "reasoning": "Test reasoning", "reply_suggestion": false }' }
+  let(:mock_response) { instance_double(RubyLLM::Message, content: response_content) }
 
   before do
-    InstallationConfig.find_or_create_by(name: 'CAPTAIN_OPEN_AI_API_KEY') do |c|
-      c.value = 'test-key'
-    end
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: 'test-key')
 
     allow(RubyLLM).to receive(:chat).and_return(mock_chat)
     allow(mock_chat).to receive(:with_temperature).and_return(mock_chat)
@@ -36,7 +34,6 @@ RSpec.describe Captain::Copilot::ChatService do
     allow(mock_chat).to receive(:with_tool).and_return(mock_chat)
     allow(mock_chat).to receive(:with_instructions).and_return(mock_chat)
     allow(mock_chat).to receive(:add_message).and_return(mock_chat)
-    allow(mock_chat).to receive(:on_new_message).and_return(mock_chat)
     allow(mock_chat).to receive(:on_end_message).and_return(mock_chat)
     allow(mock_chat).to receive(:on_tool_call).and_return(mock_chat)
     allow(mock_chat).to receive(:on_tool_result).and_return(mock_chat)
@@ -45,155 +42,97 @@ RSpec.describe Captain::Copilot::ChatService do
   end
 
   describe '#initialize' do
-    it 'sets up the service with correct instance variables' do
-      service = described_class.new(assistant, config)
+    it 'derives the complete tenant context from the persisted source message' do
+      service = described_class.new(source_message)
 
-      expect(service.assistant).to eq(assistant)
-      expect(service.account).to eq(account)
-      expect(service.user).to eq(user)
-      expect(service.copilot_thread).to eq(copilot_thread)
-      expect(service.previous_history).to eq(previous_history)
+      expect(service).to have_attributes(
+        source_message: source_message,
+        assistant: assistant,
+        account: account,
+        user: user,
+        copilot_thread: copilot_thread
+      )
+      expect(service.previous_history).to eq([{ role: 'user', content: 'Private customer question' }])
     end
 
-    it 'builds messages with system message and account context' do
-      service = described_class.new(assistant, config)
-      messages = service.messages
+    it 'builds an injection-resistant system prompt and authorized viewing context' do
+      messages = described_class.new(source_message).messages
 
-      expect(messages.first[:role]).to eq('system')
-      expect(messages.second[:role]).to eq('system')
-      expect(messages.second[:content]).to include(account.id.to_s)
+      expect(messages.first).to include(role: 'system')
+      expect(messages.first[:content]).to include('untrusted')
+      expect(messages.second).to eq(role: 'system', content: "Respond in #{account.locale_english_name}.")
+      viewing_context = messages.find { |message| message[:content].to_s.include?('currently viewing authorized conversation') }
+      expect(viewing_context[:content]).to include(conversation.display_id.to_s, contact.id.to_s)
+    end
+
+    it 'rejects stale account membership before constructing an LLM request' do
+      source_message
+      AccountUser.find_by!(account: account, user: user).destroy!
+
+      expect { described_class.new(source_message) }.to raise_error(ActiveRecord::RecordNotFound)
+      expect(RubyLLM).not_to have_received(:chat)
+    end
+
+    it 'rejects a conversation that is no longer visible to the agent' do
+      source_message
+      AccountUser.find_by!(account: account, user: user).update!(role: :agent)
+
+      expect { described_class.new(source_message) }.to raise_error(ActiveRecord::RecordNotFound)
     end
   end
 
   describe '#generate_response' do
-    let(:service) { described_class.new(assistant, config) }
-
-    it 'uses the copilot feature model' do
+    it 'uses the account copilot model route' do
       account.update!(captain_models: { 'copilot' => 'gpt-5.2' })
 
       expect(RubyLLM).to receive(:chat).with(model: 'gpt-5.2').and_return(mock_chat)
 
-      described_class.new(assistant, config).generate_response('Hello')
+      described_class.new(source_message).generate_response
     end
 
-    it 'adds user input to messages when present' do
+    it 'normalizes, persists and links exactly one final response without consuming quota twice' do
+      service = described_class.new(source_message)
+
       expect do
-        service.generate_response('Hello')
-      end.to(change { service.messages.count }.by(1))
+        expect(service.generate_response).to eq(
+          { 'content' => 'Hey', 'reasoning' => 'Test reasoning', 'reply_suggestion' => false }
+        )
+      end.to change(CopilotMessage.assistant, :count).by(1)
 
-      last_message = service.messages.last
-      expect(last_message[:role]).to eq('user')
-      expect(last_message[:content]).to eq('Hello')
+      response = source_message.reload.copilot_response
+      expect(source_message).to be_response_completed
+      expect(response).to have_attributes(copilot_thread_id: copilot_thread.id, account_id: account.id)
+      expect(response.message).to eq(
+        'content' => 'Hey', 'reasoning' => 'Test reasoning', 'reply_suggestion' => false
+      )
+      # Quota lives in the LLA ledger since Wave E5; the old counter is dead.
+      expect(account.reload.usage_limits.dig(:captain, :responses)).to include(consumed: 1, reserved: 0)
     end
 
-    it 'does not add user input to messages when blank' do
-      expect do
-        service.generate_response('')
-      end.not_to(change { service.messages.count })
+    it 'does not include future thread messages in the bounded request history' do
+      service = described_class.new(source_message)
+      later_message = create(
+        :captain_copilot_message,
+        account: account,
+        copilot_thread: copilot_thread,
+        message: { 'content' => 'A later private prompt' },
+        message_type: :user
+      )
+
+      expect(service.previous_history.to_json).not_to include(later_message.message['content'])
+
+      service.generate_response
+
+      expect(mock_chat).not_to have_received(:add_message).with(hash_including(content: later_message.message['content']))
     end
 
-    it 'returns the response from request_chat_completion' do
-      result = service.generate_response('Hello')
+    it 'rejects oversized model output before persisting a final response' do
+      allow(mock_response).to receive(:content).and_return('x' * (Captain::ChatResponseHelper::MAX_RESPONSE_BYTES + 1))
 
-      expect(result).to eq({ 'content' => 'Hey', 'reasoning' => 'Test reasoning', 'reply_suggestion' => false })
-    end
+      expect { described_class.new(source_message).generate_response }.to raise_error(ArgumentError, 'LLM response is too large')
 
-    it 'increments response usage for the account' do
-      expect do
-        service.generate_response('Hello')
-      end.to(change { account.reload.custom_attributes['captain_responses_usage'].to_i }.by(1))
-    end
-  end
-
-  describe 'user setup behavior' do
-    it 'sets user when user_id is present in config' do
-      service = described_class.new(assistant, { user_id: user.id })
-      expect(service.user).to eq(user)
-    end
-
-    it 'does not set user when user_id is not present in config' do
-      service = described_class.new(assistant, {})
-      expect(service.user).to be_nil
-    end
-  end
-
-  describe 'message history behavior' do
-    context 'when copilot_thread_id is present' do
-      it 'finds the copilot thread and sets previous history from it' do
-        service = described_class.new(assistant, { copilot_thread_id: copilot_thread.id })
-
-        expect(service.copilot_thread).to eq(copilot_thread)
-        expect(service.previous_history).to eq previous_history
-      end
-    end
-
-    context 'when copilot_thread_id is not present' do
-      it 'uses previous_history from config if present' do
-        custom_history = [{ role: 'user', content: 'Custom message' }]
-        service = described_class.new(assistant, { previous_history: custom_history })
-
-        expect(service.copilot_thread).to be_nil
-        expect(service.previous_history).to eq(custom_history)
-      end
-
-      it 'uses empty array if previous_history is not present in config' do
-        service = described_class.new(assistant, {})
-
-        expect(service.copilot_thread).to be_nil
-        expect(service.previous_history).to eq([])
-      end
-    end
-  end
-
-  describe 'message building behavior' do
-    it 'includes system message and account context' do
-      service = described_class.new(assistant, {})
-      messages = service.messages
-
-      expect(messages.first[:role]).to eq('system')
-      expect(messages.second[:role]).to eq('system')
-      expect(messages.second[:content]).to include(account.id.to_s)
-    end
-
-    it 'includes previous history when present' do
-      custom_history = [{ role: 'user', content: 'Custom message' }]
-      service = described_class.new(assistant, { previous_history: custom_history })
-      messages = service.messages
-
-      expect(messages.count).to be >= 3
-      expect(messages.any? { |m| m[:content] == 'Custom message' }).to be true
-    end
-
-    it 'includes current viewing history when conversation_id is present' do
-      service = described_class.new(assistant, { conversation_id: conversation.display_id })
-      messages = service.messages
-
-      viewing_history = messages.find { |m| m[:content].include?('You are currently viewing the conversation') }
-      expect(viewing_history).not_to be_nil
-      expect(viewing_history[:content]).to include(conversation.display_id.to_s)
-      expect(viewing_history[:content]).to include(contact.id.to_s)
-    end
-  end
-
-  describe 'message persistence behavior' do
-    context 'when copilot_thread is present' do
-      it 'creates a copilot message with the response' do
-        expect do
-          described_class.new(assistant, { copilot_thread_id: copilot_thread.id }).generate_response('Hello')
-        end.to change(CopilotMessage, :count).by(1)
-
-        last_message = CopilotMessage.last
-        expect(last_message.message_type).to eq('assistant')
-        expect(last_message.message['content']).to eq('Hey')
-      end
-    end
-
-    context 'when copilot_thread is not present' do
-      it 'does not create a copilot message' do
-        expect do
-          described_class.new(assistant, {}).generate_response('Hello')
-        end.not_to(change(CopilotMessage, :count))
-      end
+      expect(source_message.reload).to be_response_processing
+      expect(source_message.copilot_response).to be_nil
     end
   end
 end

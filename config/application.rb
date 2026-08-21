@@ -12,6 +12,11 @@ Bundler.require(*Rails.groups)
 # We rely on DOTENV to load the environment variables
 # We need these environment variables to load the specific APM agent
 Dotenv::Rails.load
+
+# ChatwootApp quyết định eager_load_paths bên dưới nên phải có mặt trước khi thân
+# class Application chạy — Zeitwerk chưa autoload lib/ ở thời điểm này.
+require_relative '../lib/chatwoot_app'
+
 require 'datadog' if ENV.fetch('DD_TRACE_AGENT_URL', false).present?
 require 'elastic-apm' if ENV.fetch('ELASTIC_APM_SECRET_TOKEN', false).present?
 require 'scout_apm' if ENV.fetch('SCOUT_KEY', false).present?
@@ -40,17 +45,36 @@ module Chatwoot
     config.rails_i18n.enabled_modules = [:pluralization]
 
     config.eager_load_paths << Rails.root.join('lib')
-    config.eager_load_paths << Rails.root.join('enterprise/lib')
-    config.eager_load_paths << Rails.root.join('enterprise/listeners')
-    # rubocop:disable Rails/FilePath
-    config.eager_load_paths += Dir["#{Rails.root}/enterprise/app/**"]
-    # rubocop:enable Rails/FilePath
-    # Add enterprise views to the view paths
-    config.paths['app/views'].unshift('enterprise/app/views')
 
-    # Load enterprise initializers alongside standard initializers
-    enterprise_initializers = Rails.root.join('enterprise/config/initializers')
-    Dir[enterprise_initializers.join('**/*.rb')].each { |f| require f } if enterprise_initializers.exist?
+    # rubocop:disable Rails/FilePath
+    # enterprise/ chỉ được nạp khi ChatwootApp.enterprise? — trước đây các dòng này
+    # chạy vô điều kiện nên DISABLE_ENTERPRISE chỉ tắt được feature gate mà code EE
+    # vẫn nằm trong bộ nhớ. Xem ADR-OMCRM-032.
+    if ChatwootApp.enterprise?
+      config.eager_load_paths << Rails.root.join('enterprise/lib')
+      config.eager_load_paths << Rails.root.join('enterprise/listeners')
+      config.eager_load_paths += Dir["#{Rails.root}/enterprise/app/**"]
+      config.paths['app/views'].unshift('enterprise/app/views')
+
+      # Load enterprise initializers alongside standard initializers
+      enterprise_initializers = Rails.root.join('enterprise/config/initializers')
+      Dir[enterprise_initializers.join('**/*.rb')].each { |f| require f } if enterprise_initializers.exist?
+    end
+
+    # Phần mở rộng LLA — namespace Lla::, cùng cơ chế prepend_mod_with với EE.
+    if ChatwootApp.lla?
+      lla_lib = Rails.root.join('lla/rails/lib')
+      lla_listeners = Rails.root.join('lla/rails/listeners')
+      config.eager_load_paths << lla_lib if lla_lib.exist?
+      config.eager_load_paths << lla_listeners if lla_listeners.exist?
+      config.eager_load_paths += Dir["#{Rails.root}/lla/rails/app/**"]
+      lla_views = Rails.root.join('lla/rails/app/views')
+      config.paths['app/views'].unshift('lla/rails/app/views') if lla_views.exist?
+
+      lla_initializers = Rails.root.join('lla/rails/config/initializers')
+      Dir[lla_initializers.join('**/*.rb')].each { |f| require f } if lla_initializers.exist?
+    end
+    # rubocop:enable Rails/FilePath
 
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration can go into files in config/initializers

@@ -20,5 +20,27 @@ describe ActionCableListener do
 
       listener.copilot_message_created(event)
     end
+
+    it 'does not broadcast after the thread owner loses account membership' do
+      copilot_message
+      AccountUser.find_by!(account: account, user: user).destroy!
+
+      expect(ActionCableBroadcastJob).not_to receive(:perform_later)
+
+      listener.copilot_message_created(event)
+    end
+
+    it 'does not trust a stale event object after the message is deleted' do
+      copilot_message.destroy!
+
+      expect(ActionCableBroadcastJob).not_to receive(:perform_later)
+
+      listener.copilot_message_created(event)
+    end
+
+    it 'loads the LLA listener exactly once' do
+      expect(described_class.ancestors.count { |ancestor| ancestor == Lla::ActionCableListener }).to eq(1)
+      expect(listener.method(:copilot_message_created).source_location.first).to include('/lla/rails/app/listeners/')
+    end
   end
 end

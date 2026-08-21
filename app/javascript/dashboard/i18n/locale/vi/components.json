@@ -1,17 +1,17 @@
 {
   "PAGINATION_FOOTER": {
-    "SHOWING": "Showing {startItem} - {endItem} of {totalItems} items",
-    "CURRENT_PAGE_INFO": "{currentPage} of {totalPages} pages"
+    "SHOWING": "Hiển thị {startItem} - {endItem} trong {totalItems} mục",
+    "CURRENT_PAGE_INFO": "{currentPage} trên {totalPages} trang"
   },
   "COMBOBOX": {
-    "PLACEHOLDER": "Select an option...",
-    "EMPTY_SEARCH_RESULTS": "No items found for the search term `{searchTerm}`",
+    "PLACEHOLDER": "Chọn một tuỳ chọn...",
+    "EMPTY_SEARCH_RESULTS": "Không tìm thấy mục nào cho từ khoá `{searchTerm}`",
     "EMPTY_STATE": "Không tìm thấy kết quả.",
-    "SEARCH_PLACEHOLDER": "Search...",
-    "MORE": "+{count} more"
+    "SEARCH_PLACEHOLDER": "Tìm kiếm...",
+    "MORE": "+{count} nữa"
   },
   "DROPDOWN_MENU": {
-    "SEARCH_PLACEHOLDER": "Search...",
+    "SEARCH_PLACEHOLDER": "Tìm kiếm...",
     "EMPTY_STATE": "Không tìm thấy kết quả.",
     "SEARCHING": "Đang tìm kiếm..."
   },
@@ -22,48 +22,48 @@
     }
   },
   "PHONE_INPUT": {
-    "SEARCH_PLACEHOLDER": "Search country",
-    "ERROR": "Phone number should be empty or in E.164 format",
-    "DIAL_CODE_ERROR": "Please select a dial code from the list"
+    "SEARCH_PLACEHOLDER": "Tìm quốc gia",
+    "ERROR": "Số điện thoại phải để trống hoặc theo định dạng E.164",
+    "DIAL_CODE_ERROR": "Vui lòng chọn mã vùng từ danh sách"
   },
   "THUMBNAIL": {
     "AUTHOR": {
-      "NOT_AVAILABLE": "Author is not available"
+      "NOT_AVAILABLE": "Không có thông tin tác giả"
     }
   },
   "BREADCRUMB": {
-    "ARIA_LABEL": "Breadcrumb"
+    "ARIA_LABEL": "Đường dẫn phân cấp"
   },
   "SWITCH": {
-    "TOGGLE": "Toggle switch"
+    "TOGGLE": "Bật/tắt công tắc"
   },
   "LABEL": {
-    "TAG_BUTTON": "tag"
+    "TAG_BUTTON": "thẻ"
   },
   "FEATURE_SPOTLIGHT": {
     "LEARN_MORE": "Tìm hiểu thêm",
-    "WATCH_VIDEO": "Watch video"
+    "WATCH_VIDEO": "Xem video"
   },
   "DURATION_INPUT": {
-    "MINUTES": "Minutes",
-    "HOURS": "Hours",
-    "DAYS": "Days",
-    "PLACEHOLDER": "Enter duration"
+    "MINUTES": "Phút",
+    "HOURS": "Giờ",
+    "DAYS": "Ngày",
+    "PLACEHOLDER": "Nhập thời lượng"
   },
   "CHANNEL_SELECTOR": {
-    "COMING_SOON": "Coming Soon!"
+    "COMING_SOON": "Sắp ra mắt!"
   },
   "SLASH_COMMANDS": {
-    "HEADING_1": "Heading 1",
-    "HEADING_2": "Heading 2",
-    "HEADING_3": "Heading 3",
-    "BOLD": "Bold",
-    "ITALIC": "Italic",
-    "STRIKETHROUGH": "Strikethrough",
-    "CODE": "Code",
-    "BULLET_LIST": "Bullet List",
-    "ORDERED_LIST": "Ordered List",
-    "TABLE": "Table",
-    "IMAGE": "Image"
+    "HEADING_1": "Tiêu đề 1",
+    "HEADING_2": "Tiêu đề 2",
+    "HEADING_3": "Tiêu đề 3",
+    "BOLD": "Đậm",
+    "ITALIC": "Nghiêng",
+    "STRIKETHROUGH": "Gạch ngang",
+    "CODE": "Mã",
+    "BULLET_LIST": "Danh sách dấu đầu dòng",
+    "ORDERED_LIST": "Danh sách đánh số",
+    "TABLE": "Bảng",
+    "IMAGE": "Hình ảnh"
   }
 }

@@ -63,6 +63,8 @@ class ActionCableConnector extends BaseActionCableConnector {
       'voice_call.incoming': this.onVoiceCallIncoming,
       'voice_call.outbound_connected': this.onVoiceCallOutboundConnected,
       'voice_call.outbound_accepted': this.onVoiceCallOutboundAccepted,
+      'voice_call.accepted': this.onVoiceCallAccepted,
+      'voice_call.permission_granted': this.onVoiceCallPermissionGranted,
       'voice_call.ended': this.onVoiceCallEnded,
     };
   }
@@ -354,7 +356,7 @@ class ActionCableConnector extends BaseActionCableConnector {
   };
 
   onVoiceCallIncoming = data => {
-    if (data?.provider !== VOICE_CALL_PROVIDERS.WHATSAPP) return;
+    if (!this.isAuthorizedVoiceEvent(data)) return;
     // Defense in depth: the server already filters to online agent streams,
     // but if anything ever broadcasts to a broader stream (e.g. account-wide),
     // an agent who's set availability=offline/busy shouldn't ring.
@@ -379,9 +381,8 @@ class ActionCableConnector extends BaseActionCableConnector {
   // ringing, but stay non-active until `outbound_accepted` arrives.
   // eslint-disable-next-line class-methods-use-this
   onVoiceCallOutboundConnected = async data => {
-    if (data?.provider !== VOICE_CALL_PROVIDERS.WHATSAPP || !data.sdp_answer)
-      return;
-    // Account-wide broadcast that can arrive before /initiate sets this tab's
+    if (!this.isAuthorizedVoiceEvent(data) || !data.sdp_answer) return;
+    // The caller-scoped broadcast can arrive before /initiate sets this tab's
     // call id. applyOutboundAnswer filters foreign calls and buffers the answer
     // until the id is known, so we must not drop it here on a null activeCallId.
     try {
@@ -395,17 +396,35 @@ class ActionCableConnector extends BaseActionCableConnector {
   // contact answers. Flip active (timer starts) and arm the recorder.
   // eslint-disable-next-line class-methods-use-this
   onVoiceCallOutboundAccepted = data => {
-    if (data?.provider !== VOICE_CALL_PROVIDERS.WHATSAPP) return;
+    if (!this.isAuthorizedVoiceEvent(data)) return;
     const store = useCallsStore();
     if (!store.calls.some(c => c.callSid === data.call_id)) return;
     store.setCallActive(data.call_id);
     armOutboundRecorder();
   };
 
+  onVoiceCallAccepted = data => {
+    if (!this.isAuthorizedVoiceEvent(data)) return;
+    const store = useCallsStore();
+    if (
+      Number(data.accepted_by_agent_id) ===
+      Number(this.app.$store.getters.getCurrentUserID)
+    ) {
+      store.setCallActive(data.call_id);
+      return;
+    }
+    store.removeCall(data.call_id);
+  };
+
+  onVoiceCallPermissionGranted = data => {
+    if (!this.isAuthorizedVoiceEvent(data)) return;
+    this.app.$store.dispatch('getConversation', data.conversation_id);
+  };
+
   // eslint-disable-next-line class-methods-use-this
   onVoiceCallEnded = async data => {
-    if (data?.provider !== VOICE_CALL_PROVIDERS.WHATSAPP) return;
-    // The store entry should always be removed for this account-wide broadcast,
+    if (!this.isAuthorizedVoiceEvent(data)) return;
+    // The store entry should always be removed for this inbox-scoped broadcast,
     // but the WebRTC/recorder teardown must only run for the call this tab owns
     // — otherwise an unrelated agent's call ending would stop this tab's
     // recorder and upload its chunks against the wrong call id.
@@ -419,6 +438,13 @@ class ActionCableConnector extends BaseActionCableConnector {
       }
     }
     useCallsStore().removeCall(data.call_id);
+  };
+
+  isAuthorizedVoiceEvent = data => {
+    if (data?.provider !== VOICE_CALL_PROVIDERS.WHATSAPP) return false;
+    if (!this.isAValidEvent(data) || !data.inbox_id) return false;
+    const inboxes = this.app.$store.getters['inboxes/getInboxes'] || [];
+    return inboxes.some(inbox => Number(inbox.id) === Number(data.inbox_id));
   };
 }
 

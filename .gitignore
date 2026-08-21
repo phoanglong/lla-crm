@@ -29,6 +29,10 @@ master.key
 
 # Ignore env files
 .env
+# Any environment overlay, including deployment/uat/.env.uat. A UAT env file
+# holds generated secrets; only its .example template belongs in the repository.
+.env.*
+!.env.*.example
 
 public/uploads
 public/packs*

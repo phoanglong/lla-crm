@@ -37,19 +37,39 @@ RSpec.describe WebsiteBrandingService do
       HTML
     end
 
+    # G4a: the local scrape and the MX probe are outbound traffic to a customer
+    # supplied domain, so they now need the LLA website-enrichment capability plus
+    # explicit `direct_fetch` account consent. Zero-egress with the gates closed is
+    # covered in spec/lla/services/lla/website_branding_service_spec.rb.
+    let(:brand_account) do
+      create(:account).tap do |account|
+        account.update!(custom_attributes: account.custom_attributes.merge(
+          'lla_provider_consents' => {
+            'direct_fetch' => { 'enabled' => true, 'version' => 'v1', 'accepted_at' => 1.day.ago.iso8601 }
+          }
+        ))
+      end
+    end
+
+    around do |example|
+      with_modified_env('LLA_KNOWLEDGE_EXTERNAL_EGRESS_ENABLED' => 'true',
+                        'LLA_KNOWLEDGE_WEBSITE_ENRICHMENT_ENABLED' => 'true') { example.run }
+    end
+
     before do
+      allow(Resolv::DNS).to receive(:open).and_return([])
       stub_request(:get, url).to_return(status: 200, body: html_body, headers: { 'content-type' => 'text/html' })
     end
 
     it 'extracts basic brand info' do
-      result = described_class.new(email).perform
+      result = described_class.new(email, account: brand_account).perform
 
       expect(result).to include(domain: 'example.com', title: 'Acme Corp', email: email,
                                 description: nil, slogan: nil, is_nsfw: false, industries: [])
     end
 
     it 'extracts colors, logos, and socials' do
-      result = described_class.new(email).perform
+      result = described_class.new(email, account: brand_account).perform
 
       expect(result[:colors]).to eq([{ hex: '#FF5733', name: nil }])
       expect(result[:logos].first[:url]).to eq('https://example.com/favicon.ico')
@@ -67,7 +87,7 @@ RSpec.describe WebsiteBrandingService do
       end
 
       it 'falls back to the first segment of the title' do
-        result = described_class.new(email).perform
+        result = described_class.new(email, account: brand_account).perform
         expect(result[:title]).to eq('Mon Entreprise')
       end
     end
@@ -76,7 +96,7 @@ RSpec.describe WebsiteBrandingService do
       before { stub_request(:get, url).to_return(status: 500, body: '') }
 
       it 'returns nil and sets http_status' do
-        service = described_class.new(email)
+        service = described_class.new(email, account: brand_account)
         expect(service.perform).to be_nil
         expect(service.http_status).to eq(500)
       end
@@ -87,7 +107,7 @@ RSpec.describe WebsiteBrandingService do
 
       it 'logs the error and returns nil' do
         expect(Rails.logger).to receive(:error).with(/connection refused/)
-        expect(described_class.new(email).perform).to be_nil
+        expect(described_class.new(email, account: brand_account).perform).to be_nil
       end
     end
 
@@ -102,7 +122,7 @@ RSpec.describe WebsiteBrandingService do
       end
 
       it 'extracts phone from query param' do
-        result = described_class.new(email).perform
+        result = described_class.new(email, account: brand_account).perform
         whatsapp = result[:socials].find { |s| s[:type] == 'whatsapp' }
         expect(whatsapp[:url]).to eq('https://wa.me/5511999999999')
       end
@@ -122,7 +142,7 @@ RSpec.describe WebsiteBrandingService do
       end
 
       it 'does not match lookalike domains' do
-        result = described_class.new(email).perform
+        result = described_class.new(email, account: brand_account).perform
         types = result[:socials].map { |s| s[:type] }
         expect(types).not_to include('facebook')
         expect(types).not_to include('instagram')
@@ -143,7 +163,7 @@ RSpec.describe WebsiteBrandingService do
       end
 
       it 'resolves the relative favicon URL' do
-        result = described_class.new(email).perform
+        result = described_class.new(email, account: brand_account).perform
         expect(result[:logos].first[:url]).to eq('https://example.com/favicon.ico')
       end
     end

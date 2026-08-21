@@ -3,10 +3,11 @@ class Tiktok::AuthClient
                        message.list.send message.list.manage].freeze
 
   class << self
-    def authorize_url(state: nil)
+    def authorize_url(state: nil, account: nil)
+      credentials = credentials_for(account)
       tiktok_client = ::OAuth2::Client.new(
-        client_id,
-        client_secret,
+        credentials[:id],
+        credentials[:secret],
         {
           site: 'https://www.tiktok.com',
           authorize_url: '/v2/auth/authorize',
@@ -17,7 +18,7 @@ class Tiktok::AuthClient
       tiktok_client.authorize_url(
         {
           response_type: 'code',
-          client_key: client_id,
+          client_key: credentials[:id],
           redirect_uri: redirect_uri,
           scope: REQUIRED_SCOPES.join(','),
           state: state
@@ -26,12 +27,13 @@ class Tiktok::AuthClient
     end
 
     # https://business-api.tiktok.com/portal/docs?id=1832184159540418
-    def obtain_short_term_access_token(auth_code) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+    def obtain_short_term_access_token(auth_code, account: nil) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+      credentials = credentials_for(account)
       endpoint = "#{api_base_url}/tt_user/oauth2/token/"
       headers = { 'Accept' => 'application/json', 'Content-Type' => 'application/json' }
       body = {
-        client_id: client_id,
-        client_secret: client_secret,
+        client_id: credentials[:id],
+        client_secret: credentials[:secret],
         grant_type: 'authorization_code',
         auth_code: auth_code,
         redirect_uri: redirect_uri
@@ -94,14 +96,17 @@ class Tiktok::AuthClient
       process_json_response(response, 'Failed to fetch TikTok webhook callback')
     end
 
-    def update_webhook_callback
+    # Callback URL đăng ký **theo ứng dụng**. Tenant mang ứng dụng riêng thì đăng ký đúng
+    # đường webhook riêng của họ, chứ không phải đường dùng chung.
+    def update_webhook_callback(account: nil)
+      credentials = credentials_for(account)
       endpoint = "#{api_base_url}/business/webhook/update/"
       headers = { Accept: 'application/json', 'Content-Type': 'application/json' }
       body = {
-        app_id: client_id,
-        secret: client_secret,
+        app_id: credentials[:id],
+        secret: credentials[:secret],
         event_type: 'DIRECT_MESSAGE',
-        callback_url: webhook_url
+        callback_url: credentials[:webhook_url]
       }
       response = HTTParty.post(endpoint, body: body.to_json, headers: headers)
 
@@ -109,6 +114,17 @@ class Tiktok::AuthClient
     end
 
     private
+
+    # Tenant tự mang ứng dụng TikTok thì mã uỷ quyền do ứng dụng ấy cấp, và chỉ ứng dụng ấy
+    # đổi được ra token. Không có ứng dụng riêng thì dùng ứng dụng của bản cài đặt.
+    def credentials_for(account)
+      app = account&.lla_platform_apps&.find_by(platform: 'tiktok')
+      {
+        id: app&.app_id.presence || client_id,
+        secret: app&.app_secret.presence || client_secret,
+        webhook_url: app&.webhook_url.presence || webhook_url
+      }
+    end
 
     def client_id
       GlobalConfigService.load('TIKTOK_APP_ID', nil)

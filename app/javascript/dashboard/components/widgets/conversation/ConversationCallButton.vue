@@ -16,6 +16,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { useAlert } from 'dashboard/composables';
+import { requestVoiceRecordingConsent } from 'dashboard/composables/useVoiceRecordingConsent';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
 const props = defineProps({
@@ -69,9 +70,14 @@ const callButtonTooltip = computed(() =>
 const startWhatsappCall = async () => {
   if (whatsappCallSession.isInitiating.value) return;
   try {
-    const response = await whatsappCallSession.initiateOutboundCall({
-      conversationId: props.chat.id,
+    const recordingConsent = requestVoiceRecordingConsent({
+      inbox: props.inbox,
+      t,
     });
+    const response = await whatsappCallSession.initiateOutboundCall(
+      { conversationId: props.chat.id },
+      recordingConsent
+    );
 
     // Composable returns LOCKED when init is already in flight or a call is
     // active; soft no-op so a parallel click doesn't trigger a banner.
@@ -105,10 +111,15 @@ const startWhatsappCall = async () => {
 const startTwilioCall = async () => {
   if (contactsUiFlags.value?.isInitiatingCall) return;
   try {
+    const recordingConsent = requestVoiceRecordingConsent({
+      inbox: props.inbox,
+      t,
+    });
     const response = await store.dispatch('contacts/initiateCall', {
       contactId: props.chat?.meta?.sender?.id,
       inboxId: props.inbox?.id,
       conversationId: props.chat.id,
+      recordingConsent,
     });
 
     callsStore.addCall({

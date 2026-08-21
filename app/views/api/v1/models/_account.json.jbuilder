@@ -6,7 +6,6 @@ if resource.custom_attributes.present?
     json.subscribed_quantity resource.custom_attributes['subscribed_quantity']
     json.subscription_status resource.custom_attributes['subscription_status']
     json.subscription_ends_on resource.custom_attributes['subscription_ends_on']
-    json.billing_currency resource.billing_currency if resource.respond_to?(:billing_currency) && Enterprise::Billing::Currencies.enabled?
     json.website resource.custom_attributes['website'] if resource.custom_attributes['website'].present?
     json.industry resource.custom_attributes['industry'] if resource.custom_attributes['industry'].present?
     json.company_size resource.custom_attributes['company_size'] if resource.custom_attributes['company_size'].present?
@@ -17,6 +16,9 @@ if resource.custom_attributes.present?
     json.onboarding_step resource.onboarding_step if resource.onboarding_step.present?
     if resource.custom_attributes['help_center_generation_id'].present?
       json.help_center_generation_id resource.custom_attributes['help_center_generation_id']
+    end
+    if resource.custom_attributes['lla_knowledge_generation_operation_id'].present?
+      json.lla_knowledge_generation_operation_id resource.custom_attributes['lla_knowledge_generation_operation_id']
     end
     json.marked_for_deletion_at resource.custom_attributes['marked_for_deletion_at'] if resource.custom_attributes['marked_for_deletion_at'].present?
     if resource.custom_attributes['marked_for_deletion_reason'].present?
@@ -32,3 +34,7 @@ json.name @account.name
 json.support_email @account.support_email
 json.status @account.status
 json.cache_keys @account.cache_keys
+
+# Ứng dụng nền tảng do chính tenant khai. Chỉ id ứng dụng — đủ để giao diện biết nên mở
+# hộp thoại đăng nhập bằng ứng dụng nào, và không đủ để làm gì khác.
+json.platform_apps @account.lla_platform_apps.each_with_object({}) { |app, map| map[app.platform] = { app_id: app.app_id } }

@@ -15,7 +15,7 @@ RSpec.describe Integrations::LlmBaseService do
   describe '#make_api_call' do
     before do
       allow(service).to receive(:instrument_llm_call).and_yield
-      allow(Llm::Config).to receive(:with_api_key).and_raise(error)
+      allow(Llm::Config).to receive(:with_credential).and_raise(error)
     end
 
     it 'does not track exceptions for hook key failures' do

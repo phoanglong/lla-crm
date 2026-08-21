@@ -5,7 +5,9 @@ class Webhooks::WhatsappEventsJob < MutexApplicationJob
   # holder finishes and silently drop its message.
   retry_on LockAcquisitionError, wait: 2.seconds, attempts: 20
 
-  def perform(params = {})
+  def perform(params = {}, lla_voice_event_id = nil, encrypted_voice_payload = nil)
+    params = Lla::Voice::PayloadCipher.decrypt(encrypted_voice_payload) if encrypted_voice_payload.present?
+    @lla_voice_event_id = lla_voice_event_id
     channel = find_channel_from_whatsapp_business_payload(params)
 
     if channel_is_inactive?(channel)

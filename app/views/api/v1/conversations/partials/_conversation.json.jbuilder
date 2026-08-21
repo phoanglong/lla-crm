@@ -60,4 +60,4 @@ json.priority conversation.priority
 json.waiting_since conversation.waiting_since.to_i.to_i
 sla_applicable = !conversation.respond_to?(:sla_applicable?) || conversation.sla_applicable?
 json.sla_policy_id sla_applicable ? conversation.sla_policy_id : nil
-json.partial! 'enterprise/api/v1/conversations/partials/conversation', conversation: conversation if ChatwootApp.enterprise?
+json.partial! 'api/v1/conversations/partials/conversation_sla', conversation: conversation if ChatwootApp.sla?

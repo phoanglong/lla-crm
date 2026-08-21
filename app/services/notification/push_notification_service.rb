@@ -6,10 +6,15 @@ class Notification::PushNotificationService
   def perform
     return unless user_subscribed_to_notification?
 
+    # Mobile push needs this installation's own Firebase credentials. There used to
+    # be a third branch here that relayed the notification through
+    # `hub.2.chatwoot.com` whenever those credentials were absent — on by default,
+    # so an operator who never configured Firebase was sending every notification
+    # through a third party without choosing to. It is gone; configure
+    # FIREBASE_PROJECT_ID and FIREBASE_CREDENTIALS to deliver mobile push.
     notification_subscriptions.each do |subscription|
       send_browser_push(subscription)
       send_fcm_push(subscription)
-      send_push_via_chatwoot_hub(subscription)
     end
   end
 
@@ -99,20 +104,8 @@ class Notification::PushNotificationService
     remove_subscription_if_error(subscription, response)
   end
 
-  def send_push_via_chatwoot_hub(subscription)
-    return if firebase_credentials_present?
-    return unless chatwoot_hub_enabled?
-    return unless subscription.fcm?
-
-    ChatwootHub.send_push(fcm_options(subscription))
-  end
-
   def firebase_credentials_present?
     GlobalConfigService.load('FIREBASE_PROJECT_ID', nil) && GlobalConfigService.load('FIREBASE_CREDENTIALS', nil)
-  end
-
-  def chatwoot_hub_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch('ENABLE_PUSH_RELAY_SERVER', true))
   end
 
   def remove_subscription_if_error(subscription, response)

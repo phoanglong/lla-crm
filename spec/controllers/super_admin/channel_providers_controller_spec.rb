@@ -24,5 +24,17 @@ RSpec.describe 'Super Admin channel providers', type: :request do
       expect(response.body).to include('channel_facebook', 'Tenant đã bật')
       expect(response.body).not_to include('must-not-appear-in-html')
     end
+
+    # Bảng này từng chỉ nói về bản cài đặt. Với mô hình SaaS, một kênh có thể chưa cấu hình ở
+    # cấp cài đặt mà vẫn đang chạy — vì tenant mang ứng dụng của chính họ.
+    it 'reports a channel as live when a tenant brought its own app' do
+      skip('encryption keys missing') unless Chatwoot.encryption_configured?
+      Lla::PlatformApp.create!(account: create(:account), platform: 'facebook', app_id: '1', app_secret: 's')
+      sign_in(super_admin, scope: :super_admin)
+
+      get '/super_admin/channel_providers'
+
+      expect(response.body).to include('Tenant tự khai')
+    end
   end
 end

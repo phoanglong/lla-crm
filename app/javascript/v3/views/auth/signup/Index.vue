@@ -10,12 +10,17 @@ const store = useStore();
 
 const isLoading = ref(false);
 const globalConfig = computed(() => store.getters['globalConfig/get']);
-const isAChatwootInstance = computed(
-  () => globalConfig.value.installationName === 'Chatwoot'
+// Whether the testimonial column is shown at all. It used to be
+// `installationName === 'Chatwoot'`, because the feed it read was Chatwoot's own
+// CDN. The feed is an installation setting now, so an installation gets the
+// column when it configures one — and nothing is fetched when it does not.
+const hasTestimonialFeed = computed(() =>
+  Boolean(globalConfig.value.testimonialsURL)
 );
 
 onBeforeMount(() => {
-  isLoading.value = isAChatwootInstance.value;
+  // Only wait on a fetch that is actually going to happen.
+  isLoading.value = hasTestimonialFeed.value;
 });
 
 const resizeContainers = () => {
@@ -34,7 +39,7 @@ const resizeContainers = () => {
     <div
       v-show="!isLoading"
       class="relative flex max-w-[960px] bg-white dark:bg-n-solid-2 rounded-lg outline outline-1 outline-n-container shadow-sm"
-      :class="{ 'w-auto xl:w-full': isAChatwootInstance }"
+      :class="{ 'w-auto xl:w-full': hasTestimonialFeed }"
     >
       <div class="flex-1 flex items-center justify-center py-10 px-10">
         <div class="max-w-[420px] w-full">
@@ -50,12 +55,10 @@ const resizeContainers = () => {
               :alt="globalConfig.installationName"
               class="hidden w-auto h-7 dark:block"
             />
+            <!-- The other branch of this was "Get started with Chatwoot", shown only
+                 when the installation was named Chatwoot. It cannot be true here. -->
             <h2 class="mt-6 text-2xl font-semibold text-n-slate-12">
-              {{
-                isAChatwootInstance
-                  ? $t('REGISTER.GET_STARTED')
-                  : $t('REGISTER.TRY_WOOT')
-              }}
+              {{ $t('REGISTER.TRY_WOOT') }}
             </h2>
             <p class="mt-2 text-sm text-n-slate-11">
               {{ $t('REGISTER.HAVE_AN_ACCOUNT') }}{{ ' '
@@ -70,8 +73,11 @@ const resizeContainers = () => {
           <SignupForm />
         </div>
       </div>
+      <!-- Shown when the operator has configured a testimonial feed. This used to
+           be shown only on a Chatwoot-branded instance, because the feed it read was
+           Chatwoot's own CDN. -->
       <Testimonials
-        v-if="isAChatwootInstance"
+        v-if="hasTestimonialFeed"
         class="flex-1 hidden xl:flex"
         @resize-containers="resizeContainers"
       />

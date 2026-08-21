@@ -96,8 +96,14 @@ class Api::V1::Accounts::CallbacksController < Api::V1::Accounts::BaseController
     Koala::Facebook::API.new(@user_access_token)
   end
 
+  # Đổi token ngắn hạn lấy token dài hạn phải dùng đúng ứng dụng đã cấp token đó. Tenant tự
+  # mang ứng dụng thì token do ứng dụng của họ cấp — đưa cho Meta cặp app id/secret của LLA
+  # thì Meta từ chối, và trước đây lỗi ấy chỉ hiện ra dưới dạng "kết nối không thành công".
   def long_lived_token(omniauth_token)
-    koala = Koala::Facebook::OAuth.new(GlobalConfigService.load('FB_APP_ID', ''), GlobalConfigService.load('FB_APP_SECRET', ''))
+    app = Current.account.lla_platform_apps.find_by(platform: 'facebook')
+    app_id = app&.app_id.presence || GlobalConfigService.load('FB_APP_ID', '')
+    app_secret = app&.app_secret.presence || GlobalConfigService.load('FB_APP_SECRET', '')
+    koala = Koala::Facebook::OAuth.new(app_id, app_secret)
     koala.exchange_access_token_info(omniauth_token)['access_token']
   rescue StandardError => e
     Rails.logger.error "Error in long_lived_token: #{e.message}"

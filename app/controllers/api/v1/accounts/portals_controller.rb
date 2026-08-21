@@ -2,6 +2,12 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
   include ::FileTypeHelper
 
   before_action :fetch_portal, except: [:index, :create]
+  # `fetch_portal` is scoped to `Current.account`, so an unknown slug and another
+  # tenant's slug are the same thing: nil. Without this every member action then
+  # dereferenced nil and answered 500 on an authenticated endpoint — the tenant
+  # boundary held, but the error contract did not, and an unhandled exception is not
+  # how a "no such portal" answer should be produced.
+  before_action :ensure_portal_present, except: [:index, :create]
   before_action :check_authorization
   before_action :set_current_page, only: [:index]
 
@@ -16,19 +22,20 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
 
   def create
     @portal = Current.account.portals.build(portal_params.merge(live_chat_widget_params))
-    @portal.custom_domain = parsed_custom_domain
     @portal.save!
     process_attached_logo if params[:blob_id].present?
   end
 
+  # The rescue is deliberately outside the transaction block: rescuing inside it
+  # swallows the exception before Rails can roll back, so a rejected update would be
+  # rendered as a 422 and still be committed.
   def update
     ActiveRecord::Base.transaction do
       @portal.update!(portal_params.merge(live_chat_widget_params)) if params[:portal].present?
-      # @portal.custom_domain = parsed_custom_domain
       process_attached_logo if params[:blob_id].present?
-    rescue ActiveRecord::RecordInvalid => e
-      render_record_invalid(e)
     end
+  rescue ActiveRecord::RecordInvalid => e
+    render_record_invalid(e)
   end
 
   def destroy
@@ -71,6 +78,10 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
     @portal = Current.account.portals.find_by(slug: permitted_params[:id])
   end
 
+  def ensure_portal_present
+    head :not_found if @portal.blank?
+  end
+
   def permitted_params
     params.permit(:id, :email)
   end
@@ -107,13 +118,6 @@ class Api::V1::Accounts::PortalsController < Api::V1::Accounts::BaseController
 
   def set_current_page
     @current_page = params[:page] || 1
-  end
-
-  def parsed_custom_domain
-    return @portal.custom_domain if @portal.custom_domain.blank?
-
-    domain = URI.parse(@portal.custom_domain)
-    domain.is_a?(URI::HTTP) ? domain.host : @portal.custom_domain
   end
 
   def valid_email?(email)

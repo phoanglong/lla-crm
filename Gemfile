@@ -47,6 +47,11 @@ gem 'ssrf_filter', '~> 1.5'
 gem 'gmail_xoauth'
 # Lock net-smtp to 0.3.4 to avoid issues with gmail_xoauth2
 gem 'net-smtp',  '~> 0.3.4'
+# Direct floor for a transitive dependency: mail < 2.9.1 mis-parses RFC 2047
+# encoded-words, so a crafted From header can display as an address the message
+# was not sent from (GHSA-mvxr-6m87-mv2q). Action Mailbox parses inbound mail from
+# strangers, which is exactly the exposed path.
+gem 'mail', '>= 2.9.1'
 # Prevent CSV injection
 gem 'csv-safe'
 
@@ -57,6 +62,13 @@ gem 'aws-sdk-s3', require: false
 gem 'azure-storage-blob', git: 'https://github.com/chatwoot/azure-storage-ruby', branch: 'chatwoot', require: false
 gem 'google-cloud-storage', '>= 1.48.0', require: false
 gem 'image_processing'
+# Direct floor for a transitive dependency. libvips ships operations its authors
+# mark as unsafe for untrusted input; Active Storage <= 7.1 does not disable them,
+# so an uploaded file alone can read arbitrary paths from the filesystem
+# (CVE-2026-66066 / GHSA-xr9x-r78c-5hrm). Rails 7.1 has no patched release. The
+# advisory's own workaround is `Vips.block_untrusted`, which needs ruby-vips
+# >= 2.2.1; `config/initializers/07_vips_block_untrusted.rb` calls it.
+gem 'ruby-vips', '>= 2.2.1'
 
 ##-- for actionmailbox --##
 gem 'aws-actionmailbox-ses', '~> 0'

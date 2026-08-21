@@ -4,7 +4,9 @@ import InboxChannelsDialog from '../../inbox-setup/InboxChannelsDialog.vue';
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: key => key }) }));
 vi.mock('dashboard/composables/store', () => ({
-  useMapGetter: () => ({ value: {} }),
+  // `accounts/getAccount` là một getter dạng hàm; các getter khác trả về giá trị.
+  useMapGetter: name =>
+    name === 'accounts/getAccount' ? { value: () => null } : { value: {} },
 }));
 vi.mock('dashboard/composables/useAccount', () => ({
   useAccount: () => ({ isCloudFeatureEnabled: () => true }),

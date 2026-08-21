@@ -21,3 +21,13 @@ ignore:
   - CVE-2026-33176
   - CVE-2026-33195
   - CVE-2026-33202
+  # Active Storage variant processing via libvips. Rails 7.1 has no patched
+  # release; the advisory's precondition is that libvips is the variant processor,
+  # and `lla/rails/config/initializers/active_storage_security.rb` pins it to
+  # :mini_magick so Active Storage never reaches libvips. `lib/lla_vips_guard.rb`
+  # blocks libvips' untrusted loaders if that pin is ever undone, and the runtime
+  # image sets VIPS_BLOCK_UNTRUSTED so the block also holds for processes that
+  # never load Rails. Proven in spec/lla/security/lla_vips_guard_spec.rb,
+  # which fails if any of the three stops being true. Remove this entry on
+  # Rails >= 7.2.3.2.
+  - CVE-2026-66066

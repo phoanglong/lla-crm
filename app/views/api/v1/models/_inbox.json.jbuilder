@@ -155,6 +155,16 @@ end
 
 ## Voice attribute for WhatsApp Cloud (only embedded-signup channels surface true)
 if resource.channel_type == 'Channel::Whatsapp' && resource.channel.respond_to?(:voice_enabled?)
+  voice_config = (resource.channel.provider_config || {}).to_h
   json.voice_enabled resource.channel.voice_enabled?
   json.inbound_calls_enabled resource.channel.inbound_calls_enabled?
+  json.calling_requested_enabled ActiveModel::Type::Boolean.new.cast(voice_config['calling_requested_enabled'])
+  json.calling_lifecycle_state voice_config['calling_lifecycle_state']
+  json.calling_lifecycle_error_code voice_config['calling_lifecycle_error_code']
+end
+
+if resource.channel.respond_to?(:voice_enabled?)
+  voice_config ||= (resource.channel.try(:provider_config) || {}).to_h
+  json.voice_recording_enabled ActiveModel::Type::Boolean.new.cast(voice_config['voice_recording_enabled'])
+  json.voice_recording_disclosure_version voice_config['voice_recording_disclosure_version']
 end

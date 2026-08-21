@@ -126,24 +126,11 @@ export function useSidebarContext() {
     return router.resolve(to)?.meta?.featureFlag || '';
   };
 
-  const resolveInstallationType = to => {
-    if (!to) return [];
-
-    // If navigationPath param exists, get the target route definition
-    if (to.params?.navigationPath) {
-      const targetRoute = findRouteByName(to.params.navigationPath);
-      return targetRoute?.meta?.installationTypes || [];
-    }
-
-    return router.resolve(to)?.meta?.installationTypes || [];
-  };
-
   const isAllowed = to => {
     const permissions = resolvePermissions(to);
     const featureFlag = resolveFeatureFlag(to);
-    const installationType = resolveInstallationType(to);
 
-    return shouldShow(featureFlag, permissions, installationType);
+    return shouldShow(featureFlag, permissions);
   };
 
   return {

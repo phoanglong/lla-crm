@@ -5,6 +5,14 @@ RSpec.describe 'Api::V1::Accounts::Captain::CustomTools', type: :request do
   let(:admin) { create(:user, account: account, role: :administrator) }
   let(:agent) { create(:user, account: account, role: :agent) }
 
+  around do |example|
+    previous_value = ENV.fetch(Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG, nil)
+    ENV[Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG] = 'true'
+    example.run
+  ensure
+    previous_value.nil? ? ENV.delete(Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG) : ENV[Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG] = previous_value
+  end
+
   before { account.enable_features!('custom_tools') }
 
   def json_response
@@ -40,6 +48,8 @@ RSpec.describe 'Api::V1::Accounts::Captain::CustomTools', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(json_response[:payload].length).to eq(5)
+        expect(json_response[:payload].first[:auth_config]).to eq({})
+        expect(json_response[:payload].first[:auth_configured]).to be(false)
       end
 
       it 'returns all custom tools including disabled' do
@@ -52,6 +62,78 @@ RSpec.describe 'Api::V1::Accounts::Captain::CustomTools', type: :request do
         expect(response).to have_http_status(:success)
         expect(json_response[:payload].length).to eq(2)
       end
+    end
+  end
+
+  describe 'POST /api/v1/accounts/{account.id}/captain/custom_tools/test' do
+    let(:test_attributes) do
+      {
+        custom_tool: {
+          title: 'Test External API',
+          endpoint_url: 'https://example.com/health',
+          http_method: 'GET',
+          auth_type: 'none',
+          enabled: true
+        }
+      }
+    end
+
+    before do
+      allow(Lla::Network::UrlSafety).to receive(:validate!) do |url|
+        Lla::Network::UrlSafety::Result.new(uri: URI.parse(url), ip_address: '93.184.216.34')
+      end
+    end
+
+    it 'allows an administrator to test a valid tool without returning the upstream body' do
+      stub_request(:get, 'https://example.com/health')
+        .to_return(status: 200, body: 'sensitive-upstream-body', headers: { 'Content-Type' => 'application/json' })
+
+      post "/api/v1/accounts/#{account.id}/captain/custom_tools/test",
+           params: test_attributes,
+           headers: admin.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(json_response).to eq(status: 200, response_bytes: 23, content_type: 'application/json')
+      expect(response.body).not_to include('sensitive-upstream-body')
+    end
+
+    it 'rejects an agent before making the outbound request' do
+      request = stub_request(:get, 'https://example.com/health')
+
+      post "/api/v1/accounts/#{account.id}/captain/custom_tools/test",
+           params: test_attributes,
+           headers: agent.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(request).not_to have_been_requested
+    end
+
+    it 'returns a generic error without leaking the upstream failure' do
+      stub_request(:get, 'https://example.com/health').to_raise(StandardError.new('upstream-secret-value'))
+
+      post "/api/v1/accounts/#{account.id}/captain/custom_tools/test",
+           params: test_attributes,
+           headers: admin.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(json_response).to eq(error: 'Custom tool test failed')
+      expect(response.body).not_to include('upstream-secret-value')
+    end
+  end
+
+  describe 'deployment kill switch' do
+    it 'rejects access when the global custom-tool switch is disabled' do
+      ENV[Captain::Assistant::CUSTOM_HTTP_TOOLS_FLAG] = 'false'
+
+      get "/api/v1/accounts/#{account.id}/captain/custom_tools",
+          headers: admin.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(json_response).to eq(error: 'Custom tools are not enabled for this account')
     end
   end
 
@@ -137,6 +219,22 @@ RSpec.describe 'Api::V1::Accounts::Captain::CustomTools', type: :request do
                                                    ])
       end
 
+      it 'never returns stored credentials to an administrator' do
+        skip('encryption keys missing; credential examples run in the encryption-enabled suite') unless Chatwoot.encryption_configured?
+        secret_attributes = valid_attributes.deep_dup
+        secret_attributes[:custom_tool].merge!(auth_type: 'bearer', auth_config: { token: 'dummy-controller-token' })
+
+        post "/api/v1/accounts/#{account.id}/captain/custom_tools",
+             params: secret_attributes,
+             headers: admin.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(json_response[:auth_config]).to eq({})
+        expect(json_response[:auth_configured]).to be(true)
+        expect(response.body).not_to include('dummy-controller-token')
+      end
+
       context 'with invalid parameters' do
         let(:invalid_attributes) do
           {
@@ -218,6 +316,20 @@ RSpec.describe 'Api::V1::Accounts::Captain::CustomTools', type: :request do
         expect(response).to have_http_status(:success)
         expect(json_response[:title]).to eq('Updated Tool Title')
         expect(json_response[:enabled]).to be(false)
+      end
+
+      it 'preserves an encrypted credential when an update omits the secret value' do
+        skip('encryption keys missing; credential examples run in the encryption-enabled suite') unless Chatwoot.encryption_configured?
+        custom_tool.update!(auth_type: 'bearer', auth_config: { token: 'dummy-preserved-token' })
+
+        patch "/api/v1/accounts/#{account.id}/captain/custom_tools/#{custom_tool.id}",
+              params: { custom_tool: { title: 'Credential Preserved', auth_type: 'bearer', auth_config: {} } },
+              headers: admin.create_new_auth_token,
+              as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(custom_tool.reload.auth_config).to eq('token' => 'dummy-preserved-token')
+        expect(response.body).not_to include('dummy-preserved-token')
       end
 
       context 'with invalid parameters' do

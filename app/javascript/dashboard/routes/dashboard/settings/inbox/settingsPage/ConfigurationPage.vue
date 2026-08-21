@@ -57,7 +57,14 @@ export default {
       accountId: 'getCurrentAccountId',
       isFeatureEnabledonAccount: 'accounts/isFeatureEnabledonAccount',
       isOnChatwootCloud: 'globalConfig/isOnChatwootCloud',
+      globalConfig: 'globalConfig/get',
     }),
+    // The identity-validation help link used to be hardcoded to Chatwoot's
+    // documentation site. It now follows the installation's own DOCS_URL, and
+    // disappears when that is unset.
+    identityValidationDocsURL() {
+      return this.globalConfig.docsURL;
+    },
     isEmbeddedSignupWhatsApp() {
       return this.inbox.provider_config?.source === 'embedded_signup';
     },
@@ -306,9 +313,10 @@ export default {
           <p class="mt-1.5 text-label-small text-n-slate-11">
             {{ $t('INBOX_MGMT.SETTINGS_POPUP.HMAC_DESCRIPTION') }}
             <a
+              v-if="identityValidationDocsURL"
               target="_blank"
               rel="noopener noreferrer"
-              href="https://www.chatwoot.com/docs/product/channels/live-chat/sdk/identity-validation/"
+              :href="identityValidationDocsURL"
               class="text-n-blue-11 hover:underline text-label-small"
             >
               {{

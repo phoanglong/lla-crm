@@ -35,7 +35,11 @@ module SafeFetch
     raise FetchError, e.message
   end
 
+  # The SSRF guard's own escape hatch, so it is read strictly. The permissive cast
+  # treats anything outside its falsey list as true — `SAFE_FETCH_ALLOW_PRIVATE_NETWORK=disabled`
+  # would have opened private-network egress. `enabled_flag?` accepts only words that
+  # unambiguously mean on.
   def self.allow_private_network?
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch('SAFE_FETCH_ALLOW_PRIVATE_NETWORK', false))
+    ChatwootApp.enabled_flag?('SAFE_FETCH_ALLOW_PRIVATE_NETWORK')
   end
 end

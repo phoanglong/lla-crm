@@ -75,12 +75,47 @@ RSpec.describe 'Api::V1::Accounts::Captain::Scenarios', type: :request do
         expect(json_response[:id]).to eq(scenario.id)
         expect(json_response[:title]).to eq(scenario.title)
       end
+
+      it 'does not expose a disabled scenario by id' do
+        scenario.update!(enabled: false)
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/scenarios/#{scenario.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context 'when it is an admin' do
+      it 'can inspect a disabled scenario' do
+        scenario.update!(enabled: false)
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/scenarios/#{scenario.id}",
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+      end
     end
 
     context 'when scenario does not exist' do
       it 'returns not found status' do
         get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/scenarios/999999",
             headers: agent.create_new_auth_token
+
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    context 'when the scenario belongs to another assistant' do
+      it 'returns not found status' do
+        other_assistant = create(:captain_assistant, account: account)
+        other_scenario = create(:captain_scenario, assistant: other_assistant, account: account)
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/scenarios/#{other_scenario.id}",
+            headers: admin.create_new_auth_token,
+            as: :json
 
         expect(response).to have_http_status(:not_found)
       end

@@ -57,6 +57,8 @@ Rails.application.routes.draw do
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do
             get :help_center_generation
+            delete :help_center_generation, action: :cancel_help_center_generation,
+                                            as: :cancel_help_center_generation
           end
           resources :agents, only: [:index, :create, :update, :destroy] do
             post :bulk_create, on: :collection
@@ -103,6 +105,17 @@ Rails.application.routes.draw do
             end
           end
           resource :saml_settings, only: [:show, :create, :update, :destroy]
+          resources :platform_apps, only: [:index, :show, :create, :update, :destroy], param: :platform
+          namespace :ai do
+            resources :providers, only: [:index, :show, :create, :update, :destroy] do
+              post :verify, on: :member
+            end
+          end
+          namespace :zalo do
+            resources :connections, only: [:create, :show] do
+              get :domain_check, on: :collection
+            end
+          end
           resources :agent_bots, only: [:index, :create, :show, :update, :destroy] do
             delete :avatar, on: :member
             post :reset_access_token, on: :member
@@ -175,7 +188,7 @@ Rails.application.routes.draw do
               post :custom_attributes
               get :attachments
               get :inbox_assistant
-              get :reporting_events if ChatwootApp.enterprise?
+              get :reporting_events if ChatwootApp.enterprise? || ChatwootApp.lla?
             end
           end
 
@@ -225,7 +238,7 @@ Rails.application.routes.draw do
               resources :labels, only: [:create, :index]
               resources :notes
               get :attachments, to: 'attachments#index'
-              post :call, on: :member, to: 'calls#create' if ChatwootApp.enterprise?
+              post :call, on: :member, to: 'calls#create' if ChatwootApp.voice_calls?
             end
           end
           resources :data_imports, only: [:index, :show, :create] do
@@ -246,7 +259,9 @@ Rails.application.routes.draw do
               get :download
             end
             member do
-              patch :update if ChatwootApp.enterprise?
+              # LLA owns CSAT review notes; the route used to exist only in
+              # enterprise mode, so the capability disappeared with it.
+              patch :update if ChatwootApp.enterprise? || ChatwootApp.lla?
             end
           end
           resources :applied_slas, only: [:index] do
@@ -255,10 +270,14 @@ Rails.application.routes.draw do
               get :download
             end
           end
-          resources :reporting_events, only: [:index] if ChatwootApp.enterprise?
+          # Account-level reporting events. Owned by LLA and served by
+          # `Lla::Api::V1::Accounts::ReportingEventsController`; the enterprise
+          # controller inherited a name rather than any behaviour.
+          resources :reporting_events, only: [:index], controller: '/lla/api/v1/accounts/reporting_events' if ChatwootApp.lla?
 
-          if ChatwootApp.enterprise?
-            resources :calls, only: [:index]
+          resources :calls, only: [:index] if ChatwootApp.voice_calls?
+
+          if ChatwootApp.voice_calls?
             resources :whatsapp_calls, only: [:show] do
               member do
                 post :accept
@@ -285,13 +304,17 @@ Rails.application.routes.draw do
             get :health, on: :member
             post :register_webhook, on: :member
             post :reset_secret, on: :member
-            if ChatwootApp.enterprise?
+            if ChatwootApp.voice_calls?
               resource :conference, only: %i[create destroy], controller: 'conference' do
                 get :token, on: :member
               end
+            end
+            if ChatwootApp.voice_calls?
               post :enable_whatsapp_calling, on: :member
               post :disable_whatsapp_calling, on: :member
               post :set_inbound_calls, on: :member
+              post :set_voice_recording, on: :member
+              post :set_whatsapp_calling_message, on: :member
             end
 
             resource :csat_template, only: [:show, :create], controller: 'inbox_csat_templates' do
@@ -415,6 +438,7 @@ Rails.application.routes.draw do
               delete :logo
               post :send_instructions
               get :ssl_status
+              post :custom_domain_reverify
             end
             resources :categories do
               post :reorder, on: :collection
@@ -543,25 +567,16 @@ Rails.application.routes.draw do
     end
   end
 
-  if ChatwootApp.enterprise?
-    namespace :enterprise, defaults: { format: 'json' } do
-      namespace :api do
-        namespace :v1 do
-          resources :accounts do
-            member do
-              post :checkout
-              post :subscription
-              post :select_billing_currency
-              get :limits
-              post :toggle_deletion
-              post :topup_checkout
-              get :topup_options
-            end
-          end
-        end
-      end
+  # The Chatwoot Cloud commerce routes — checkout, subscription, billing currency,
+  # top-ups and the Stripe webhook — are gone with Wave J. They pointed at
+  # controllers this product does not have, so hitting one raised rather than
+  # answered. LLA entitlement and quota are internal and need no provider; a
+  # commerce adapter, if one is ever chosen, gets its own routes.
 
-      post 'webhooks/stripe', to: 'webhooks/stripe#process_payload'
+  # Webhook crawl tài liệu LLA AI — giữ path/route name enterprise/* của CE,
+  # nhưng phải sống cả khi chạy thuần LLA (DISABLE_ENTERPRISE).
+  if ChatwootApp.enterprise? || ChatwootApp.lla?
+    namespace :enterprise, defaults: { format: 'json' } do
       post 'webhooks/firecrawl', to: 'webhooks/firecrawl#process_payload'
     end
   end
@@ -641,6 +656,11 @@ Rails.application.routes.draw do
 
   # ----------------------------------------------------------------------
   # Routes for channel integrations
+  # Webhook riêng của từng tenant. Token trong đường dẫn chỉ ra đúng một `Lla::PlatformApp`,
+  # nên verify token và app secret dùng để kiểm là của chính tenant đó. Đường `/bot` phía dưới
+  # giữ nguyên cho các tenant còn dùng ứng dụng của LLA.
+  get 'webhooks/tenant/:platform/:webhook_token', to: 'webhooks/tenant#verify'
+  post 'webhooks/tenant/:platform/:webhook_token', to: 'webhooks/tenant#events'
   mount Facebook::Messenger::Server, at: 'bot'
   get 'webhooks/twitter', to: 'api/v1/webhooks#twitter_crc'
   post 'webhooks/twitter', to: 'api/v1/webhooks#twitter_events'
@@ -670,7 +690,7 @@ Rails.application.routes.draw do
     resources :callback, only: [:create]
     resources :delivery_status, only: [:create]
 
-    if ChatwootApp.enterprise?
+    if ChatwootApp.voice_calls?
       post 'voice/call/:phone', to: 'voice#call_twiml', as: :voice_call
       post 'voice/status/:phone', to: 'voice#status', as: :voice_status
       post 'voice/conference_status/:phone', to: 'voice#conference_status', as: :voice_conference_status

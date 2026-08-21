@@ -48,10 +48,18 @@ const connected = {
 };
 
 describe('useFacebookPageConnect', () => {
+  let accountRecord;
+
   beforeEach(() => {
+    accountRecord = { id: ACCOUNT_ID };
     vi.clearAllMocks();
     window.chatwootConfig = { fbAppId: 'fb-app', fbApiVersion: 'v22.0' };
-    useMapGetter.mockReturnValue({ value: ACCOUNT_ID });
+    // Hai getter khác nhau: id tài khoản hiện tại, và hàm tra tài khoản theo id.
+    useMapGetter.mockImplementation(name =>
+      name === 'accounts/getAccount'
+        ? { value: () => accountRecord }
+        : { value: ACCOUNT_ID }
+    );
     setupFacebookSdk.mockResolvedValue();
     ChannelApi.fetchFacebookPages.mockResolvedValue(pagesResponse);
     stubLogin(connected);
@@ -145,5 +153,27 @@ describe('useFacebookPageConnect', () => {
     await loginAndFetchPages();
 
     expect(setupFacebookSdk).toHaveBeenCalledTimes(1);
+  });
+
+  // Token do ứng dụng nào cấp thì phải đổi bằng ứng dụng đó: nếu tenant đã khai ứng dụng
+  // Meta của họ, hộp thoại đăng nhập phải mở bằng đúng ứng dụng ấy.
+  it('opens the login dialog with the tenant own app when it has one', async () => {
+    accountRecord = {
+      id: ACCOUNT_ID,
+      platform_apps: { facebook: { app_id: 'app-cua-tenant' } },
+    };
+    const { preloadSdk } = useFacebookPageConnect();
+
+    await preloadSdk();
+
+    expect(setupFacebookSdk).toHaveBeenCalledWith('app-cua-tenant', 'v22.0');
+  });
+
+  it('falls back to the platform app when the tenant has not brought one', async () => {
+    const { preloadSdk } = useFacebookPageConnect();
+
+    await preloadSdk();
+
+    expect(setupFacebookSdk).toHaveBeenCalledWith('fb-app', 'v22.0');
   });
 });

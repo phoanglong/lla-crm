@@ -23,18 +23,15 @@ class Installation::OnboardingController < ApplicationController
   private
 
   def onboarding_params
-    params.permit(:subscribe_to_updates, user: [:name, :company, :email])
+    params.permit(user: [:name, :company, :email])
   end
 
+  # Finishing onboarding used to post the owner's company name, name and email
+  # address to `hub.2.chatwoot.com` with `subscribed_to_mailers: true`, behind a
+  # `subscribe_to_updates` checkbox on the installation form. Nothing leaves the
+  # installation now, so the checkbox and the parameter are gone with it.
   def finish_onboarding
     ::Redis::Alfred.delete(::Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
-    return if onboarding_params[:subscribe_to_updates].blank?
-
-    ChatwootHub.register_instance(
-      onboarding_params.dig(:user, :company),
-      onboarding_params.dig(:user, :name),
-      onboarding_params.dig(:user, :email)
-    )
   end
 
   def ensure_installation_onboarding

@@ -48,5 +48,48 @@ describe('#InboxesAPI', () => {
         '/api/v1/inboxes/2/sync_templates'
       );
     });
+
+    it('#enableWhatsappCalling sends an idempotency key', () => {
+      inboxesAPI.enableWhatsappCalling(2, 'enable-whatsapp-calling-1');
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/inboxes/2/enable_whatsapp_calling',
+        {},
+        { headers: { 'Idempotency-Key': 'enable-whatsapp-calling-1' } }
+      );
+    });
+
+    it('#disableWhatsappCalling generates an idempotency key', () => {
+      inboxesAPI.disableWhatsappCalling(2);
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/inboxes/2/disable_whatsapp_calling',
+        {},
+        {
+          headers: {
+            'Idempotency-Key': expect.stringMatching(
+              /^[A-Za-z0-9_.:-]{8,128}$/
+            ),
+          },
+        }
+      );
+    });
+
+    it('#setVoiceRecording sends policy and disclosure version', () => {
+      inboxesAPI.setVoiceRecording(2, true, 'lla-voice-v1');
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/inboxes/2/set_voice_recording',
+        {
+          voice_recording_enabled: true,
+          disclosure_version: 'lla-voice-v1',
+        }
+      );
+    });
+
+    it('#setWhatsappCallingMessage sends only the editable message', () => {
+      inboxesAPI.setWhatsappCallingMessage(2, 'May we call you?');
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/inboxes/2/set_whatsapp_calling_message',
+        { call_permission_request_body: 'May we call you?' }
+      );
+    });
   });
 });

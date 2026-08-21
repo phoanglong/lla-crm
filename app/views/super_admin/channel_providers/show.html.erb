@@ -21,14 +21,23 @@
     </p>
   </div>
 
-  <div class="overflow-x-auto rounded-lg outline outline-1 outline-n-container">
-    <table class="w-full text-sm">
+  <%# The outline used to sit on the scrolling box, so once the table was wider
+      than the viewport the last column scrolled underneath the border and the
+      action buttons were sliced in half. Border on the outer box, scrolling on
+      the inner one. %>
+  <div class="rounded-lg outline outline-1 outline-n-container overflow-hidden">
+    <div class="overflow-x-auto">
+      <%# `w-full` pinned the table to the container, so the seven columns of
+          Vietnamese text spilled past the edge with nothing to scroll. `min-w-full`
+          lets it grow, which is what gives the box above something to scroll. %>
+      <table class="min-w-full text-sm">
       <thead class="bg-slate-50 text-left text-n-slate-11">
         <tr>
           <th class="px-4 py-3 font-medium">Kênh</th>
           <th class="px-4 py-3 font-medium">Trạng thái cài đặt</th>
           <th class="px-4 py-3 font-medium">Cấu hình nền tảng</th>
           <th class="px-4 py-3 font-medium">Tenant đã bật</th>
+          <th class="px-4 py-3 font-medium">Tenant tự mang app</th>
           <th class="px-4 py-3 font-medium">Hộp thư</th>
           <th class="px-4 py-3 font-medium">Gate bên ngoài</th>
           <th class="px-4 py-3 font-medium text-right">Thao tác</th>
@@ -42,8 +51,8 @@
               <p class="text-xs text-n-slate-11 mt-1 mb-0 max-w-xs"><%= provider[:description] %></p>
             </th>
             <td class="px-4 py-4 align-top">
-              <% status_classes = provider[:status] == :inbox_present ? 'bg-green-100 text-green-800' : provider[:status] == :configured || provider[:status] == :configuration_not_required ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-900' %>
-              <% status_labels = { inbox_present: 'Có hộp thư', configured: 'Đã khai báo', configuration_not_required: 'Theo từng inbox', needs_configuration: 'Cần cấu hình' } %>
+              <% status_classes = [:inbox_present, :tenant_configured].include?(provider[:status]) ? 'bg-green-100 text-green-800' : provider[:status] == :configured || provider[:status] == :configuration_not_required ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-900' %>
+              <% status_labels = { inbox_present: 'Có hộp thư', tenant_configured: 'Tenant tự khai', configured: 'Đã khai báo', configuration_not_required: 'Theo từng inbox', needs_configuration: 'Cần cấu hình' } %>
               <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium <%= status_classes %>">
                 <%= status_labels.fetch(provider[:status]) %>
               </span>
@@ -63,6 +72,11 @@
                 <div class="text-xs text-n-slate-11 mt-1">Không có feature gate riêng</div>
               <% end %>
             </td>
+            <td class="px-4 py-4 align-top text-n-slate-12">
+              <%# Con số này là thứ nói rằng kênh đang chạy bằng ứng dụng của khách, không
+                  phải của LLA — thứ mà bảng cũ không có chỗ nào để nói. %>
+              <%= provider[:platform].present? ? provider[:tenant_app_count] : '—' %>
+            </td>
             <td class="px-4 py-4 align-top text-n-slate-12"><%= provider[:inbox_count] %></td>
             <td class="px-4 py-4 align-top text-n-slate-11"><%= provider[:approval] %></td>
             <td class="px-4 py-4 align-top text-right">
@@ -74,8 +88,9 @@
             </td>
           </tr>
         <% end %>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
@@ -84,6 +99,7 @@
       <ul class="list-disc pl-5 mt-2 mb-0 text-sm text-n-slate-11 space-y-1">
         <li><strong>Cần cấu hình:</strong> thiếu ít nhất một trường toàn hệ thống.</li>
         <li><strong>Đã khai báo:</strong> đủ tên trường, chưa chứng minh OAuth, webhook hoặc gửi nhận.</li>
+        <li><strong>Tenant tự khai:</strong> chưa cấu hình ở cấp cài đặt, nhưng có tenant đã mang ứng dụng của chính họ.</li>
         <li><strong>Có hộp thư:</strong> đã có record inbox; vẫn cần evidence inbound/outbound trước khi gọi LIVE.</li>
       </ul>
     </div>

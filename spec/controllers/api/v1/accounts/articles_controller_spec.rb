@@ -4,8 +4,17 @@ RSpec.describe 'Api::V1::Accounts::Articles', type: :request do
   let(:account) { create(:account) }
   let(:agent) { create(:user, account: account, role: :agent) }
   let(:admin) { create(:user, account: account, role: :administrator) }
-  let!(:portal) { create(:portal, name: 'test_portal', account_id: account.id) }
+  let!(:portal) do
+    create(:portal, name: 'test_portal', account_id: account.id,
+                    config: { allowed_locales: %w[en fr es], default_locale: 'en' })
+  end
   let!(:category) { create(:category, name: 'category', portal: portal, account_id: account.id, locale: 'en', slug: 'category_slug') }
+  # An associated article is a *translation* of its root. Wave G3 made that
+  # explicit in the schema (`idx_lla_articles_unique_translation`: one translation
+  # per portal + root + locale), so fixtures below give each translation its own
+  # locale instead of stacking several English ones on one root.
+  let!(:category_fr) { create(:category, name: 'category fr', portal: portal, account_id: account.id, locale: 'fr', slug: 'category_slug_fr') }
+  let!(:category_es) { create(:category, name: 'category es', portal: portal, account_id: account.id, locale: 'es', slug: 'category_slug_es') }
   let!(:article) { create(:article, category: category, portal: portal, account_id: account.id, author_id: agent.id) }
 
   describe 'POST /api/v1/accounts/{account.id}/portals/{portal.slug}/articles' do
@@ -86,12 +95,12 @@ RSpec.describe 'Api::V1::Accounts::Articles', type: :request do
       it 'associate to the root article' do
         root_article = create(:article, category: category, slug: 'root-article', portal: portal, account_id: account.id, author_id: agent.id,
                                         associated_article_id: nil)
-        parent_article = create(:article, category: category, slug: 'parent-article', portal: portal, account_id: account.id, author_id: agent.id,
-                                          associated_article_id: root_article.id)
+        parent_article = create(:article, category: category_fr, slug: 'parent-article', portal: portal, account_id: account.id,
+                                          author_id: agent.id, associated_article_id: root_article.id)
 
         article_params = {
           article: {
-            category_id: category.id,
+            category_id: category_es.id,
             description: 'test description',
             title: 'MyTitle',
             slug: 'MyTitle',
@@ -331,9 +340,9 @@ RSpec.describe 'Api::V1::Accounts::Articles', type: :request do
 
       it 'get associated articles' do
         root_article = create(:article, category: category, portal: portal, account_id: account.id, author_id: agent.id, associated_article_id: nil)
-        child_article_1 = create(:article, slug: 'child-1', category: category, portal: portal, account_id: account.id, author_id: agent.id,
+        child_article_1 = create(:article, slug: 'child-1', category: category_fr, portal: portal, account_id: account.id, author_id: agent.id,
                                            associated_article_id: root_article.id)
-        child_article_2 = create(:article, slug: 'child-2', category: category, portal: portal, account_id: account.id, author_id: agent.id,
+        child_article_2 = create(:article, slug: 'child-2', category: category_es, portal: portal, account_id: account.id, author_id: agent.id,
                                            associated_article_id: root_article.id)
 
         get "/api/v1/accounts/#{account.id}/portals/#{portal.slug}/articles/#{root_article.id}",

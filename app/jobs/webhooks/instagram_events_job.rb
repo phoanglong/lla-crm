@@ -13,8 +13,12 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   # @return [Array] We will support further events like reaction or seen in future
   SUPPORTED_EVENTS = [:message, :read].freeze
 
-  def perform(entries)
+  # `account_id` chỉ có khi sự kiện tới qua webhook riêng của tenant. Khi có, kênh được tìm
+  # trong đúng tài khoản đó — một tài khoản Instagram xuất hiện ở hai tenant thì tin không
+  # rơi sang tenant kia.
+  def perform(entries, account_id = nil)
     @entries = entries
+    @account_id = account_id
 
     key = format(::Redis::Alfred::IG_MESSAGE_MUTEX, sender_id: contact_instagram_id, ig_account_id: ig_account_id)
     # Keep the lock TTL just long enough for the first job to fetch profile data and
@@ -25,7 +29,8 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
     end
   end
 
-  def process_without_lock(entries)
+  def process_without_lock(entries, account_id = nil)
+    @account_id = account_id
     Rails.logger.warn("[#{self.class.name}] Processing without lock after lock retry exhaustion")
     process_entries(entries)
   end
@@ -118,11 +123,15 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
     # There will be chances for the instagram account to be connected to a facebook page,
     # so we need to check for both instagram and facebook page channels
     # priority is for instagram channel which created via instagram login
-    channel = Channel::Instagram.find_by(instagram_id: instagram_id)
+    channel = scoped(Channel::Instagram).find_by(instagram_id: instagram_id)
     # If not found, fallback to the facebook page channel
-    channel ||= Channel::FacebookPage.find_by(instagram_id: instagram_id)
+    channel ||= scoped(Channel::FacebookPage).find_by(instagram_id: instagram_id)
 
     channel
+  end
+
+  def scoped(relation)
+    @account_id.present? ? relation.where(account_id: @account_id) : relation
   end
 
   def event_name(messaging)

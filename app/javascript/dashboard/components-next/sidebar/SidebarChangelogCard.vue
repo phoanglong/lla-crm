@@ -82,10 +82,13 @@ const handleDismiss = slug => {
   }, 200);
 };
 
+// The changelog feed is whatever the installation configures, so a post links to
+// the URL it carries. This used to build a Chatwoot blog URL from the slug, which
+// is only correct for a feed served by Chatwoot.
 const handleReadMore = () => {
   const currentPost = unDismissedPosts.value[currentIndex.value];
-  if (currentPost?.slug) {
-    window.open(`https://www.chatwoot.com/blog/${currentPost.slug}`, '_blank');
+  if (currentPost?.url) {
+    window.open(currentPost.url, '_blank', 'noopener,noreferrer');
   }
 };
 

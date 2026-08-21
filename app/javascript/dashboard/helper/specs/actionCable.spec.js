@@ -34,6 +34,8 @@ describe('ActionCableConnector - Copilot Tests', () => {
         dispatch: mockDispatch,
         getters: {
           getCurrentAccountId: 1,
+          getCurrentUserID: 7,
+          'inboxes/getInboxes': [{ id: 10 }],
           'accounts/isFeatureEnabledonAccount': vi.fn(() => true),
         },
       },
@@ -73,6 +75,41 @@ describe('ActionCableConnector - Copilot Tests', () => {
         'copilotMessages/upsert',
         copilotData
       );
+    });
+  });
+
+  describe('voice event boundaries', () => {
+    it('registers accepted and permission lifecycle events', () => {
+      expect(actionCable.events['voice_call.accepted']).toBe(
+        actionCable.onVoiceCallAccepted
+      );
+      expect(actionCable.events['voice_call.permission_granted']).toBe(
+        actionCable.onVoiceCallPermissionGranted
+      );
+    });
+
+    it('accepts only WhatsApp events for an inbox visible in the current account', () => {
+      expect(
+        actionCable.isAuthorizedVoiceEvent({
+          account_id: 1,
+          inbox_id: 10,
+          provider: 'whatsapp',
+        })
+      ).toBe(true);
+      expect(
+        actionCable.isAuthorizedVoiceEvent({
+          account_id: 1,
+          inbox_id: 99,
+          provider: 'whatsapp',
+        })
+      ).toBe(false);
+      expect(
+        actionCable.isAuthorizedVoiceEvent({
+          account_id: 2,
+          inbox_id: 10,
+          provider: 'whatsapp',
+        })
+      ).toBe(false);
     });
   });
 

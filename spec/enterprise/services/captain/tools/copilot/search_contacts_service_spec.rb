@@ -84,10 +84,9 @@ RSpec.describe Captain::Tools::Copilot::SearchContactsService do
         expect(result).not_to include(contact2.to_llm_text)
       end
 
-      it 'returns all matching contacts when no filters are provided' do
+      it 'rejects a broad search when no filters are provided' do
         result = service.execute
-        expect(result).to include(contact1.to_llm_text)
-        expect(result).to include(contact2.to_llm_text)
+        expect(result).to eq('Please provide a contact search filter')
       end
     end
   end

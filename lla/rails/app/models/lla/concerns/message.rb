@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+module Lla::Concerns::Message
+  extend ActiveSupport::Concern
+
+  included do
+    has_one :call, dependent: :nullify, inverse_of: :message
+    has_many :message_reports, class_name: 'Captain::MessageReport', dependent: :destroy_async
+  end
+end

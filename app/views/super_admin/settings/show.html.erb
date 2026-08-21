@@ -17,7 +17,10 @@
 </header>
 
 <section class="main-content__body px-8">
-  <% if Redis::Alfred.get(Redis::Alfred::CHATWOOT_INSTALLATION_CONFIG_RESET_WARNING) %>
+  <%# Cờ này chỉ do reconciler trong enterprise/ đặt. Khi enterprise/ không được
+      nạp (DISABLE_ENTERPRISE), không có gì xoá cờ nữa nên giá trị còn lại trong
+      Redis là rác — không hiển thị cảnh báo trong trường hợp đó. %>
+  <% if ChatwootApp.lla? && Redis::Alfred.get(Redis::Alfred::CHATWOOT_INSTALLATION_CONFIG_RESET_WARNING) %>
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-5" role="alert">
       <strong class="font-bold">Cảnh báo cấu hình.</strong>
       <span class="block sm:inline">

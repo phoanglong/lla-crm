@@ -34,10 +34,9 @@ module SwitchLocale
   def locale_from_custom_domain(&)
     return if params[:locale]
 
-    domain = request.host
-    return if DomainHelper.chatwoot_domain?(domain)
+    return if DomainHelper.chatwoot_domain?(request.host)
 
-    @portal = Portal.find_by(custom_domain: domain)
+    @portal = Lla::CustomDomains::HostResolver.portal_for(request.host)
     return unless @portal
 
     @portal.default_locale

@@ -8,18 +8,20 @@ RSpec.describe Captain::ReplySuggestionService do
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:captured_messages) { [] }
+  let(:mock_response) do
+    instance_double(RubyLLM::Message, content: 'Sure, I can help!', input_tokens: 50, output_tokens: 20)
+  end
+  let(:mock_chat) { instance_double(RubyLLM::Chat) }
+  let(:mock_context) { instance_double(RubyLLM::Context, chat: mock_chat) }
 
   before do
+    create(:inbox_member, inbox: inbox, user: agent)
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
     create(:message, conversation: conversation, message_type: :incoming, content: 'I need help')
     allow(account).to receive(:feature_enabled?).and_call_original
     allow(account).to receive(:feature_enabled?).with('captain_tasks').and_return(true)
 
-    mock_response = instance_double(RubyLLM::Message, content: 'Sure, I can help!', input_tokens: 50, output_tokens: 20)
-    mock_chat = instance_double(RubyLLM::Chat)
-    mock_context = instance_double(RubyLLM::Context, chat: mock_chat)
-
-    allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
+    allow(Llm::Config).to receive(:with_credential).and_yield(mock_context)
     allow(mock_chat).to receive(:with_tool).and_return(mock_chat)
     allow(mock_chat).to receive(:on_end_message).and_return(mock_chat)
     allow(mock_chat).to receive(:with_instructions) { |msg| captured_messages << { role: 'system', content: msg } }
@@ -49,6 +51,24 @@ RSpec.describe Captain::ReplySuggestionService do
       user_message = captured_messages.find { |m| m[:role] == 'user' }
       expect(user_message[:content]).to include('Message History:')
       expect(user_message[:content]).to include('User: I need help')
+    end
+
+    context 'when the inbox has an LLA assistant' do
+      let(:assistant) { create(:captain_assistant, account: account) }
+
+      before { create(:captain_inbox, inbox: inbox, captain_assistant: assistant) }
+
+      it 'attaches account-and-assistant-scoped documentation search' do
+        service.perform
+
+        expect(mock_chat).to have_received(:with_tool) do |tool|
+          expect(tool).to be_a(Captain::Tools::SearchReplyDocumentationService)
+          expect(tool.instance_variable_get(:@account)).to eq(account)
+          expect(tool.instance_variable_get(:@assistant)).to eq(assistant)
+        end
+        system_prompt = captured_messages.find { |message| message[:role] == 'system' }[:content]
+        expect(system_prompt).to include('search_documentation')
+      end
     end
 
     context 'with chat channel' do

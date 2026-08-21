@@ -16,6 +16,7 @@ import { useAlert } from 'dashboard/composables';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { useCallsStore } from 'dashboard/stores/calls';
 import { useWhatsappCallSession } from 'dashboard/composables/useWhatsappCallSession';
+import { requestVoiceRecordingConsent } from 'dashboard/composables/useVoiceRecordingConsent';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -82,11 +83,16 @@ const navigateToConversation = conversationId => {
 
 const whatsappCallSession = useWhatsappCallSession();
 
-const startWhatsappCall = async (inboxId, conversationIdHint) => {
+const startWhatsappCall = async (
+  inboxId,
+  conversationIdHint,
+  recordingConsent
+) => {
   const response = await whatsappCallSession.initiateOutboundCall(
     conversationIdHint
       ? { conversationId: conversationIdHint }
-      : { contactId: props.contactId, inboxId }
+      : { contactId: props.contactId, inboxId },
+    recordingConsent
   );
   // The composable returns { status: 'locked' } when an init is already in
   // flight or a call is already active; treat that as a soft no-op rather than
@@ -127,9 +133,10 @@ const startCall = async (inboxId, conversationIdHint = null) => {
   if (isCallButtonDisabled.value) return;
 
   const inbox = (inboxesList.value || []).find(i => i.id === inboxId);
+  const recordingConsent = requestVoiceRecordingConsent({ inbox, t });
   if (getVoiceCallProvider(inbox) === VOICE_CALL_PROVIDERS.WHATSAPP) {
     try {
-      await startWhatsappCall(inboxId, conversationIdHint);
+      await startWhatsappCall(inboxId, conversationIdHint, recordingConsent);
     } catch (error) {
       useAlert(error?.message || t('CONTACT_PANEL.CALL_FAILED'));
     }
@@ -141,6 +148,7 @@ const startCall = async (inboxId, conversationIdHint = null) => {
       contactId: props.contactId,
       inboxId,
       conversationId: conversationIdHint,
+      recordingConsent,
     });
     const { call_sid: callSid, conversation_id: conversationId } = response;
 

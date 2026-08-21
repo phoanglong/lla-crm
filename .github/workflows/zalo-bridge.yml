@@ -1,0 +1,27 @@
+name: Zalo bridge
+
+# Cầu Zalo là mã ngoài đường chạy của Rails: không suite nào của repo chạm tới nó,
+# nên nếu không có workflow riêng thì các kiểm thử của nó không bao giờ chạy.
+on:
+  push:
+    paths:
+      - 'lla/zalo-bridge/**'
+      - '.github/workflows/zalo-bridge.yml'
+  pull_request:
+    paths:
+      - 'lla/zalo-bridge/**'
+      - '.github/workflows/zalo-bridge.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lla/zalo-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm test

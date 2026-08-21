@@ -84,9 +84,15 @@ class Integrations::LlmBaseService
   end
 
   def api_base
-    endpoint = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence || 'https://api.openai.com/'
-    endpoint = endpoint.chomp('/')
-    "#{endpoint}/v1"
+    "#{Lla::Ai::OpenaiEndpoint.resolve.chomp('/')}/v1"
+  end
+
+  # Mô hình dạng `<nhà cung cấp>/<mô hình>` thuộc về một kết nối AI do tenant khai; còn lại
+  # đi đường cũ với khoá của bản cài đặt.
+  def llm_credential_for(model)
+    Lla::Ai::CredentialResolver.resolve_with_fallback(
+      account: hook.account, model: model, fallback: llm_credential, api_base: api_base
+    )
   end
 
   def make_api_call(body)
@@ -101,10 +107,10 @@ class Integrations::LlmBaseService
   def execute_ruby_llm_request(parsed_body)
     messages = parsed_body['messages']
     model = parsed_body['model']
-    credential = llm_credential
+    credential = llm_credential_for(model)
 
-    Llm::Config.with_api_key(credential[:api_key], api_base: api_base) do |context|
-      chat = context.chat(model: model)
+    Llm::Config.with_credential(credential) do |context|
+      chat = context.chat(model: credential.model)
       setup_chat_with_messages(chat, messages)
     end
   rescue StandardError => e

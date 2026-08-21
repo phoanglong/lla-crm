@@ -15,17 +15,11 @@ const props = defineProps({
     type: String,
     default: null,
   },
-  installationTypes: {
-    type: Array,
-    default: null,
-  },
 });
 
 const { shouldShow } = usePolicy();
 
-const show = computed(() =>
-  shouldShow(props.featureFlag, props.permissions, props.installationTypes)
-);
+const show = computed(() => shouldShow(props.featureFlag, props.permissions));
 </script>
 
 <!-- eslint-disable vue/no-root-v-if -->

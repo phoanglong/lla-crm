@@ -252,7 +252,6 @@
     "APPEARANCE": "Change appearance",
     "SUPER_ADMIN_CONSOLE": "SuperAdmin console",
     "DOCS": "Read documentation",
-    "CHANGELOG": "Changelog",
     "LOGOUT": "Log out"
   },
   "APP_GLOBAL": {
@@ -564,6 +563,31 @@
     "API": {
       "SUCCESS": "Captain settings updated successfully.",
       "ERROR": "Failed to update Captain settings. Please try again."
+    },
+    "AI_PROVIDERS": {
+      "TITLE": "Your own AI providers",
+      "DESCRIPTION": "Connect the AI you want to use — your own key, your own endpoint, your own models. A connection's models are then addressed as name/model when choosing one above.",
+      "EMPTY": "No connection yet. Features use the platform's AI until you add one.",
+      "ADD": "Add a connection",
+      "NAME_LABEL": "Connection name",
+      "NAME_PLACEHOLDER": "e.g. internal",
+      "NAME_HELP": "Lowercase letters, digits, dash and underscore. Models are then addressed as name/model.",
+      "KIND_LABEL": "Provider",
+      "BASE_LABEL": "Endpoint",
+      "BASE_PLACEHOLDER": "https://openrouter.ai/api/v1",
+      "BASE_HELP": "The full base URL, including /v1 where the provider expects it. HTTPS only.",
+      "KEY_LABEL": "API key",
+      "KEY_PLACEHOLDER": "Key for this provider",
+      "SAVE": "Save",
+      "CANCEL": "Cancel",
+      "VERIFY": "Test",
+      "VERIFY_OK": "The provider answered. Its models are now available above.",
+      "VERIFY_FAILED": "The provider did not answer.",
+      "VERIFIED": "Working",
+      "UNVERIFIED": "Untested",
+      "REMOVE": "Remove",
+      "DEFAULT_ENDPOINT": "Provider's own endpoint",
+      "MODELS_SUFFIX": "models"
     }
   },
   "BILLING_SETTINGS": {

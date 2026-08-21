@@ -6,6 +6,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Banner from 'dashboard/components-next/banner/Banner.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import { useAccount } from 'dashboard/composables/useAccount';
+import PlatformAppSetup from 'dashboard/components-next/platform/PlatformAppSetup.vue';
 
 const { t } = useI18n();
 const { isOnChatwootCloud } = useAccount();
@@ -14,6 +15,10 @@ const hasError = ref(false);
 const errorStateMessage = ref('');
 const errorStateDescription = ref('');
 const isRequestingAuthorization = ref(false);
+// Ứng dụng phải chọn trước khi mở vòng OAuth, và TikTok còn đăng ký callback URL theo
+// từng ứng dụng — nên biết dùng ứng dụng nào là điều kiện của cả hai việc.
+const isPlatformAppReady = ref(false);
+const sharedAppId = window.chatwootConfig?.tiktokAppId;
 
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -50,7 +55,16 @@ const requestAuthorization = async () => {
 
 <template>
   <div class="h-full p-6 w-full max-w-full flex-shrink-0 flex-grow-0">
-    <div class="flex flex-col items-center justify-start h-full text-center">
+    <PlatformAppSetup
+      v-if="!isPlatformAppReady"
+      platform="tiktok"
+      :platform-app-available="Boolean(sharedAppId)"
+      @ready="isPlatformAppReady = true"
+    />
+    <div
+      v-else
+      class="flex flex-col items-center justify-start h-full text-center"
+    >
       <div v-if="hasError" class="max-w-lg mx-auto text-center">
         <h5>{{ errorStateMessage }}</h5>
         <p

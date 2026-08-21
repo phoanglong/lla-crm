@@ -7,8 +7,8 @@ FactoryBot.define do
 
     trait :copilot do
       session_type { :copilot }
-      user
-      subject { create(:captain_copilot_thread, account: account, user: user) }
+      user { association(:user, account: account) }
+      subject { create(:captain_copilot_thread, account: account, user: user, assistant: assistant) }
     end
   end
 end

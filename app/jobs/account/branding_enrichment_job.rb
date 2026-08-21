@@ -2,13 +2,13 @@ class Account::BrandingEnrichmentJob < ApplicationJob
   queue_as :low
 
   def perform(account_id, email)
-    result = WebsiteBrandingService.new(email).perform
+    account = Account.find(account_id)
+    result = WebsiteBrandingService.new(email, account: account).perform
     if result.blank?
-      Rails.logger.info "[BrandingEnrichment] Enrichment failed for account=#{account_id} email=#{email}"
+      Rails.logger.info "[BrandingEnrichment] Enrichment failed for account=#{account_id}"
       return
     end
 
-    account = Account.find(account_id)
     account.name = result[:title] if result[:title].present?
     account.custom_attributes['brand_info'] = result if account.custom_attributes['brand_info'].blank?
     account.save! if account.changed?

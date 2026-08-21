@@ -19,6 +19,7 @@ class Api::V1::Accounts::OnboardingsController < Api::V1::Accounts::BaseControll
   end
 
   def help_center_generation
+    @account = Current.account
     render json: help_center_generation_status
   end
 
@@ -34,7 +35,7 @@ class Api::V1::Accounts::OnboardingsController < Api::V1::Accounts::BaseControll
 
     # inbox_setup is a cloud-only step (DEPLOYMENT_ENV config, not a hardcoded
     # environment check); self-hosted finishes onboarding here.
-    if ChatwootApp.chatwoot_cloud?
+    if onboarding_inbox_setup_enabled?
       move_to_step(STEP_INBOX_SETUP)
       create_onboarding_inboxes
     else
@@ -66,6 +67,10 @@ class Api::V1::Accounts::OnboardingsController < Api::V1::Accounts::BaseControll
 
   def create_onboarding_inboxes
     Onboarding::WebWidgetCreationService.new(@account, Current.user).perform
+  end
+
+  def onboarding_inbox_setup_enabled?
+    ChatwootApp.chatwoot_cloud?
   end
 
   def account_params

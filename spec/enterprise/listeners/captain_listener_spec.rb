@@ -25,6 +25,10 @@ describe CaptainListener do
       end
 
       it 'generates and updates notes' do
+        expect(Captain::Llm::ContactAttributesService)
+          .to receive(:new)
+          .with(assistant, conversation)
+          .and_return(instance_double(Captain::Llm::ContactAttributesService, generate_and_update_attributes: nil))
         expect(Captain::Llm::ContactNotesService)
           .to receive(:new)
           .with(assistant, conversation)
@@ -44,6 +48,7 @@ describe CaptainListener do
 
       it 'enqueues FAQ suggestion generation' do
         expect(Captain::Llm::ConversationFaqJob).to receive(:perform_later).with(conversation, assistant)
+        expect(Captain::Llm::ContactAttributesService).not_to receive(:new)
         expect(Captain::Llm::ContactNotesService).not_to receive(:new)
 
         listener.conversation_resolved(event)

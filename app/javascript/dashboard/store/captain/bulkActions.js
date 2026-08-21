@@ -1,4 +1,5 @@
 import CaptainBulkActionsAPI from 'dashboard/api/captain/bulkActions';
+import getUuid from 'widget/helpers/uuid';
 import { createStore } from '../storeFactory';
 import { throwErrorMessage } from 'dashboard/store/utils/api';
 
@@ -15,6 +16,7 @@ export default createStore({
         const response = await CaptainBulkActionsAPI.create({
           type: type,
           ids,
+          operation_id: getUuid(),
           fields: { status: actionType },
         });
         commit(mutations.SET_UI_FLAG, { isUpdating: false });

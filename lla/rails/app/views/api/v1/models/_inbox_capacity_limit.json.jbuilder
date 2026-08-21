@@ -1,0 +1,4 @@
+json.id resource.id
+json.inbox_id resource.inbox_id
+json.conversation_limit resource.conversation_limit
+json.agent_capacity_policy_id resource.agent_capacity_policy_id

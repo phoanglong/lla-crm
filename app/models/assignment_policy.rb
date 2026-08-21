@@ -35,7 +35,12 @@ class AssignmentPolicy < ApplicationRecord
 
   enum conversation_priority: { earliest_created: 0, longest_waiting: 1 }
 
-  enum assignment_order: { round_robin: 0 } unless ChatwootApp.enterprise?
+  # Defined once, unconditionally. It used to be `{ round_robin: 0 }` here unless
+  # the process was in enterprise mode, with `{ round_robin: 0, balanced: 1 }`
+  # redefined from an enterprise concern — so with enterprise off, a row already
+  # holding `assignment_order = 1` raised `ArgumentError` on read, and the whole
+  # `balanced` strategy vanished from a database that still contained it.
+  enum assignment_order: { round_robin: 0, balanced: 1 }
 end
 
 AssignmentPolicy.include_mod_with('Concerns::AssignmentPolicy')

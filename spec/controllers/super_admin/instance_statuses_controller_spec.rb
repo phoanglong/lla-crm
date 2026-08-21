@@ -17,6 +17,9 @@ RSpec.describe 'Super Admin Instance status', type: :request do
         get '/super_admin/instance_status'
         expect(response).to have_http_status(:success)
         expect(response.body).to include('LLA CRM version')
+        expect(response.body).to include('0.9.0-dev.1')
+        expect(response.body).to include('Chatwoot compatibility version')
+        expect(response.body).to include('4.16.2')
         expect(response.body).to include(GIT_HASH)
       end
     end

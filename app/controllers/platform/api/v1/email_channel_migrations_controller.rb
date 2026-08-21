@@ -21,8 +21,11 @@ class Platform::Api::V1::EmailChannelMigrationsController < PlatformController
     render json: { error: 'Non permissible resource' }, status: :unauthorized
   end
 
+  # Read strictly: this flag is the only thing standing between the platform API and
+  # a channel migration. The permissive cast would open it for any value that is not
+  # one of its falsey words, `EMAIL_CHANNEL_MIGRATION=disabled` included.
   def validate_feature_flag
-    return if ActiveModel::Type::Boolean.new.cast(ENV.fetch('EMAIL_CHANNEL_MIGRATION', false))
+    return if ChatwootApp.enabled_flag?('EMAIL_CHANNEL_MIGRATION')
 
     render json: { error: 'Email channel migration is not enabled' }, status: :forbidden
   end

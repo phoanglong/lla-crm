@@ -26,6 +26,11 @@ class Channel::Whatsapp < ApplicationRecord
   include Reauthorizable
 
   self.table_name = 'channel_whatsapp'
+  # Khoá của KHÁCH: khoá API 360dialog, access token của Meta app họ mang tới, secret ký
+  # webhook, và mã PIN xác minh số. Những thứ còn lại trong `provider_config` là định tuyến,
+  # có nơi truy vấn bằng `provider_config->>`, nên giữ nguyên chữ thường.
+  attribute :provider_config, Lla::EncryptedProviderConfig.new(:api_key, :api_secret, :access_token, :app_secret,
+                                                               :webhook_verify_token, :verification_pin)
   EDITABLE_ATTRS = [:phone_number, :provider, { provider_config: {} }].freeze
 
   # default at the moment is 360dialog lets change later.

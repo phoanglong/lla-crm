@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_060000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -163,12 +163,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.jsonb "run_context", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["account_id", "assistant_id", "created_at"], name: "idx_lla_agent_sessions_assistant_recent"
+    t.index ["account_id", "result_type", "result_id"], name: "idx_lla_agent_sessions_unique_result", unique: true, where: "(result_id IS NOT NULL)"
     t.index ["account_id", "result_type", "result_id"], name: "idx_on_account_id_result_type_result_id_ca66c00cd7"
     t.index ["account_id", "session_type", "created_at"], name: "idx_on_account_id_session_type_created_at_c20a14bd4e"
     t.index ["account_id", "subject_type", "subject_id"], name: "idx_on_account_id_subject_type_subject_id_6d60963b3d"
     t.index ["account_id"], name: "index_agent_sessions_on_account_id"
     t.index ["assistant_id"], name: "index_agent_sessions_on_assistant_id"
     t.index ["user_id"], name: "index_agent_sessions_on_user_id"
+    t.check_constraint "session_type = ANY (ARRAY[0, 1])", name: "chk_lla_agent_sessions_type"
   end
 
   create_table "applied_slas", force: :cascade do |t|
@@ -190,7 +193,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.vector "embedding", limit: 1536
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["embedding"], name: "index_article_embeddings_on_embedding", using: :ivfflat
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.string "model", limit: 100, null: false
+    t.integer "dimensions", null: false
+    t.string "content_digest", limit: 64, null: false
+    t.string "term_digest", limit: 64, null: false
+    t.integer "index_version", null: false
+    t.boolean "active", default: false, null: false
+    t.index ["account_id", "portal_id", "active", "model"], name: "idx_lla_article_embeddings_active_scope"
+    t.index ["article_id", "active", "index_version"], name: "idx_lla_article_embeddings_article_active"
+    t.index ["article_id", "model", "index_version", "term_digest"], name: "idx_lla_article_embeddings_version_term", unique: true
+    t.index ["embedding"], name: "idx_lla_article_embeddings_cosine", opclass: :vector_cosine_ops, using: :ivfflat
+    t.check_constraint "char_length(content_digest::text) = 64 AND char_length(term_digest::text) = 64", name: "chk_lla_article_embeddings_digests"
+    t.check_constraint "dimensions = 1536 AND index_version >= 1 AND embedding IS NOT NULL AND vector_dims(embedding) = dimensions", name: "chk_lla_article_embeddings_profile"
   end
 
   create_table "articles", force: :cascade do |t|
@@ -213,13 +229,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.string "locale", default: "en", null: false
     t.string "draft_title"
     t.text "draft_content"
+    t.string "lla_search_content_digest", limit: 64, null: false
+    t.integer "lla_search_version", default: 1, null: false
+    t.integer "lla_search_active_version", default: 0, null: false
+    t.string "lla_search_embedding_model", limit: 100
+    t.integer "lla_search_embedding_dimensions"
+    t.index ["account_id", "portal_id", "id"], name: "idx_lla_articles_tenant_identity", unique: true
     t.index ["account_id"], name: "index_articles_on_account_id"
     t.index ["associated_article_id"], name: "index_articles_on_associated_article_id"
     t.index ["author_id"], name: "index_articles_on_author_id"
+    t.index ["portal_id", "associated_article_id", "locale"], name: "idx_lla_articles_unique_translation", unique: true, where: "(associated_article_id IS NOT NULL)"
     t.index ["portal_id"], name: "index_articles_on_portal_id"
     t.index ["slug"], name: "index_articles_on_slug", unique: true
     t.index ["status"], name: "index_articles_on_status"
     t.index ["views"], name: "index_articles_on_views"
+    t.check_constraint "char_length(lla_search_content_digest::text) = 64", name: "chk_lla_articles_search_digest"
+    t.check_constraint "lla_search_embedding_dimensions IS NULL AND lla_search_embedding_model IS NULL OR lla_search_embedding_dimensions = 1536 AND char_length(lla_search_embedding_model::text) >= 3 AND char_length(lla_search_embedding_model::text) <= 100", name: "chk_lla_articles_search_profile"
+    t.check_constraint "lla_search_version >= 1 AND lla_search_active_version >= 0 AND lla_search_active_version <= lla_search_version", name: "chk_lla_articles_search_versions"
   end
 
   create_table "assignment_policies", force: :cascade do |t|
@@ -304,15 +330,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.datetime "started_at"
     t.integer "duration_seconds"
     t.string "end_reason"
-    t.jsonb "meta", default: {}
+    t.jsonb "meta", default: {}, null: false
     t.text "transcript"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "ended_at"
     t.index ["account_id", "contact_id"], name: "index_calls_on_account_id_and_contact_id"
     t.index ["account_id", "conversation_id"], name: "index_calls_on_account_id_and_conversation_id"
     t.index ["account_id", "created_at"], name: "index_calls_on_account_id_and_created_at"
+    t.index ["account_id", "id"], name: "idx_lla_calls_tenant_id", unique: true
+    t.index ["account_id", "inbox_id", "provider", "provider_call_id"], name: "idx_lla_calls_provider_identity", unique: true
+    t.index ["account_id", "inbox_id", "status", "updated_at"], name: "idx_lla_calls_inbox_active"
+    t.index ["account_id", "status", "created_at"], name: "idx_lla_calls_account_status_created"
     t.index ["message_id"], name: "index_calls_on_message_id"
-    t.index ["provider", "provider_call_id"], name: "index_calls_on_provider_and_provider_call_id", unique: true
+    t.check_constraint "char_length(provider_call_id::text) >= 1 AND char_length(provider_call_id::text) <= 255", name: "chk_lla_calls_provider_identity"
+    t.check_constraint "direction = ANY (ARRAY[0, 1])", name: "chk_lla_calls_direction"
+    t.check_constraint "duration_seconds IS NULL OR duration_seconds >= 0", name: "chk_lla_calls_duration"
+    t.check_constraint "provider = ANY (ARRAY[0, 1])", name: "chk_lla_calls_provider"
+    t.check_constraint "status::text = ANY (ARRAY['ringing'::text, 'in_progress'::text, 'completed'::text, 'no_answer'::text, 'failed'::text, 'rejected'::text])", name: "chk_lla_calls_status"
   end
 
   create_table "campaigns", force: :cascade do |t|
@@ -394,6 +430,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.boolean "enabled", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "auth_config_ciphertext"
     t.index ["account_id", "slug"], name: "index_captain_custom_tools_on_account_id_and_slug", unique: true
     t.index ["account_id"], name: "index_captain_custom_tools_on_account_id"
   end
@@ -411,6 +448,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.integer "sync_status"
     t.datetime "last_synced_at"
     t.datetime "last_sync_attempted_at"
+    t.string "sync_claim_digest"
+    t.datetime "sync_claimed_at"
     t.index "assistant_id, md5(external_link)", name: "idx_captain_documents_on_assistant_id_and_external_link_md5", unique: true
     t.index ["account_id", "assistant_id", "sync_status", "last_synced_at"], name: "idx_captain_documents_on_account_assistant_sync_stats"
     t.index ["account_id", "sync_status"], name: "index_captain_documents_on_account_id_and_sync_status"
@@ -429,6 +468,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.integer "status", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_fingerprint"
+    t.index ["account_id", "conversation_id", "source_fingerprint"], name: "idx_cap_faq_observations_unique_source", unique: true, where: "(source_fingerprint IS NOT NULL)"
     t.index ["account_id"], name: "index_captain_faq_observations_on_account_id"
     t.index ["conversation_id", "faq_suggestion_id"], name: "idx_captain_faq_observations_on_conversation_and_suggestion", unique: true, where: "(faq_suggestion_id IS NOT NULL)"
     t.index ["conversation_id"], name: "index_captain_faq_observations_on_conversation_id"
@@ -446,8 +487,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.integer "status", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
+    t.string "content_fingerprint"
+    t.index ["account_id", "assistant_id", "language", "content_fingerprint"], name: "idx_cap_faq_suggestions_unique_content", unique: true, where: "(content_fingerprint IS NOT NULL)"
     t.index ["account_id", "assistant_id", "status", "language"], name: "idx_cap_faq_suggestions_on_account_assistant_status_language"
+    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["assistant_id"], name: "index_captain_faq_suggestions_on_assistant_id"
     t.index ["embedding"], name: "vector_idx_captain_faq_suggestions_embedding", opclass: :vector_cosine_ops, using: :ivfflat
   end
@@ -471,10 +514,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "expires_at", null: false
+    t.index ["account_id", "user_id", "message_id"], name: "idx_lla_message_reports_effective", unique: true
     t.index ["account_id"], name: "index_captain_message_reports_on_account_id"
     t.index ["conversation_id"], name: "index_captain_message_reports_on_conversation_id"
+    t.index ["expires_at"], name: "idx_lla_message_reports_expiry"
     t.index ["message_id"], name: "index_captain_message_reports_on_message_id"
     t.index ["user_id"], name: "index_captain_message_reports_on_user_id"
+    t.check_constraint "description IS NULL OR char_length(description) <= 500", name: "chk_lla_message_reports_description"
+    t.check_constraint "report_reason::text = ANY (ARRAY['incorrect_information'::text, 'inappropriate_response'::text, 'incomplete_response'::text, 'outdated_information'::text, 'other'::text])", name: "chk_lla_message_reports_reason"
   end
 
   create_table "captain_scenarios", force: :cascade do |t|
@@ -507,6 +555,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.bigint "associated_category_id"
     t.string "icon", default: ""
     t.string "icon_color", default: ""
+    t.index ["account_id", "portal_id", "id"], name: "idx_lla_categories_tenant_identity", unique: true
     t.index ["associated_category_id"], name: "index_categories_on_associated_category_id"
     t.index ["locale", "account_id"], name: "index_categories_on_locale_and_account_id"
     t.index ["locale"], name: "index_categories_on_locale"
@@ -686,8 +735,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.jsonb "phone_number_health", default: {}, null: false
     t.datetime "phone_number_health_checked_at"
     t.string "phone_number_health_error", limit: 500
-    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
+    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -742,6 +791,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.index "lower((email)::text), account_id", name: "index_contacts_on_lower_email_account_id"
     t.index ["account_id", "contact_type"], name: "index_contacts_on_account_id_and_contact_type"
     t.index ["account_id", "email", "phone_number", "identifier"], name: "index_contacts_on_nonempty_fields", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
+    t.index ["account_id", "id"], name: "idx_lla_contacts_tenant_id", unique: true
     t.index ["account_id", "last_activity_at"], name: "index_contacts_on_account_id_and_last_activity_at", order: { last_activity_at: "DESC NULLS LAST" }
     t.index ["account_id"], name: "index_contacts_on_account_id"
     t.index ["account_id"], name: "index_resolved_contact_account_id", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
@@ -793,6 +843,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.text "cached_label_list"
     t.bigint "assignee_agent_bot_id"
     t.index ["account_id", "display_id"], name: "index_conversations_on_account_id_and_display_id", unique: true
+    t.index ["account_id", "id"], name: "idx_lla_conversations_feedback_tenant", unique: true
     t.index ["account_id", "id"], name: "index_conversations_on_id_and_account_id"
     t.index ["account_id", "inbox_id", "status", "assignee_id"], name: "conv_acid_inbid_stat_asgnid_idx"
     t.index ["account_id"], name: "index_conversations_on_account_id"
@@ -818,8 +869,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "message_type", default: 0
+    t.bigint "conversation_id"
+    t.integer "response_state", default: 0, null: false
+    t.uuid "response_job_token"
+    t.integer "response_attempts", default: 0, null: false
+    t.datetime "response_reserved_at"
+    t.datetime "response_completed_at"
+    t.bigint "source_message_id"
     t.index ["account_id"], name: "index_copilot_messages_on_account_id"
+    t.index ["conversation_id"], name: "idx_lla_copilot_messages_conversation"
+    t.index ["copilot_thread_id", "created_at", "id"], name: "idx_lla_copilot_messages_thread_order"
+    t.index ["copilot_thread_id", "response_state", "id"], name: "idx_lla_copilot_thread_response_order"
     t.index ["copilot_thread_id"], name: "index_copilot_messages_on_copilot_thread_id"
+    t.index ["response_job_token"], name: "idx_lla_copilot_response_token", unique: true, where: "(response_job_token IS NOT NULL)"
+    t.index ["source_message_id"], name: "idx_lla_copilot_final_response", unique: true, where: "((message_type = 1) AND (source_message_id IS NOT NULL))"
+    t.check_constraint "message_type = ANY (ARRAY[0, 1, 2])", name: "chk_lla_copilot_messages_type"
+    t.check_constraint "response_attempts >= 0", name: "chk_lla_copilot_response_attempts"
+    t.check_constraint "response_state = 0 AND response_job_token IS NULL OR (response_state = ANY (ARRAY[1, 2, 3, 4])) AND response_job_token IS NOT NULL", name: "chk_lla_copilot_response_token"
+    t.check_constraint "response_state = 0 OR message_type = 0", name: "chk_lla_copilot_response_owner"
+    t.check_constraint "response_state = ANY (ARRAY[0, 1, 2, 3, 4])", name: "chk_lla_copilot_response_state"
+    t.check_constraint "source_message_id IS NULL OR (message_type = ANY (ARRAY[1, 2]))", name: "chk_lla_copilot_response_source_type"
   end
 
   create_table "copilot_threads", force: :cascade do |t|
@@ -828,7 +897,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.bigint "account_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "assistant_id"
+    t.integer "assistant_id", null: false
+    t.index ["account_id", "user_id", "created_at"], name: "idx_lla_copilot_threads_owner_recent"
     t.index ["account_id"], name: "index_copilot_threads_on_account_id"
     t.index ["assistant_id"], name: "index_copilot_threads_on_assistant_id"
     t.index ["user_id"], name: "index_copilot_threads_on_user_id"
@@ -992,10 +1062,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "inbox_id"
-    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "(account_id IS NOT NULL) AND (inbox_id IS NULL)"
+    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "((account_id IS NOT NULL) AND (inbox_id IS NULL))"
     t.index ["inbox_id", "name", "template_type", "locale"], name: "index_email_templates_on_inbox_scope", unique: true, where: "(inbox_id IS NOT NULL)"
     t.index ["inbox_id"], name: "index_email_templates_on_inbox_id"
-    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "(account_id IS NULL) AND (inbox_id IS NULL)"
+    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "((account_id IS NULL) AND (inbox_id IS NULL))"
   end
 
   create_table "folders", force: :cascade do |t|
@@ -1058,6 +1128,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.integer "sender_name_type", default: 0, null: false
     t.string "business_name"
     t.jsonb "csat_config", default: {}, null: false
+    t.index ["account_id", "id"], name: "idx_lla_inboxes_tenant_id", unique: true
     t.index ["account_id"], name: "index_inboxes_on_account_id"
     t.index ["channel_id", "channel_type"], name: "index_inboxes_on_channel_id_and_channel_type"
     t.index ["portal_id"], name: "index_inboxes_on_portal_id"
@@ -1116,6 +1187,398 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.index ["user_id"], name: "index_leaves_on_user_id"
   end
 
+  create_table "lla_ai_providers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "kind", limit: 32, null: false
+    t.string "name", limit: 64, null: false
+    t.string "api_base", limit: 512
+    t.text "api_key"
+    t.jsonb "config", default: {}, null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "verified_at"
+    t.string "last_error", limit: 512
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "enabled"], name: "idx_lla_ai_providers_tenant_enabled"
+    t.index ["account_id", "name"], name: "idx_lla_ai_providers_tenant_name", unique: true
+    t.check_constraint "kind::text = ANY (ARRAY['openai'::character varying::text, 'anthropic'::character varying::text, 'gemini'::character varying::text, 'azure_openai'::character varying::text, 'openai_compatible'::character varying::text])", name: "chk_lla_ai_providers_kind"
+    t.check_constraint "name::text ~ '^[a-z0-9][a-z0-9_-]{0,63}$'::text", name: "chk_lla_ai_providers_name_format"
+  end
+
+  create_table "lla_call_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "call_id"
+    t.integer "provider", null: false
+    t.string "event_id_digest", limit: 64, null: false
+    t.string "payload_digest", limit: 64, null: false
+    t.string "event_type", limit: 80, null: false
+    t.string "outcome", limit: 16, default: "pending", null: false
+    t.datetime "occurred_at"
+    t.datetime "verified_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "call_id", "created_at"], name: "idx_lla_call_events_call_timeline"
+    t.index ["account_id", "inbox_id", "provider", "event_id_digest"], name: "idx_lla_call_events_idempotency", unique: true
+    t.check_constraint "char_length(event_id_digest::text) = 64 AND char_length(payload_digest::text) = 64", name: "chk_lla_call_events_digests"
+    t.check_constraint "outcome::text = ANY (ARRAY['pending'::text, 'applied'::text, 'duplicate'::text, 'stale'::text, 'rejected'::text])", name: "chk_lla_call_events_outcome"
+    t.check_constraint "provider = ANY (ARRAY[0, 1])", name: "chk_lla_call_events_provider"
+  end
+
+  create_table "lla_call_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "call_id"
+    t.string "action", limit: 32, null: false
+    t.string "state", limit: 16, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "request_digest", limit: 64, null: false
+    t.string "claim_digest", limit: 64
+    t.string "provider_request_id_digest", limit: 64
+    t.string "last_error_code", limit: 80
+    t.integer "attempts", default: 0, null: false
+    t.datetime "available_at", null: false
+    t.datetime "claimed_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "inbox_id", "idempotency_digest"], name: "idx_lla_call_operations_idempotency", unique: true
+    t.index ["state", "available_at"], name: "idx_lla_call_operations_ready"
+    t.check_constraint "attempts >= 0 AND attempts <= 20", name: "chk_lla_call_operations_attempts"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64", name: "chk_lla_call_operations_digests"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'claimed'::text, 'succeeded'::text, 'failed'::text, 'compensating'::text, 'compensated'::text])", name: "chk_lla_call_operations_state"
+  end
+
+  create_table "lla_captain_bulk_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.string "key_digest", null: false
+    t.string "request_digest", null: false
+    t.string "resource_type", null: false
+    t.string "action", null: false
+    t.string "state", default: "pending", null: false
+    t.integer "requested_count", default: 0, null: false
+    t.integer "processed_count", default: 0, null: false
+    t.integer "error_count", default: 0, null: false
+    t.jsonb "result", default: {}, null: false
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "key_digest"], name: "idx_lla_bulk_operations_idempotency", unique: true
+    t.index ["account_id"], name: "index_lla_captain_bulk_operations_on_account_id"
+    t.index ["expires_at"], name: "idx_lla_bulk_operations_expiry"
+    t.index ["user_id"], name: "index_lla_captain_bulk_operations_on_user_id"
+    t.check_constraint "char_length(key_digest::text) = 64 AND char_length(request_digest::text) = 64", name: "chk_lla_bulk_operations_digests"
+    t.check_constraint "requested_count >= 1 AND requested_count <= 100 AND processed_count >= 0 AND processed_count <= requested_count AND error_count >= 0 AND error_count <= requested_count AND (processed_count + error_count) <= requested_count", name: "chk_lla_bulk_operations_counts"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])", name: "chk_lla_bulk_operations_state"
+  end
+
+  create_table "lla_captain_quota_ledgers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "bucket", limit: 64, default: "captain_responses", null: false
+    t.datetime "period_start", null: false
+    t.datetime "period_end", null: false
+    t.bigint "limit_snapshot", default: 0, null: false
+    t.bigint "opening_consumed_units", default: 0, null: false
+    t.bigint "reserved_units", default: 0, null: false
+    t.bigint "consumed_units", default: 0, null: false
+    t.bigint "released_units", default: 0, null: false
+    t.integer "reconciliation_state", default: 0, null: false
+    t.datetime "last_reconciled_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "bucket", "period_start"], name: "idx_lla_quota_ledgers_account_bucket_period", unique: true
+    t.index ["account_id"], name: "index_lla_captain_quota_ledgers_on_account_id"
+    t.check_constraint "limit_snapshot >= 0 AND opening_consumed_units >= 0 AND reserved_units >= 0 AND consumed_units >= 0 AND released_units >= 0", name: "lla_quota_ledgers_non_negative"
+    t.check_constraint "period_end > period_start", name: "lla_quota_ledgers_valid_period"
+    t.check_constraint "reconciliation_state = ANY (ARRAY[0, 1, 2])", name: "lla_quota_ledgers_reconciliation_state"
+  end
+
+  create_table "lla_captain_quota_reservations", force: :cascade do |t|
+    t.bigint "quota_ledger_id", null: false
+    t.string "idempotency_key_digest", limit: 64, null: false
+    t.string "owner_token_digest", limit: 64
+    t.string "feature", limit: 128, null: false
+    t.string "provider", limit: 64, null: false
+    t.string "credential_source", limit: 32, null: false
+    t.string "reason", limit: 128, null: false
+    t.integer "state", default: 0, null: false
+    t.integer "units", default: 1, null: false
+    t.integer "attempts", default: 1, null: false
+    t.string "rejection_code", limit: 64
+    t.string "request_fingerprint", limit: 64
+    t.datetime "claimed_at"
+    t.datetime "consumed_at"
+    t.datetime "released_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["idempotency_key_digest"], name: "idx_lla_quota_reservations_idempotency", unique: true
+    t.index ["quota_ledger_id", "state"], name: "idx_lla_quota_reservations_ledger_state"
+    t.index ["state", "claimed_at"], name: "idx_lla_quota_reservations_stale_claims"
+    t.check_constraint "state = 0 AND owner_token_digest IS NOT NULL AND claimed_at IS NOT NULL OR state <> 0", name: "lla_quota_reservations_claimed_when_reserved"
+    t.check_constraint "state = ANY (ARRAY[0, 1, 2, 3])", name: "lla_quota_reservations_state"
+    t.check_constraint "units > 0 AND attempts > 0", name: "lla_quota_reservations_positive_values"
+  end
+
+  create_table "lla_custom_domain_operations", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.bigint "custom_domain_id"
+    t.bigint "predecessor_id"
+    t.integer "recovery_attempt", default: 0, null: false
+    t.string "operation_type", limit: 32, null: false
+    t.string "state", limit: 32, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "request_digest", limit: 64, null: false
+    t.string "claim_digest", limit: 64
+    t.string "hostname", limit: 253, null: false
+    t.string "provider", limit: 32, default: "none", null: false
+    t.string "provider_resource_id", limit: 128
+    t.integer "domain_version", default: 1, null: false
+    t.integer "attempts", default: 0, null: false
+    t.integer "max_attempts", default: 5, null: false
+    t.integer "deferrals", default: 0, null: false
+    t.datetime "available_at", null: false
+    t.datetime "claimed_at"
+    t.datetime "completed_at"
+    t.datetime "expires_at", null: false
+    t.string "last_error_code", limit: 64
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "idx_lla_custom_domain_ops_account"
+    t.index ["custom_domain_id"], name: "idx_lla_custom_domain_ops_domain"
+    t.index ["idempotency_digest"], name: "idx_lla_custom_domain_ops_idempotency", unique: true
+    t.index ["predecessor_id"], name: "idx_lla_custom_domain_ops_predecessor"
+    t.index ["state", "available_at"], name: "idx_lla_custom_domain_ops_dispatch"
+    t.index ["state", "claimed_at"], name: "idx_lla_custom_domain_ops_claims"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_custom_domain_ops_digests"
+    t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domain_ops_hostname"
+    t.check_constraint "max_attempts >= 1 AND max_attempts <= 5 AND attempts >= 0 AND attempts <= max_attempts AND domain_version >= 1 AND deferrals >= 0 AND deferrals <= 1000 AND recovery_attempt >= 0 AND recovery_attempt <= 3", name: "chk_lla_custom_domain_ops_attempts"
+    t.check_constraint "operation_type::text = ANY (ARRAY['provision'::text, 'verify'::text, 'reverify'::text, 'remove'::text, 'reconcile'::text])", name: "chk_lla_custom_domain_ops_type"
+    t.check_constraint "provider::text = ANY (ARRAY['none'::text, 'cloudflare'::text])", name: "chk_lla_custom_domain_ops_provider"
+    t.check_constraint "recovery_attempt = 0 AND predecessor_id IS NULL OR recovery_attempt > 0 AND predecessor_id IS NOT NULL", name: "chk_lla_custom_domain_ops_recovery"
+    t.check_constraint "state::text = 'claimed'::text AND claim_digest IS NOT NULL AND claimed_at IS NOT NULL AND completed_at IS NULL OR (state::text = ANY (ARRAY['pending'::text, 'deferred'::text])) AND claim_digest IS NULL AND completed_at IS NULL OR (state::text = ANY (ARRAY['succeeded'::text, 'failed'::text, 'dead_lettered'::text, 'cancelled'::text])) AND claim_digest IS NULL AND completed_at IS NOT NULL", name: "chk_lla_custom_domain_ops_claim_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'deferred'::text, 'claimed'::text, 'succeeded'::text, 'failed'::text, 'dead_lettered'::text, 'cancelled'::text])", name: "chk_lla_custom_domain_ops_state"
+  end
+
+  create_table "lla_custom_domain_tombstones", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.bigint "portal_id"
+    t.bigint "source_portal_id"
+    t.string "hostname", limit: 253
+    t.string "reason", limit: 64, null: false
+    t.string "evidence_key", limit: 128, null: false
+    t.string "source_value_digest", limit: 64
+    t.string "source_value_preview", limit: 253
+    t.string "provider", limit: 32, default: "none", null: false
+    t.string "provider_resource_id", limit: 128
+    t.string "provider_resource_digest", limit: 64
+    t.string "provider_status_hint", limit: 64
+    t.string "state", limit: 32, default: "manual_adoption_required", null: false
+    t.datetime "resolved_at"
+    t.string "resolved_by_reference", limit: 64
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "evidence_key"], name: "idx_lla_custom_domain_tombstones_key", unique: true
+    t.index ["account_id", "hostname"], name: "idx_lla_custom_domain_tombstones_host"
+    t.index ["account_id", "source_portal_id"], name: "idx_lla_custom_domain_tombstones_source_portal"
+    t.index ["portal_id"], name: "idx_lla_custom_domain_tombstones_portal"
+    t.index ["state", "created_at"], name: "idx_lla_custom_domain_tombstones_state"
+    t.check_constraint "(reason::text <> ALL (ARRAY['legacy_hostname_unsupported'::text, 'legacy_hostname_duplicate'::text, 'legacy_hostname_contested'::text, 'legacy_hostname_unroutable'::text])) OR source_portal_id IS NOT NULL AND source_value_digest IS NOT NULL AND source_value_preview IS NOT NULL", name: "chk_lla_custom_domain_tombstones_shape"
+    t.check_constraint "(reason::text <> ALL (ARRAY['legacy_provider_resource_unknown'::text, 'provider_teardown_abandoned'::text])) OR hostname IS NOT NULL", name: "chk_lla_custom_domain_tombstones_resource"
+    t.check_constraint "char_length(evidence_key::text) >= 1 AND char_length(evidence_key::text) <= 128 AND evidence_key::text ~ '^[a-z0-9_.:-]+$'::text AND (source_value_digest IS NULL OR source_value_digest::text ~ '^[0-9a-f]{64}$'::text) AND (provider_resource_digest IS NULL OR provider_resource_digest::text ~ '^[0-9a-f]{64}$'::text) AND (provider_resource_id IS NULL OR provider_resource_id::text ~ '^[A-Za-z0-9_-]{1,128}$'::text) AND (source_value_preview IS NULL OR char_length(source_value_preview::text) >= 1 AND char_length(source_value_preview::text) <= 253 AND source_value_preview::text !~ '[[:cntrl:]]'::text)", name: "chk_lla_custom_domain_tombstones_evidence"
+    t.check_constraint "hostname IS NULL OR char_length(hostname::text) >= 1 AND char_length(hostname::text) <= 253 AND hostname::text !~ '[[:space:][:cntrl:]]'::text", name: "chk_lla_custom_domain_tombstones_hostname"
+    t.check_constraint "portal_id IS NULL OR portal_id = source_portal_id", name: "chk_lla_custom_domain_tombstones_portal"
+    t.check_constraint "reason::text <> 'provider_teardown_abandoned'::text OR provider::text <> 'none'::text AND provider_resource_id IS NOT NULL AND provider_resource_digest IS NOT NULL", name: "chk_lla_custom_domain_tombstones_abandoned"
+    t.check_constraint "reason::text = ANY (ARRAY['legacy_provider_resource_unknown'::text, 'provider_teardown_abandoned'::text, 'legacy_hostname_unsupported'::text, 'legacy_hostname_duplicate'::text, 'legacy_hostname_contested'::text, 'legacy_hostname_unroutable'::text])", name: "chk_lla_custom_domain_tombstones_reason"
+    t.check_constraint "state::text <> 'resolved'::text OR resolved_at IS NOT NULL", name: "chk_lla_custom_domain_tombstones_resolved"
+    t.check_constraint "state::text = ANY (ARRAY['manual_adoption_required'::text, 'resolved'::text])", name: "chk_lla_custom_domain_tombstones_state"
+  end
+
+  create_table "lla_custom_domains", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.string "hostname", limit: 253, null: false
+    t.string "state", limit: 32, default: "requested", null: false
+    t.integer "version", default: 1, null: false
+    t.string "provider", limit: 32, default: "none", null: false
+    t.string "provider_resource_id", limit: 128
+    t.string "provider_status", limit: 64
+    t.datetime "provider_synced_at"
+    t.string "ownership_source", limit: 32, default: "nonce_challenge", null: false
+    t.boolean "reverify_required", default: false, null: false
+    t.string "challenge_id_digest", limit: 64
+    t.text "challenge_ciphertext"
+    t.datetime "challenge_expires_at"
+    t.datetime "challenge_rotated_at"
+    t.integer "challenge_rotations", default: 0, null: false
+    t.datetime "ownership_verified_at"
+    t.datetime "activated_at"
+    t.datetime "removal_requested_at"
+    t.string "last_error_code", limit: 64
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "idx_lla_custom_domains_account"
+    t.index ["hostname"], name: "idx_lla_custom_domains_hostname", unique: true
+    t.index ["id", "account_id"], name: "idx_lla_custom_domains_tenant_key", unique: true
+    t.index ["portal_id"], name: "idx_lla_custom_domains_portal", unique: true
+    t.index ["state", "updated_at"], name: "idx_lla_custom_domains_state"
+    t.check_constraint "challenge_id_digest IS NULL AND challenge_ciphertext IS NULL AND challenge_expires_at IS NULL OR challenge_id_digest IS NOT NULL AND char_length(challenge_id_digest::text) = 64 AND challenge_ciphertext IS NOT NULL AND challenge_expires_at IS NOT NULL", name: "chk_lla_custom_domains_challenge"
+    t.check_constraint "hostname::text = lower(hostname::text) AND char_length(hostname::text) >= 4 AND char_length(hostname::text) <= 253 AND hostname::text ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text", name: "chk_lla_custom_domains_hostname"
+    t.check_constraint "ownership_source::text = ANY (ARRAY['nonce_challenge'::text, 'legacy_import'::text])", name: "chk_lla_custom_domains_ownership_source"
+    t.check_constraint "provider::text = ANY (ARRAY['none'::text, 'cloudflare'::text])", name: "chk_lla_custom_domains_provider"
+    t.check_constraint "provider_resource_id IS NULL OR provider::text <> 'none'::text AND provider_resource_id::text ~ '^[A-Za-z0-9_-]{1,128}$'::text", name: "chk_lla_custom_domains_provider_resource"
+    t.check_constraint "state::text <> 'active'::text OR ownership_source::text = 'nonce_challenge'::text AND ownership_verified_at IS NOT NULL AND activated_at IS NOT NULL AND reverify_required = false OR ownership_source::text = 'legacy_import'::text AND ownership_verified_at IS NULL AND activated_at IS NULL AND reverify_required = true", name: "chk_lla_custom_domains_active"
+    t.check_constraint "state::text <> 'removing'::text OR removal_requested_at IS NOT NULL", name: "chk_lla_custom_domains_removing"
+    t.check_constraint "state::text = ANY (ARRAY['requested'::text, 'ownership_pending'::text, 'provisioning'::text, 'active'::text, 'failed'::text, 'removing'::text])", name: "chk_lla_custom_domains_state"
+    t.check_constraint "version >= 1 AND challenge_rotations >= 0 AND challenge_rotations <= 10", name: "chk_lla_custom_domains_version"
+  end
+
+  create_table "lla_knowledge_generation_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.bigint "generation_operation_id", null: false
+    t.bigint "category_id"
+    t.bigint "article_id"
+    t.integer "ordinal", null: false
+    t.string "state", limit: 24, default: "pending", null: false
+    t.string "item_key_digest", limit: 64, null: false
+    t.string "source_digest", limit: 64, null: false
+    t.string "claim_digest", limit: 64
+    t.string "last_error_code", limit: 80
+    t.integer "attempts", default: 0, null: false
+    t.datetime "claimed_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "item_type", limit: 32, default: "article_generation", null: false
+    t.bigint "output_article_id"
+    t.index ["article_id"], name: "idx_lla_knowledge_items_article_result", unique: true, where: "(article_id IS NOT NULL)"
+    t.index ["generation_operation_id", "item_key_digest"], name: "idx_lla_knowledge_items_idempotency", unique: true
+    t.index ["generation_operation_id", "ordinal"], name: "idx_lla_knowledge_items_ordinal", unique: true
+    t.index ["generation_operation_id", "state"], name: "idx_lla_knowledge_items_operation_state"
+    t.index ["output_article_id"], name: "idx_lla_knowledge_items_output_article"
+    t.index ["state", "claimed_at"], name: "idx_lla_knowledge_items_stale_claims"
+    t.index ["state", "updated_at"], name: "idx_lla_knowledge_items_state"
+    t.check_constraint "char_length(item_key_digest::text) = 64 AND char_length(source_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_items_digests"
+    t.check_constraint "item_type::text = ANY (ARRAY['article_generation'::text, 'translation'::text, 'reindex'::text])", name: "chk_lla_knowledge_items_type"
+    t.check_constraint "ordinal >= 0 AND attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_items_bounds"
+    t.check_constraint "state::text = 'succeeded'::text AND (item_type::text = 'article_generation'::text AND article_id IS NOT NULL AND output_article_id IS NULL OR item_type::text = 'translation'::text AND article_id IS NULL AND output_article_id IS NOT NULL OR item_type::text = 'reindex'::text AND article_id IS NULL AND output_article_id IS NULL) OR state::text <> 'succeeded'::text AND article_id IS NULL AND output_article_id IS NULL", name: "chk_lla_knowledge_items_result_state"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'claimed'::text, 'succeeded'::text, 'failed'::text, 'cancelled'::text])", name: "chk_lla_knowledge_items_state"
+  end
+
+  create_table "lla_knowledge_generation_operations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.bigint "user_id", null: false
+    t.string "operation_type", limit: 32, default: "onboarding", null: false
+    t.string "state", limit: 32, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "request_digest", limit: 64, null: false
+    t.string "consent_digest", limit: 64
+    t.string "claim_digest", limit: 64
+    t.integer "version", default: 1, null: false
+    t.integer "expected_items", default: 0, null: false
+    t.integer "finished_items", default: 0, null: false
+    t.integer "failed_items", default: 0, null: false
+    t.integer "max_items", default: 25, null: false
+    t.integer "max_source_urls", default: 75, null: false
+    t.integer "max_attempts", default: 3, null: false
+    t.string "last_error_code", limit: 80
+    t.datetime "claimed_at"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "cancelled_at"
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "provider_consent_digests", default: {}, null: false
+    t.index ["account_id", "portal_id", "id"], name: "idx_lla_knowledge_operations_tenant_identity", unique: true
+    t.index ["account_id", "portal_id", "idempotency_digest"], name: "idx_lla_knowledge_operations_idempotency", unique: true
+    t.index ["expires_at"], name: "idx_lla_knowledge_operations_expiry"
+    t.index ["state", "claimed_at"], name: "idx_lla_knowledge_operations_stale_claims"
+    t.index ["state", "created_at"], name: "idx_lla_knowledge_operations_state"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(request_digest::text) = 64 AND (consent_digest IS NULL OR char_length(consent_digest::text) = 64) AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_operations_digests"
+    t.check_constraint "jsonb_typeof(provider_consent_digests) = 'object'::text", name: "chk_lla_knowledge_operations_provider_consents"
+    t.check_constraint "operation_type::text = ANY (ARRAY['onboarding'::text, 'translation'::text, 'reindex'::text])", name: "chk_lla_knowledge_operations_type"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'planning'::text, 'dispatching'::text, 'running'::text, 'completed'::text, 'completed_with_errors'::text, 'skipped'::text, 'failed'::text, 'cancelled'::text])", name: "chk_lla_knowledge_operations_state"
+    t.check_constraint "version > 0 AND expected_items >= 0 AND expected_items <= max_items AND finished_items >= 0 AND finished_items <= expected_items AND failed_items >= 0 AND failed_items <= finished_items AND max_items >= 1 AND max_items <= 25 AND max_source_urls >= 1 AND max_source_urls <= 75 AND max_attempts >= 1 AND max_attempts <= 5", name: "chk_lla_knowledge_operations_bounds"
+  end
+
+  create_table "lla_knowledge_generation_outboxes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "portal_id", null: false
+    t.bigint "generation_operation_id", null: false
+    t.string "event_type", limit: 48, null: false
+    t.string "state", limit: 16, default: "pending", null: false
+    t.string "idempotency_digest", limit: 64, null: false
+    t.string "payload_digest", limit: 64, null: false
+    t.text "payload_ciphertext"
+    t.string "claim_digest", limit: 64
+    t.string "last_error_code", limit: 80
+    t.integer "attempts", default: 0, null: false
+    t.datetime "available_at", null: false
+    t.datetime "claimed_at"
+    t.datetime "delivered_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_type", "state", "available_at"], name: "idx_lla_knowledge_outboxes_dispatch"
+    t.index ["generation_operation_id", "idempotency_digest"], name: "idx_lla_knowledge_outboxes_idempotency", unique: true
+    t.index ["state", "available_at"], name: "idx_lla_knowledge_outboxes_ready"
+    t.index ["state", "claimed_at"], name: "idx_lla_knowledge_outboxes_stale_claims"
+    t.check_constraint "attempts >= 0 AND attempts <= 5", name: "chk_lla_knowledge_outboxes_attempts"
+    t.check_constraint "char_length(idempotency_digest::text) = 64 AND char_length(payload_digest::text) = 64 AND (claim_digest IS NULL OR char_length(claim_digest::text) = 64)", name: "chk_lla_knowledge_outboxes_digests"
+    t.check_constraint "char_length(payload_ciphertext) >= 40 AND char_length(payload_ciphertext) <= 131072", name: "chk_lla_knowledge_outboxes_payload"
+    t.check_constraint "state::text = ANY (ARRAY['pending'::text, 'claimed'::text, 'delivered'::text, 'failed'::text, 'cancelled'::text])", name: "chk_lla_knowledge_outboxes_state"
+  end
+
+  create_table "lla_platform_apps", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "platform", limit: 32, null: false
+    t.string "app_id", limit: 128, null: false
+    t.text "app_secret"
+    t.string "verify_token", limit: 128
+    t.string "webhook_token", limit: 64, null: false
+    t.jsonb "config", default: {}, null: false
+    t.string "status", limit: 32, default: "pending", null: false
+    t.datetime "verified_at"
+    t.datetime "last_event_at"
+    t.string "last_error", limit: 512
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "platform"], name: "idx_lla_platform_apps_tenant_platform", unique: true
+    t.index ["platform", "app_id"], name: "idx_lla_platform_apps_platform_app"
+    t.index ["webhook_token"], name: "idx_lla_platform_apps_webhook_token", unique: true
+    t.check_constraint "char_length(webhook_token::text) >= 24", name: "chk_lla_platform_apps_webhook_token_length"
+    t.check_constraint "platform::text = ANY (ARRAY['facebook'::character varying::text, 'instagram'::character varying::text, 'whatsapp'::character varying::text, 'tiktok'::character varying::text])", name: "chk_lla_platform_apps_platform"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'active'::character varying::text, 'disabled'::character varying::text, 'error'::character varying::text])", name: "chk_lla_platform_apps_status"
+  end
+
+  create_table "lla_voice_recording_consents", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "call_id", null: false
+    t.bigint "user_id"
+    t.string "capture_method", limit: 32, null: false
+    t.string "disclosure_version", limit: 64, null: false
+    t.string "attestation_digest", limit: 64, null: false
+    t.string "evidence_digest", limit: 64, null: false
+    t.string "actor_reference_digest", limit: 64, null: false
+    t.datetime "client_attested_at", null: false
+    t.datetime "captured_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "attestation_digest"], name: "idx_lla_recording_consents_attestation", unique: true
+    t.index ["account_id", "call_id"], name: "idx_lla_recording_consents_call", unique: true
+    t.index ["account_id", "captured_at"], name: "idx_lla_recording_consents_timeline"
+    t.check_constraint "capture_method::text = 'agent_attestation'::text", name: "chk_lla_recording_consents_method"
+    t.check_constraint "char_length(attestation_digest::text) = 64 AND char_length(evidence_digest::text) = 64 AND char_length(actor_reference_digest::text) = 64", name: "chk_lla_recording_consents_digests"
+    t.check_constraint "disclosure_version::text ~ '^[A-Za-z0-9_.:-]{1,64}$'::text", name: "chk_lla_recording_consents_disclosure"
+  end
+
   create_table "macros", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1163,7 +1626,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.index "((additional_attributes -> 'campaign_id'::text))", name: "index_messages_on_additional_attributes_campaign_id", using: :gin
     t.index ["account_id", "content_type", "created_at"], name: "idx_messages_account_content_created"
     t.index ["account_id", "created_at", "message_type"], name: "index_messages_on_account_created_type"
+    t.index ["account_id", "id", "conversation_id"], name: "idx_lla_messages_feedback_tenant", unique: true
     t.index ["account_id", "inbox_id"], name: "index_messages_on_account_id_and_inbox_id"
+    t.index ["account_id", "sender_id", "created_at", "conversation_id"], name: "idx_lla_captain_messages_metrics", where: "((sender_type)::text = 'Captain::Assistant'::text)"
     t.index ["account_id"], name: "index_messages_on_account_id"
     t.index ["content"], name: "index_messages_on_content", opclass: :gin_trgm_ops, using: :gin
     t.index ["conversation_id", "account_id", "message_type", "created_at"], name: "index_messages_on_conversation_account_type_created"
@@ -1270,9 +1735,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.boolean "archived", default: false
     t.bigint "channel_web_widget_id"
     t.jsonb "ssl_settings", default: {}, null: false
+    t.string "lla_onboarding_key_digest", limit: 64
+    t.index ["account_id", "id"], name: "idx_lla_portals_tenant_identity", unique: true
+    t.index ["account_id", "lla_onboarding_key_digest"], name: "idx_lla_portals_onboarding_identity", unique: true, where: "(lla_onboarding_key_digest IS NOT NULL)"
     t.index ["channel_web_widget_id"], name: "index_portals_on_channel_web_widget_id"
     t.index ["custom_domain"], name: "index_portals_on_custom_domain", unique: true
     t.index ["slug"], name: "index_portals_on_slug", unique: true
+    t.check_constraint "lla_onboarding_key_digest IS NULL OR char_length(lla_onboarding_key_digest::text) = 64", name: "chk_lla_portals_onboarding_digest"
   end
 
   create_table "portals_members", id: false, force: :cascade do |t|
@@ -1304,6 +1773,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.float "value_in_business_hours"
     t.datetime "event_start_time", precision: nil
     t.datetime "event_end_time", precision: nil
+    t.index ["account_id", "event_end_time", "conversation_id"], name: "idx_lla_captain_reopen_metrics", where: "(((name)::text = 'conversation_opened'::text) AND (event_end_time IS NOT NULL))"
+    t.index ["account_id", "name", "created_at", "conversation_id"], name: "idx_lla_captain_reporting_metrics"
     t.index ["account_id", "name", "created_at"], name: "reporting_events__account_id__name__created_at"
     t.index ["account_id", "name", "inbox_id", "created_at"], name: "index_reporting_events_for_response_distribution"
     t.index ["account_id"], name: "index_reporting_events_on_account_id"
@@ -1500,7 +1971,61 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agent_sessions", "accounts", name: "fk_lla_agent_sessions_account"
+  add_foreign_key "agent_sessions", "captain_assistants", column: "assistant_id", name: "fk_lla_agent_sessions_assistant"
+  add_foreign_key "agent_sessions", "users", name: "fk_lla_agent_sessions_user"
+  add_foreign_key "article_embeddings", "articles", column: ["account_id", "portal_id", "article_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_article_embeddings_article_tenant", on_delete: :cascade
+  add_foreign_key "calls", "accounts", name: "fk_lla_calls_account", on_delete: :cascade
+  add_foreign_key "calls", "contacts", column: ["account_id", "contact_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_contact_tenant", on_delete: :cascade
+  add_foreign_key "calls", "conversations", column: ["account_id", "conversation_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_conversation_tenant", on_delete: :cascade
+  add_foreign_key "calls", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_calls_inbox_tenant", on_delete: :cascade
+  add_foreign_key "calls", "messages", column: ["account_id", "message_id", "conversation_id"], primary_key: ["account_id", "id", "conversation_id"], name: "fk_lla_calls_message_tenant"
+  add_foreign_key "calls", "users", column: "accepted_by_agent_id", name: "fk_lla_calls_accepted_agent", on_delete: :nullify
+  add_foreign_key "captain_message_reports", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_message_reports_membership", on_delete: :cascade
+  add_foreign_key "captain_message_reports", "conversations", column: ["account_id", "conversation_id"], primary_key: ["account_id", "id"], name: "fk_lla_message_reports_conversation_tenant", on_delete: :cascade
+  add_foreign_key "captain_message_reports", "messages", column: ["account_id", "message_id", "conversation_id"], primary_key: ["account_id", "id", "conversation_id"], name: "fk_lla_message_reports_message_tenant", on_delete: :cascade
+  add_foreign_key "captain_scenarios", "accounts", name: "fk_lla_scenarios_account"
+  add_foreign_key "captain_scenarios", "captain_assistants", column: "assistant_id", name: "fk_lla_scenarios_assistant"
+  add_foreign_key "copilot_messages", "accounts", name: "fk_lla_copilot_messages_account"
+  add_foreign_key "copilot_messages", "conversations", name: "fk_lla_copilot_messages_conversation"
+  add_foreign_key "copilot_messages", "copilot_messages", column: "source_message_id", name: "fk_lla_copilot_messages_source"
+  add_foreign_key "copilot_messages", "copilot_threads", name: "fk_lla_copilot_messages_thread"
+  add_foreign_key "copilot_threads", "accounts", name: "fk_lla_copilot_threads_account"
+  add_foreign_key "copilot_threads", "captain_assistants", column: "assistant_id", name: "fk_lla_copilot_threads_assistant"
+  add_foreign_key "copilot_threads", "users", name: "fk_lla_copilot_threads_user"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "lla_ai_providers", "accounts", on_delete: :cascade
+  add_foreign_key "lla_call_events", "accounts", on_delete: :cascade
+  add_foreign_key "lla_call_events", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_events_call_tenant", on_delete: :cascade
+  add_foreign_key "lla_call_events", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_events_inbox_tenant", on_delete: :cascade
+  add_foreign_key "lla_call_operations", "accounts", on_delete: :cascade
+  add_foreign_key "lla_call_operations", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_operations_call_tenant", on_delete: :cascade
+  add_foreign_key "lla_call_operations", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_call_operations_inbox_tenant", on_delete: :cascade
+  add_foreign_key "lla_captain_bulk_operations", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_bulk_operations_membership", on_delete: :cascade
+  add_foreign_key "lla_captain_bulk_operations", "accounts", on_delete: :cascade
+  add_foreign_key "lla_captain_bulk_operations", "users", on_delete: :cascade
+  add_foreign_key "lla_captain_quota_ledgers", "accounts", on_delete: :cascade
+  add_foreign_key "lla_captain_quota_reservations", "lla_captain_quota_ledgers", column: "quota_ledger_id", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_operations", "accounts", name: "fk_lla_custom_domain_ops_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_operations", "lla_custom_domain_operations", column: "predecessor_id", name: "fk_lla_custom_domain_ops_predecessor", on_delete: :nullify
+  add_foreign_key "lla_custom_domain_operations", "lla_custom_domains", column: ["custom_domain_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domain_ops_domain_tenant", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_tombstones", "accounts", name: "fk_lla_custom_domain_tombstones_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domain_tombstones", "portals", column: ["portal_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domain_tombstones_portal_tenant"
+  add_foreign_key "lla_custom_domains", "accounts", name: "fk_lla_custom_domains_account", on_delete: :cascade
+  add_foreign_key "lla_custom_domains", "portals", column: ["portal_id", "account_id"], primary_key: ["id", "account_id"], name: "fk_lla_custom_domains_portal_tenant", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_items", "articles", column: "output_article_id", name: "fk_lla_knowledge_items_output_article", on_delete: :nullify
+  add_foreign_key "lla_knowledge_generation_items", "articles", name: "fk_lla_knowledge_items_article", on_delete: :nullify
+  add_foreign_key "lla_knowledge_generation_items", "categories", name: "fk_lla_knowledge_items_category", on_delete: :nullify
+  add_foreign_key "lla_knowledge_generation_items", "lla_knowledge_generation_operations", column: ["account_id", "portal_id", "generation_operation_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_knowledge_items_operation_tenant", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_operations", "account_users", column: ["account_id", "user_id"], primary_key: ["account_id", "user_id"], name: "fk_lla_knowledge_operations_membership", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_operations", "accounts", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_operations", "portals", column: ["account_id", "portal_id"], primary_key: ["account_id", "id"], name: "fk_lla_knowledge_operations_portal_tenant", on_delete: :cascade
+  add_foreign_key "lla_knowledge_generation_outboxes", "lla_knowledge_generation_operations", column: ["account_id", "portal_id", "generation_operation_id"], primary_key: ["account_id", "portal_id", "id"], name: "fk_lla_knowledge_outboxes_operation_tenant", on_delete: :cascade
+  add_foreign_key "lla_platform_apps", "accounts", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "accounts", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "calls", column: ["account_id", "call_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_call_tenant", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "inboxes", column: ["account_id", "inbox_id"], primary_key: ["account_id", "id"], name: "fk_lla_recording_consents_inbox_tenant", on_delete: :cascade
+  add_foreign_key "lla_voice_recording_consents", "users", name: "fk_lla_recording_consents_user", on_delete: :nullify
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").

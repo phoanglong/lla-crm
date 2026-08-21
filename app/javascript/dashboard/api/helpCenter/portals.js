@@ -29,6 +29,11 @@ class PortalsAPI extends ApiClient {
   sslStatus(portalSlug) {
     return axios.get(`${this.url}/${portalSlug}/ssl_status`);
   }
+
+  // Administrator-triggered reverification of a legacy imported custom domain.
+  customDomainReverify(portalSlug) {
+    return axios.post(`${this.url}/${portalSlug}/custom_domain_reverify`);
+  }
 }
 
 export default PortalsAPI;

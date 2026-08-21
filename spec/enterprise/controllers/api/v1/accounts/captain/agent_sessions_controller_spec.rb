@@ -10,7 +10,10 @@ RSpec.describe 'Api::V1::Accounts::Captain::AgentSessions', type: :request do
     create(:message, account: account, conversation: conversation, message_type: :outgoing, sender: assistant)
   end
 
-  before { create(:inbox_member, user: agent, inbox: inbox) }
+  before do
+    create(:inbox_member, user: agent, inbox: inbox)
+    create(:captain_inbox, inbox: inbox, captain_assistant: assistant)
+  end
 
   def json_response
     JSON.parse(response.body, symbolize_names: true)
@@ -44,20 +47,26 @@ RSpec.describe 'Api::V1::Accounts::Captain::AgentSessions', type: :request do
       end
       let(:scenario) { create(:captain_scenario, account: account, assistant: assistant, title: 'Refund flow') }
       let(:run_context) do
-        [
-          { 'role' => 'user', 'content' => 'I want a refund' },
-          { 'role' => 'assistant', 'content' => '', 'agent_name' => 'Assistant',
-            'tool_calls' => [{ 'id' => 'call_1', 'name' => 'faq_lookup', 'arguments' => { 'query' => 'refund' } }] },
-          { 'role' => 'tool', 'content' => 'Refunds take 5 days', 'tool_call_id' => 'call_1' },
-          { 'role' => 'assistant', 'content' => 'Refunds take 5 days', 'agent_name' => "scenario_#{scenario.id}_refund_flow" }
-        ]
+        {
+          'messages' => [
+            { 'role' => 'user', 'content' => 'I want a refund', 'internal_state' => 'do-not-expose' },
+            { 'role' => 'assistant', 'content' => '', 'agent_name' => 'Assistant',
+              'tool_calls' => [{ 'name' => 'faq_lookup', 'arguments' => { 'query' => 'refund' } }] },
+            { 'role' => 'tool', 'content' => 'Refunds take 5 days', 'tool_call_id' => 'call_1' },
+            { 'role' => 'assistant', 'content' => { 'text' => 'Refunds take 5 days', 'reasoning' => 'private chain' },
+              'agent_name' => "scenario_#{scenario.id}_refund_flow" }
+          ]
+        }
       end
       let!(:agent_session) do
+        other_assistant = create(:captain_assistant, account: account)
+        other_faq = create(:captain_assistant_response, account: account, assistant: other_assistant)
+        other_scenario = create(:captain_scenario, account: account, assistant: other_assistant)
         create(:captain_agent_session, account: account, assistant: assistant,
                                        subject: conversation, result: message,
                                        llm_model: 'openai-gpt-5.2', credits_consumed: 1.0,
-                                       faq_ids: [documented_faq.id, plain_faq.id, pdf_faq.id, documented_faq.id + 100_000],
-                                       scenario_ids: [scenario.id],
+                                       faq_ids: [documented_faq.id, plain_faq.id, pdf_faq.id, other_faq.id],
+                                       scenario_ids: [scenario.id, other_scenario.id],
                                        run_context: run_context)
       end
 
@@ -72,7 +81,10 @@ RSpec.describe 'Api::V1::Accounts::Captain::AgentSessions', type: :request do
           expect(json_response[:llm_model]).to eq('openai-gpt-5.2')
           expect(json_response[:credits_consumed]).to eq(1.0)
           expect(json_response[:run_context].length).to eq(4)
-          expect(json_response[:run_context].second[:tool_calls].first[:arguments][:query]).to eq('refund')
+          expect(json_response[:run_context].first).to eq(role: 'user', content: 'I want a refund')
+          expect(json_response[:run_context].second).not_to have_key(:tool_calls)
+          expect(json_response[:run_context].last[:content]).to eq(text: 'Refunds take 5 days', attachments: [])
+          expect(response.body).not_to include('do-not-expose', 'private chain')
 
           citations = json_response[:citations].index_by { |citation| citation[:id] }
           expect(citations.keys).to contain_exactly(documented_faq.id, plain_faq.id, pdf_faq.id)
@@ -85,6 +97,15 @@ RSpec.describe 'Api::V1::Accounts::Captain::AgentSessions', type: :request do
 
           expect(json_response[:scenarios]).to eq([{ id: scenario.id, title: 'Refund flow' }])
         end
+      end
+
+      it 'hides a session when the inbox is configured with another assistant' do
+        inbox.captain_inbox.update!(captain_assistant: create(:captain_assistant, account: account))
+
+        get "/api/v1/accounts/#{account.id}/captain/agent_sessions/#{message.id}",
+            headers: agent.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:not_found)
       end
 
       it 'does not allow an agent without access to the conversation' do

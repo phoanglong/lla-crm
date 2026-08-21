@@ -9,8 +9,8 @@ RSpec.describe Captain::ConversationCompletionService do
   let(:mock_context) { instance_double(RubyLLM::Context, chat: mock_chat) }
 
   before do
-    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
-    allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: 'test-key')
+    allow(Llm::Config).to receive(:with_credential).and_yield(mock_context)
     allow(mock_chat).to receive(:with_instructions)
     allow(mock_chat).to receive(:with_schema).and_return(mock_chat)
     allow(account).to receive(:feature_enabled?).and_call_original
@@ -97,7 +97,7 @@ RSpec.describe Captain::ConversationCompletionService do
             'Conversation status: pending',
             'Conversation transcript:',
             'Customer: I need help with a refund',
-            'Captain: I will transfer this to support for review.'
+            'LLA Assistant: I will transfer this to support for review.'
           )
 
           mock_response
@@ -124,7 +124,7 @@ RSpec.describe Captain::ConversationCompletionService do
         expect(mock_chat).to receive(:ask) do |content|
           expect(content).to include(
             'Conversation status: pending',
-            'Captain: I will transfer this to a specialist and they will follow up here.'
+            'LLA Assistant: I will transfer this to a specialist and they will follow up here.'
           )
 
           mock_response
@@ -177,7 +177,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq('No messages found')
+        expect(result[:reason]).to eq('No public messages found')
       end
     end
 
@@ -200,7 +200,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq('Invalid response format')
+        expect(result[:reason]).to eq('Invalid evaluation response')
       end
     end
 
@@ -214,7 +214,7 @@ RSpec.describe Captain::ConversationCompletionService do
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq('API Error')
+        expect(result[:reason]).to eq('Evaluation unavailable')
       end
     end
 
@@ -238,7 +238,7 @@ RSpec.describe Captain::ConversationCompletionService do
       end
 
       it 'uses the system API key instead of the account hook key' do
-        expect(Llm::Config).to receive(:with_api_key).with('test-key', api_base: anything).and_yield(mock_context)
+        expect(Llm::Config).to receive(:with_credential).with(having_attributes(api_key: 'test-key')).and_yield(mock_context)
         allow(mock_chat).to receive(:ask).and_return(
           instance_double(RubyLLM::Message, content: { 'complete' => true, 'reason' => 'Done' }, input_tokens: 10, output_tokens: 5)
         )
@@ -249,12 +249,12 @@ RSpec.describe Captain::ConversationCompletionService do
       it 'does not fall back to the account hook key when no system key exists' do
         InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: nil)
 
-        expect(Llm::Config).not_to receive(:with_api_key)
+        expect(Llm::Config).not_to receive(:with_credential)
 
         result = service.perform
 
         expect(result[:complete]).to be false
-        expect(result[:reason]).to eq(I18n.t('captain.api_key_missing'))
+        expect(result[:reason]).to eq('Evaluation unavailable')
       end
     end
 

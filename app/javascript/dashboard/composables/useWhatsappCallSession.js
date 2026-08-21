@@ -14,7 +14,7 @@ let recorderChunks = [];
 let audioContext = null;
 let activeCallId = null;
 // voice_call.outbound_connected (the sole source of the outbound SDP answer) is
-// broadcast account-wide and can arrive before the /initiate response sets
+// broadcast to authorized call agents and can arrive before /initiate sets
 // activeCallId in this tab. Until we know our own call id we can't tell our
 // answer from a concurrent agent's, so the cable handler buffers them here keyed
 // by call id (a single slot would let a concurrent agent's event clobber ours)
@@ -33,6 +33,7 @@ const isInitiatingOutboundReadonly = readonly(isInitiatingOutbound);
 // answers, and we don't want pre-pickup audio in the recording. This flag is
 // flipped to true by armOutboundRecorder() when the ACCEPTED status arrives.
 let recorderArmed = false;
+let recordingAuthorized = false;
 
 const ensureRemoteAudioElement = () => {
   if (remoteAudioEl) return remoteAudioEl;
@@ -86,7 +87,8 @@ const waitForIceGatheringComplete = peer =>
   });
 
 const setupRecorder = () => {
-  if (!localStream || !remoteStream || mediaRecorder) return;
+  if (!recordingAuthorized || !localStream || !remoteStream || mediaRecorder)
+    return;
   // createMediaStreamSource on a stream with no audio tracks wires up to
   // nothing — the recorded mix would be silence. Wait until ontrack fires.
   if (remoteStream.getAudioTracks().length === 0) return;
@@ -138,6 +140,7 @@ const cleanup = () => {
   activeCallId = null;
   pendingOutboundAnswers.clear();
   recorderArmed = false;
+  recordingAuthorized = false;
 };
 
 const buildPeerConnection = iceServers => {
@@ -156,9 +159,8 @@ const buildPeerConnection = iceServers => {
         remoteStream.addTrack(track);
     });
     playRemoteStream(remoteStream);
-    // Only arm the recorder when the call is actually accepted. For outbound
-    // this is the ACCEPTED status webhook; for inbound this is the agent's
-    // own click (acceptIncomingCall flips recorderArmed before returning).
+    // Only arm after both the call is accepted and the backend confirms that
+    // recording policy plus consent are present for this call.
     if (recorderArmed) setupRecorder();
   };
   return pc;
@@ -259,7 +261,12 @@ export function useWhatsappCallSession() {
     return pc.localDescription.sdp;
   };
 
-  const acceptIncomingCall = async ({ callId, sdpOffer, iceServers }) => {
+  const acceptIncomingCall = async ({
+    callId,
+    sdpOffer,
+    iceServers,
+    recordingConsent,
+  }) => {
     // The store may not have sdpOffer yet (the cable broadcast can race the
     // click). Fall back to GET /whatsapp_calls/:id which exposes it.
     let offer = sdpOffer;
@@ -288,12 +295,16 @@ export function useWhatsappCallSession() {
     try {
       const sdpAnswer = await prepareInboundAnswer(offer, ice);
       activeCallId = callId;
-      // Inbound: agent's click is the pickup. Arm the recorder before the API
-      // round-trip so when ontrack fires (triggered by setRemoteDescription
-      // back in prepareInboundAnswer) the recorder is already authorized.
-      recorderArmed = true;
-      setupRecorder();
-      await WhatsappCallsAPI.accept(callId, sdpAnswer);
+      const acceptedCall = await WhatsappCallsAPI.accept(
+        callId,
+        sdpAnswer,
+        recordingConsent
+      );
+      recordingAuthorized = acceptedCall?.recording_enabled === true;
+      if (recordingAuthorized) {
+        recorderArmed = true;
+        setupRecorder();
+      }
     } catch (e) {
       cleanup();
       throw e;
@@ -309,7 +320,7 @@ export function useWhatsappCallSession() {
   };
 
   // target: { conversationId } or { contactId, inboxId }
-  const initiateOutboundCall = async target => {
+  const initiateOutboundCall = async (target, recordingConsent = null) => {
     // Module-scoped lock + active-session guard so a second click — from the
     // same composable instance OR a different one (header vs contact panel)
     // OR while a call is already live — can't tear down the in-flight setup
@@ -321,9 +332,14 @@ export function useWhatsappCallSession() {
     isInitiatingOutbound.value = true;
     try {
       const sdpOffer = await prepareOutboundOffer();
-      const response = await WhatsappCallsAPI.initiate(target, sdpOffer);
+      const response = await WhatsappCallsAPI.initiate(
+        target,
+        sdpOffer,
+        recordingConsent
+      );
       if (response?.id) {
         activeCallId = response.id;
+        recordingAuthorized = response.recording_enabled === true;
         // A connect webhook that raced ahead of this response was buffered;
         // apply our own by id now that we know it, then drop every buffered
         // answer (concurrent agents' calls aren't ours to apply).
@@ -415,6 +431,7 @@ export const applyOutboundAnswer = async (callId, sdpAnswer) => {
 // MediaRecorder. Idempotent — safe if ontrack hasn't fired yet (setupRecorder
 // bails until the remote stream has audio tracks; ontrack will retry).
 export const armOutboundRecorder = () => {
+  if (!recordingAuthorized) return;
   recorderArmed = true;
   setupRecorder();
 };

@@ -1,34 +1,34 @@
 {
   "CONTENT_TEMPLATES": {
     "MODAL": {
-      "TITLE": "Twilio Templates",
-      "SUBTITLE": "Select the Twilio template you want to send",
-      "TEMPLATE_SELECTED_SUBTITLE": "Configure template: {templateName}"
+      "TITLE": "Mẫu Twilio",
+      "SUBTITLE": "Chọn mẫu Twilio bạn muốn gửi",
+      "TEMPLATE_SELECTED_SUBTITLE": "Cấu hình mẫu: {templateName}"
     },
     "PICKER": {
       "SEARCH_PLACEHOLDER": "Tìm kiếm Mẫu",
       "NO_TEMPLATES_FOUND": "Không tìm thấy mẫu nào cho",
-      "NO_CONTENT": "No content",
-      "HEADER": "Header",
-      "BODY": "Body",
-      "FOOTER": "Footer",
-      "BUTTONS": "Buttons",
+      "NO_CONTENT": "Không có nội dung",
+      "HEADER": "Đầu trang",
+      "BODY": "Nội dung",
+      "FOOTER": "Chân trang",
+      "BUTTONS": "Nút",
       "CATEGORY": "Loại",
-      "MEDIA_CONTENT": "Media Content",
-      "MEDIA_CONTENT_FALLBACK": "media content",
-      "NO_TEMPLATES_AVAILABLE": "No Twilio templates available. Click refresh to sync templates from Twilio.",
-      "REFRESH_BUTTON": "Refresh templates",
-      "REFRESH_SUCCESS": "Templates refresh initiated. It may take a couple of minutes to update.",
-      "REFRESH_ERROR": "Failed to refresh templates. Please try again.",
+      "MEDIA_CONTENT": "Nội dung đa phương tiện",
+      "MEDIA_CONTENT_FALLBACK": "nội dung đa phương tiện",
+      "NO_TEMPLATES_AVAILABLE": "Không có mẫu Twilio nào. Nhấp làm mới để đồng bộ mẫu từ Twilio.",
+      "REFRESH_BUTTON": "Làm mới mẫu",
+      "REFRESH_SUCCESS": "Đã bắt đầu làm mới mẫu. Có thể mất vài phút để cập nhật.",
+      "REFRESH_ERROR": "Không thể làm mới mẫu. Vui lòng thử lại.",
       "LABELS": {
         "LANGUAGE": "Ngôn ngữ",
         "TEMPLATE_BODY": "Nội dung của Mẫu",
         "CATEGORY": "Loại"
       },
       "TYPES": {
-        "MEDIA": "Media",
-        "QUICK_REPLY": "Quick Reply",
-        "CALL_TO_ACTION": "Call to Action",
+        "MEDIA": "Đa phương tiện",
+        "QUICK_REPLY": "Trả lời nhanh",
+        "CALL_TO_ACTION": "Kêu gọi hành động",
         "TEXT": "Văn bản"
       }
     },
@@ -40,12 +40,12 @@
       "GO_BACK_LABEL": "Quay lại",
       "SEND_MESSAGE_LABEL": "Gửi tin nhắn",
       "FORM_ERROR_MESSAGE": "Vui lòng điền vào tất cả các biến trước khi gửi",
-      "MEDIA_HEADER_LABEL": "{type} Header",
-      "MEDIA_URL_LABEL": "Enter full media URL",
+      "MEDIA_HEADER_LABEL": "{type} Đầu trang",
+      "MEDIA_URL_LABEL": "Nhập URL đa phương tiện đầy đủ",
       "MEDIA_URL_PLACEHOLDER": "https://example.com/image.jpg"
     },
     "FORM": {
-      "BACK_BUTTON": "Trờ về",
+      "BACK_BUTTON": "Trở về",
       "SEND_MESSAGE_BUTTON": "Gửi tin nhắn"
     }
   }

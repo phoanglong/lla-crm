@@ -165,6 +165,52 @@ describe('#actions', () => {
     });
   });
 
+  describe('#customDomainReverify', () => {
+    it('commits the returned lifecycle state', async () => {
+      axios.post.mockResolvedValue({
+        data: {
+          lifecycle_state: 'active',
+          reverify_required: true,
+          ownership_source: 'legacy_import',
+        },
+      });
+
+      const data = await actions.customDomainReverify(
+        { commit },
+        { portalSlug: 'domain' }
+      );
+
+      expect(data.reverify_required).toBe(true);
+      expect(commit.mock.calls).toEqual([
+        [types.SET_UI_FLAG, { isFetchingSSLStatus: true }],
+        [
+          types.SET_SSL_SETTINGS,
+          {
+            portalSlug: 'domain',
+            sslSettings: {
+              lifecycle_state: 'active',
+              reverify_required: true,
+              ownership_source: 'legacy_import',
+            },
+          },
+        ],
+        [types.SET_UI_FLAG, { isFetchingSSLStatus: false }],
+      ]);
+    });
+
+    it('throws and commits no lifecycle state when the server refuses', async () => {
+      axios.post.mockRejectedValue({ message: 'error' });
+
+      await expect(
+        actions.customDomainReverify({ commit }, { portalSlug: 'domain' })
+      ).rejects.toThrow(Error);
+      expect(commit.mock.calls).toEqual([
+        [types.SET_UI_FLAG, { isFetchingSSLStatus: true }],
+        [types.SET_UI_FLAG, { isFetchingSSLStatus: false }],
+      ]);
+    });
+  });
+
   describe('#delete', () => {
     it('sends correct actions if API is success', async () => {
       axios.delete.mockResolvedValue({});

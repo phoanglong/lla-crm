@@ -324,6 +324,11 @@
         },
         "API": {
           "ERROR_MESSAGE": "We were not able to save the WhatsApp channel"
+        },
+        "APP_SECRET": {
+          "LABEL": "App Secret (optional)",
+          "PLACEHOLDER": "App Secret of your Meta app",
+          "SUBTITLE": "Fill this in to have inbound messages verified against your own Meta app's signature instead of the platform's. Leave it blank to keep using the platform app."
         }
       },
       "VOICE": {
@@ -544,7 +549,7 @@
       },
       "ZALO_CHANNEL": {
         "TITLE": "Zalo OA Channel",
-        "DESC": "Connect a Zalo Official Account through the LLA Zalo bridge. Create the inbox here, then authorize the OA from the bridge.",
+        "DESC": "Connect a Zalo Official Account. Enter the App ID and App Secret from developers.zalo.me — everything else is set up for you.",
         "CHANNEL_NAME": {
           "LABEL": "Inbox name",
           "PLACEHOLDER": "Eg: Zalo OA LLA",
@@ -557,10 +562,72 @@
           "ERROR": "Please enter a valid bridge URL (https)"
         },
         "AUTHORIZE_HELP": "After creating the inbox, open the bridge OAuth page to authorize your Official Account.",
-        "SUBMIT_BUTTON": "Create Zalo OA inbox",
+        "SUBMIT_BUTTON": "Create connection",
         "API": {
-          "ERROR_MESSAGE": "We were not able to create the inbox. Please try again"
-        }
+          "ERROR_MESSAGE": "We were not able to create the connection. Please try again"
+        },
+        "APP_ID": {
+          "LABEL": "Zalo App ID",
+          "PLACEHOLDER": "Eg: 2222222222",
+          "SUBTITLE": "developers.zalo.me → your application → Settings → App ID.",
+          "ERROR": "App ID is a number, 5 to 25 digits"
+        },
+        "APP_SECRET": {
+          "LABEL": "Zalo App Secret Key",
+          "PLACEHOLDER": "Secret key of the application",
+          "SUBTITLE": "Stored on the bridge, never shown again after this step.",
+          "ERROR": "Please enter the App Secret Key"
+        },
+        "OA_ID": {
+          "LABEL": "Official Account ID (optional)",
+          "PLACEHOLDER": "Eg: 1091464180686003783",
+          "SUBTITLE": "Set this to drop events sent by any other Official Account."
+        },
+        "STEPS": {
+          "CREDENTIALS": "1. Application credentials",
+          "PASTE": "2. Paste these into developers.zalo.me",
+          "EVENTS": "3. Turn on these webhook events",
+          "DOMAIN": "4. Verify your domain",
+          "AUTHORIZE": "5. Authorize the Official Account",
+          "CHECK": "6. What is actually working"
+        },
+        "FIELDS": {
+          "WEBHOOK_URL": "Webhook URL",
+          "CALLBACK_URL": "Official Account Callback URL",
+          "PERMISSION_URL": "Permission request URL",
+          "COPY": "Copy",
+          "COPIED": "Copied"
+        },
+        "DOMAIN_CHECK": {
+          "DOMAIN_LABEL": "Domain",
+          "DOMAIN_PLACEHOLDER": "example.com",
+          "CODE_LABEL": "Verification code from Zalo",
+          "CODE_PLACEHOLDER": "The value after zalo-platform-site-verification=",
+          "BUTTON": "Check the TXT record",
+          "HELP": "Zalo asks you to publish a TXT record at your DNS provider before it accepts a webhook on this domain. DNS takes a few minutes to propagate.",
+          "FOUND": "Found the verification record for {domain}.",
+          "MATCHES": "Found and it matches the code you entered.",
+          "MISMATCH": "A Zalo verification record exists, but not with the code you entered.",
+          "MISSING": "No Zalo verification record found for {domain} yet."
+        },
+        "AUTHORIZE": {
+          "BUTTON": "Authorize the Official Account",
+          "HELP": "Opens Zalo in a new tab. Sign in as the Official Account owner and accept."
+        },
+        "CHECKS": {
+          "REFRESH": "Check again",
+          "PENDING": "Not yet",
+          "DONE": "Working",
+          "inbox_created": "Inbox created",
+          "inbox_linked": "Connection bound to this inbox",
+          "outbound_signature": "Agent replies are signed and verified",
+          "oauth_authorized": "Official Account authorized",
+          "webhook_received": "Zalo has called the webhook",
+          "message_received": "A customer message arrived",
+          "message_sent": "An agent reply was delivered",
+          "HINT": "Send a message to your Official Account from a personal Zalo account, then reply from the inbox. The last two lines turn green once each direction has actually carried a message."
+        },
+        "FINISH_BUTTON": "Go to the inbox"
       }
     },
     "DETAILS": {
@@ -682,6 +749,14 @@
       "INBOUND": {
         "LABEL": "Allow incoming calls",
         "DESCRIPTION": "Let customers call this number. When turned off, incoming calls are declined automatically — agents aren't notified and no conversation is created. Agents can still place outgoing calls."
+      },
+      "RECORDING": {
+        "LABEL": "Allow call recording after consent",
+        "DESCRIPTION": "Recording stays off unless the current disclosure is accepted for the call. LLA stores the consent evidence with the call audit trail.",
+        "VERSION_LABEL": "Disclosure version",
+        "VERSION_HELP_TEXT": "Immutable identifier for the approved recording disclosure shown to participants.",
+        "SAVE_VERSION": "Save disclosure version",
+        "ATTESTATION_PROMPT": "Confirm that every participant was informed under disclosure {version} and consented to this call being recorded. Cancel continues the call without recording."
       }
     },
     "WHATSAPP_CALLING": {
@@ -690,6 +765,8 @@
         "DESCRIPTION": "Allow agents to receive and place WhatsApp Cloud calls on this inbox. Customers can call this business number directly from WhatsApp."
       },
       "ENABLE_FAILED": "Voice calling couldn't be turned on for this number — it isn't enrolled in the WhatsApp Business Calling API yet. Reach out to Meta or your WhatsApp Business Solution Provider to onboard it, then try again.",
+      "REQUEST_ACCEPTED": "The WhatsApp Calling change was accepted and is being applied safely.",
+      "LIFECYCLE_FAILED": "The provider change did not complete. Calling remains disabled; retry the change or ask an administrator to review the operation.",
       "PHONE_NUMBER": {
         "LABEL": "Business phone number",
         "HELP_TEXT": "WhatsApp number that customers will call."
@@ -1371,6 +1448,29 @@
       "INSTAGRAM": "Instagram",
       "TIKTOK": "TikTok",
       "VOICE": "Voice"
+    },
+    "PLATFORM_APP": {
+      "NAMES": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "whatsapp": "WhatsApp",
+        "tiktok": "TikTok"
+      },
+      "TITLE": "Use your own {platform} app",
+      "SUBTITLE": "Enter the App ID and App Secret of the app you created on the {platform} developer console. Messages then arrive on a webhook URL that belongs to you alone, verified with your own app's signature.",
+      "APP_ID_LABEL": "App ID",
+      "APP_ID_PLACEHOLDER": "App ID from the developer console",
+      "APP_SECRET_LABEL": "App Secret",
+      "APP_SECRET_PLACEHOLDER": "App Secret of the app",
+      "SAVE_BUTTON": "Save and continue",
+      "USE_SHARED_BUTTON": "Use the platform's app instead",
+      "CONFIGURED_TITLE": "Paste these into your {platform} app",
+      "CONFIGURED_SUBTITLE": "Set these as the callback URL and verify token in the app's webhook settings, then continue.",
+      "WEBHOOK_URL": "Callback URL",
+      "VERIFY_TOKEN": "Verify token",
+      "COPY": "Copy",
+      "COPIED": "Copied",
+      "CONTINUE_BUTTON": "Continue"
     }
   }
 }

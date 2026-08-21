@@ -24,11 +24,13 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { accountId, currentAccount, finishOnboarding } = useAccount();
-const { isEnterprise } = useConfig();
+const { knowledgeOnboardingEnabled } = useConfig();
 const { connectViaOAuth, connectWhatsapp } = useChannelConnect();
 
 const helpCenterGenerationId = computed(
-  () => currentAccount.value?.custom_attributes?.help_center_generation_id
+  () =>
+    currentAccount.value?.custom_attributes
+      ?.lla_knowledge_generation_operation_id
 );
 
 const isSubmitting = ref(false);
@@ -115,7 +117,7 @@ const connectChannel = channel => {
         <div class="divide-y divide-n-weak">
           <WebWidgetCreationStatus />
           <HelpCenterCreationStatus
-            v-if="isEnterprise && helpCenterGenerationId"
+            v-if="knowledgeOnboardingEnabled && helpCenterGenerationId"
           />
         </div>
       </OnboardingSection>

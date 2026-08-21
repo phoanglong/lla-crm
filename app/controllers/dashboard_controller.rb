@@ -11,6 +11,9 @@ class DashboardController < ActionController::Base
     TERMS_URL
     BRAND_URL
     BRAND_NAME
+    DOCS_URL
+    CHANGELOG_URL
+    TESTIMONIALS_URL
     PRIVACY_URL
     DISPLAY_MANIFEST
     CREATE_NEW_ACCOUNT_FROM_DASHBOARD
@@ -57,10 +60,7 @@ class DashboardController < ActionController::Base
   end
 
   def render_hc_if_custom_domain
-    domain = request.host
-    return if domain == URI.parse(ENV.fetch('FRONTEND_URL', '')).host
-
-    @portal = Portal.find_by(custom_domain: domain)
+    @portal = Lla::CustomDomains::HostResolver.portal_for(request.host)
     return unless @portal
 
     @locale = @portal.default_locale
@@ -71,9 +71,23 @@ class DashboardController < ActionController::Base
 
   def app_config
     {
-      APP_VERSION: Chatwoot.config[:version],
+      APP_VERSION: Lla::ProductVersion.current,
+      COMPATIBILITY_VERSION: Lla::ProductVersion.compatibility_version,
       VAPID_PUBLIC_KEY: VapidService.public_key,
       ENABLE_ACCOUNT_SIGNUP: GlobalConfigService.load('ENABLE_ACCOUNT_SIGNUP', 'false'),
+      IS_ENTERPRISE: ChatwootApp.enterprise?,
+      # The capability, not the edition. `ChatwootApp.voice_calls?` is what decides
+      # whether the routes exist; the dashboard has to ask the same question.
+      VOICE_CALLS_ENABLED: ChatwootApp.voice_calls?,
+      AZURE_APP_ID: GlobalConfigService.load('AZURE_APP_ID', ''),
+      GIT_SHA: GIT_HASH,
+      ALLOWED_LOGIN_METHODS: allowed_login_methods,
+      ACTIVE_PLATFORM_BANNERS: active_platform_banners
+    }.merge(channel_app_config)
+  end
+
+  def channel_app_config
+    {
       FB_APP_ID: GlobalConfigService.load('FB_APP_ID', ''),
       INSTAGRAM_APP_ID: GlobalConfigService.load('INSTAGRAM_APP_ID', ''),
       TIKTOK_APP_ID: GlobalConfigService.load('TIKTOK_APP_ID', ''),
@@ -81,12 +95,7 @@ class DashboardController < ActionController::Base
       WHATSAPP_APP_ID: GlobalConfigService.load('WHATSAPP_APP_ID', ''),
       WHATSAPP_CONFIGURATION_ID: GlobalConfigService.load('WHATSAPP_CONFIGURATION_ID', ''),
       WHATSAPP_API_VERSION: GlobalConfigService.load('WHATSAPP_API_VERSION', 'v22.0'),
-      ZALO_BRIDGE_URL: GlobalConfigService.load('ZALO_BRIDGE_URL', 'https://zbridge.llavn.cloud'),
-      IS_ENTERPRISE: ChatwootApp.enterprise?,
-      AZURE_APP_ID: GlobalConfigService.load('AZURE_APP_ID', ''),
-      GIT_SHA: GIT_HASH,
-      ALLOWED_LOGIN_METHODS: allowed_login_methods,
-      ACTIVE_PLATFORM_BANNERS: active_platform_banners
+      ZALO_BRIDGE_URL: GlobalConfigService.load('ZALO_BRIDGE_URL', 'https://zbridge.llavn.cloud')
     }
   end
 
@@ -99,8 +108,15 @@ class DashboardController < ActionController::Base
   def allowed_login_methods
     methods = ['email']
     methods << 'google_oauth' if GlobalConfigService.load('ENABLE_GOOGLE_OAUTH_LOGIN', 'true').to_s != 'false'
-    methods << 'saml' if ChatwootHub.pricing_plan != 'community' && GlobalConfigService.load('ENABLE_SAML_SSO_LOGIN', 'true').to_s != 'false'
+    methods << 'saml' if saml_login_available? && GlobalConfigService.load('ENABLE_SAML_SSO_LOGIN', 'true').to_s != 'false'
     methods
+  end
+
+  # SAML là năng lực LLA (ADR-OMCRM-032). Điều kiện pricing plan của Chatwoot Hub
+  # đã bị gỡ cùng với chính Hub: entitlement do `Lla::Entitlements` quyết định
+  # tại chỗ, không hỏi máy chủ nào.
+  def saml_login_available?
+    ChatwootApp.lla? || Lla::Entitlements.premium?
   end
 
   def set_application_pack
